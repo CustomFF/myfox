@@ -1,0 +1,20 @@
+# === state / runtime ===
+.local/state/
+.config/blm/
+
+# === document artefacts (uncomment if docs/ is generated) ===
+# docs/index.html
+
+# === scratch / dev ===
+__pycache__/
+*.pyc
+
+# === editor / OS ===
+*.swp
+*~
+.DS_Store
+
+# === stray files never meant for this repo ===
+Office.conf
+
+# note: bookmarklets/ is a git submodule → ddbml. It is not committed directly here.
