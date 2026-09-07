@@ -8,7 +8,7 @@ MyFox — набор твиков интерфейса Firefox (плавающа
 с официального тарбола Mozilla и применяет на него твики.
 
 В этом репозитории — **твики и инсталлер**. Букмарклеты живут в отдельном проекте
-**[ddbml](https://github.com/.../ddbml)** и подключаются git submodule'ом в `bookmarklets/`.
+**[ddblm](https://github.com/DayDve/ddblm)** (DayDve BookmarkLet Manager) и подключаются git submodule'ом в `bookmarklets/`.
 
 ## Что умеет
 
@@ -31,7 +31,7 @@ MyFox — набор твиков интерфейса Firefox (плавающа
 ## Быстрый старт
 
 ```bash
-git clone --recurse-submodules https://github.com/ваш/dbrepo-myfox.git myfox
+git clone --recurse-submodules https://github.com/DayDve/myfox.git myfox
 cd myfox
 ./install.sh
 ```
@@ -81,11 +81,12 @@ cd myfox
 Необходимые префы (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`,
 `sidebar.verticalTabs`) выставляются автоматически `firefox.cfg` при первом старте.
 
-## Букмарклеты (ddbml)
+## Букмарклеты (ddblm)
 
-Букмарклеты — это [отдельный проект](https://github.com/.../ddbml). При установке можно
+Букмарклеты — это [отдельный проект](https://github.com/DayDve/ddblm). При установке можно
 подключить твики `blm` (кастомные иконки + скрытые подписи на панели закладок) и ссылку
-на галерею, размещённую на GitHub Pages. Управлять вручную:
+на галерею, размещённую на GitHub Pages
+([https://daydve.github.io/ddblm/](https://daydve.github.io/ddblm/)). Управлять вручную:
 
 ```bash
 cd bookmarklets
