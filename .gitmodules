@@ -1,0 +1,3 @@
+[submodule "bookmarklets"]
+	path = bookmarklets
+	url = git@github.com:DayDve/ddbml.git

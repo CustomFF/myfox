@@ -1,0 +1,451 @@
+@import url("bookmarks_panel.css") screen;
+
+.bookmark-item[label="Расширенные настройки"] .toolbarbutton-text {
+    display: none !important;
+}
+
+.bookmark-item[label="Расширенные настройки"] {
+    & .toolbarbutton-text {
+        display: none !important;
+    }
+
+    & image {
+        width: 0 !important;
+        height: 0 !important;
+        padding: 0 0 16px 16px !important;
+        background-size: contain !important;
+        background-repeat: no-repeat !important;
+    }
+}
+
+.bookmark-item[label="Расширенные настройки"] image {
+    background-image: url("chrome://global/skin/icons/settings.svg") !important;
+}
+
+
+/*** Tighten up drop-down/context/popup menu spacing (8 Sep 2021) ***/
+
+menupopup:not(.in-menulist)>menuitem,
+menupopup:not(.in-menulist)>menu {
+    padding-block: 4px !important;
+    /* reduce to 3px, 2px, 1px or 0px as needed */
+    min-height: unset !important;
+    /* v92.0 - for padding below 4px */
+}
+
+:root {
+    --arrowpanel-menuitem-padding: 4px 8px !important;
+}
+
+
+
+/*** Proton Tabs Tweaks ***/
+
+/* Adjust tab corner shape, optionally remove space below tabs */
+
+#tabbrowser-tabs {
+    --user-tab-rounding: 16px;
+    --user-tab-ear-rounding: 16px;
+}
+
+.tab-background {
+    border-radius: var(--user-tab-rounding) var(--user-tab-rounding) 0px 0px !important;
+    /* Connected */
+    margin-block: 1px 0 !important;
+    /* Connected */
+}
+
+/* 1/16/2022 Tone down the Fx96 tab border with add-on themes in certain fallback situations */
+.tab-background:is([selected], [multiselected]):-moz-lwtheme {
+    --lwt-tabs-border-color: rgba(0, 0, 0, 0.5) !important;
+    border-bottom-color: transparent !important;
+}
+
+[brighttext="true"] .tab-background:is([selected], [multiselected]):-moz-lwtheme {
+    --lwt-tabs-border-color: rgba(255, 255, 255, 0.5) !important;
+    border-bottom-color: transparent !important;
+}
+
+/* Container color bar visibility */
+.tabbrowser-tab[usercontextid]>.tab-stack>.tab-background>.tab-context-line {
+    margin: 0px max(calc(var(--user-tab-rounding) - 3px), 0px) !important;
+}
+
+/* Override Normal Density height to Compact Density height only for tabs */
+
+#TabsToolbar,
+#tabbrowser-tabs {
+    --tab-min-height: 30px !important;
+}
+
+#tabbrowser-arrowscrollbox::part(scrollbutton-up),
+#tabbrowser-arrowscrollbox::part(scrollbutton-down) {
+    border-top-width: 0 !important;
+    border-bottom-width: 0 !important;
+}
+
+/* [Connected Tabs] Set a max height based on min-height plus margin-block: 1px 0 */
+#TabsToolbar,
+#TabsToolbar>hbox,
+#TabsToolbar-customization-target,
+#tabbrowser-arrowscrollbox:not([orient="vertical"]) {
+    max-height: calc(var(--tab-min-height) + 1px) !important;
+}
+
+#tabbrowser-arrowscrollbox[orient="vertical"] {
+    max-height: none !important;
+}
+
+/* [Connected Tabs] Adjust padding around icons on buttons to avoid crushed images */
+#TabsToolbar-customization-target toolbarbutton>.toolbarbutton-icon,
+#TabsToolbar-customization-target .toolbarbutton-text,
+#TabsToolbar-customization-target .toolbarbutton-badge-stack,
+#tabbrowser-arrowscrollbox::part(scrollbutton-up),
+#tabbrowser-arrowscrollbox::part(scrollbutton-down) {
+    padding-top: 7px !important;
+    padding-bottom: 6px !important;
+}
+
+/*** Audio Playing / Mute Button side-by-side when sound is playing ***/
+
+#TabsToolbar {
+    --user-mute-button-height: 20px;
+    /* default size is 12px, site icon is 16px */
+}
+
+/* Move the mute/unmute button to the right and enlarge it */
+.tab-icon-overlay:not([pinned], [sharing], [crashed]):is([soundplaying], [muted]) {
+    width: var(--user-mute-button-height) !important;
+    margin-left: calc(var(--user-mute-button-height) / 2 + 2px) !important;
+    /* pushes icon to the right */
+    margin-right: 2px !important;
+    /* closes up some space before the text */
+    padding: 0 !important;
+    /* allows icon to expand to full size */
+}
+
+/* Move the site icon to the left a bit and adjust position */
+.tab-icon-stack:not([pinned], [sharing], [crashed]):is([soundplaying], [muted])> :not(.tab-icon-overlay) {
+    margin-left: -4px !important;
+    /* pushes icon to the left */
+    margin-top: calc((var(--user-mute-button-height) - 16px) / 2) !important;
+    /* keep site icon reasonably positioned */
+}
+
+/* Override the rules for hover/not hover visibility */
+/* for mute button */
+.tabbrowser-tab:not(:hover) .tab-icon-overlay:not([pinned], [sharing], [crashed]):is([soundplaying], [muted]),
+/* for site icon */
+.tabbrowser-tab:hover .tab-icon-stack:not([pinned], [sharing], [crashed]):is([soundplaying], [muted])> :not(.tab-icon-overlay),
+/* for site icon with Compact density */
+:root[uidensity="compact"] .tab-icon-stack:not([pinned], [sharing], [crashed]):is([soundplaying], [muted])> :not(.tab-icon-overlay) {
+    opacity: 1 !important;
+    /* overrides full transparency with full opacity */
+}
+
+/* Color the icon on hover for confirmation or avoidance */
+.tab-icon-overlay:not([pinned], [sharing], [crashed]):is([soundplaying], [muted]):hover {
+    fill: green !important;
+}
+
+[lwthemetextcolor="bright"] .tab-icon-overlay:not([pinned], [sharing], [crashed]):is([soundplaying], [muted]):hover {
+    fill: lightgreen !important;
+    /* for dark themes */
+}
+
+/* Override font-size for tabs */
+
+.tabbrowser-tab {
+    font-size: 11px !important;
+}
+
+/* Override font-weight for tabs */
+
+.tabbrowser-tab {
+    font-weight: 400 !important;
+}
+
+/* Tweak Options as of 1/12/2022; Generated Wed Mar 09 2022 19:06:25 GMT+0900 (Якутск, стандартное время) */
+
+/* .tab-line is obsolete and has been removed */
+.tab-background:is([selected], [multiselected]):-moz-lwtheme {
+    outline: unset !important;
+}
+
+#navigator-toolbox,
+#nav-bar {
+    border-bottom: 0px solid rgb(239, 240, 241) !important;
+}
+
+:root {
+    --chrome-content-separator-color: transparent !important;
+}
+
+/* Compact address bar height */
+#nav-bar {
+    max-height: 34px !important;
+}
+
+#urlbar-container {
+    min-height: 30px !important;
+    max-height: 30px !important;
+    padding-block: 2px !important;
+}
+
+#urlbar {
+    --urlbar-height: 26px !important;
+    --urlbar-min-height: 26px !important;
+    min-height: 26px !important;
+}
+
+#urlbar:not([open]) {
+    max-height: 26px !important;
+}
+
+#urlbar[open] {
+    max-height: none !important;
+}
+
+#urlbar .urlbar-background,
+#urlbar .urlbar-input-container {
+    border-radius: 13px !important;
+}
+
+#urlbar[open] .urlbar-background,
+#urlbar[open] .urlbar-input-container {
+    border-radius: 13px 13px 0px 0px !important;
+}
+
+#urlbar:not([open]) .urlbar-background {
+    min-height: 26px !important;
+}
+
+#urlbar .urlbar-icon {
+    border-radius: 99px !important;
+}
+
+.searchmode-switcher {
+    --button-border-radius: 99px !important;
+}
+
+#nav-bar-customization-target> :not(#urlbar-container) {
+    max-height: 30px !important;
+}
+
+#unified-extensions-view {
+    --uei-icon-size: 18px !important;
+}
+
+/* Стили только для меню расширений */
+#unified-extensions-view .unified-extensions-item {
+    min-height: 24px !important;
+    max-height: 28px !important;
+    padding: 1px 16px 1px 2px !important;
+    margin: 0 !important;
+}
+
+#unified-extensions-view .unified-extensions-item-row-wrapper {
+    min-height: 20px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    align-items: center !important;
+}
+
+#unified-extensions-view .unified-extensions-item-action-button {
+    min-height: 20px !important;
+    max-height: 24px !important;
+    padding: 0 2px !important;
+    margin: 0 !important;
+}
+
+#unified-extensions-view .unified-extensions-item-action-button .toolbarbutton-icon {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    min-height: 16px !important;
+    margin: 0 !important;
+}
+
+#unified-extensions-view .unified-extensions-item-contents {
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    margin-inline-start: 4px !important;
+}
+
+#unified-extensions-view .unified-extensions-item-name {
+    font-size: 11px !important;
+    line-height: 1.1 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+}
+
+#unified-extensions-view .unified-extensions-item-message-deck,
+#unified-extensions-view .unified-extensions-item-message {
+    display: none !important;
+}
+
+#unified-extensions-view .unified-extensions-item-menu-button {
+    min-height: 16px !important;
+    min-width: 16px !important;
+    max-height: 18px !important;
+    max-width: 18px !important;
+    padding: 1px !important;
+    margin: 0 !important;
+    margin-inline-start: 4px !important;
+    position: relative !important;
+    z-index: 100 !important;
+}
+
+#unified-extensions-view .unified-extensions-item-menu-button .toolbarbutton-icon {
+    width: 12px !important;
+    height: 12px !important;
+    min-width: 12px !important;
+    min-height: 12px !important;
+}
+
+#unified-extensions-view #unified-extensions-area,
+#unified-extensions-view .unified-extensions-list {
+    gap: 1px !important;
+}
+
+/* Custom Opera-like horizontal buttons above the sidebar when vertical tabs are disabled */
+
+#sidebar-box[custom-launcher="true"] {
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#sidebar-box[hidden] {
+    display: none !important;
+}
+
+#sidebar-box[custom-launcher="true"]>#sidebar-container {
+    order: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+}
+
+#sidebar-box[custom-launcher="true"]>.sidebar-browser-stack {
+    order: 1 !important;
+}
+
+#sidebar-box[custom-launcher="true"]>#sidebar-header {
+    order: 2 !important;
+}
+
+/* Rounded outer corners on selected/multiselected tabs */
+/* Lift the selected tab above its neighbors so the ears are visible */
+.tabbrowser-tab[selected],
+.tabbrowser-tab[multiselected] {
+    z-index: 2 !important;
+    position: relative !important;
+    overflow: visible !important;
+}
+
+.tabbrowser-tab:hover:not([selected]):not([multiselected]) {
+    z-index: 1 !important;
+    position: relative !important;
+    overflow: visible !important;
+}
+
+.tabbrowser-tab[selected] .tab-stack,
+.tabbrowser-tab[multiselected] .tab-stack,
+.tabbrowser-tab:hover .tab-stack {
+    overflow: visible !important;
+}
+
+.tabbrowser-tab[selected] .tab-background,
+.tabbrowser-tab[multiselected] .tab-background,
+.tabbrowser-tab:hover .tab-background {
+    position: relative !important;
+    overflow: visible !important;
+}
+
+#navigator-toolbox .tab-background:is([selected], [multiselected])::before,
+#navigator-toolbox .tab-background:is([selected], [multiselected])::after,
+#navigator-toolbox .tabbrowser-tab:hover .tab-background::before,
+#navigator-toolbox .tabbrowser-tab:hover .tab-background::after {
+    content: "" !important;
+    display: block !important;
+    position: absolute !important;
+    bottom: 0 !important;
+    width: var(--user-tab-ear-rounding) !important;
+    height: var(--user-tab-ear-rounding) !important;
+    z-index: 2 !important;
+    pointer-events: none !important;
+    background: inherit !important;
+}
+
+#navigator-toolbox .tab-background:is([selected], [multiselected])::before,
+#navigator-toolbox .tabbrowser-tab:hover .tab-background::before {
+    left: calc(0px - var(--user-tab-ear-rounding)) !important;
+    mask: radial-gradient(circle at top left,
+            transparent var(--user-tab-ear-rounding),
+            black calc(var(--user-tab-ear-rounding) + 0.5px)) !important;
+    -webkit-mask: radial-gradient(circle at top left,
+            transparent var(--user-tab-ear-rounding),
+            black calc(var(--user-tab-ear-rounding) + 0.5px)) !important;
+}
+
+#navigator-toolbox .tab-background:is([selected], [multiselected])::after,
+#navigator-toolbox .tabbrowser-tab:hover .tab-background::after {
+    right: calc(0px - var(--user-tab-ear-rounding)) !important;
+    mask: radial-gradient(circle at top right,
+            transparent var(--user-tab-ear-rounding),
+            black calc(var(--user-tab-ear-rounding) + 0.5px)) !important;
+    -webkit-mask: radial-gradient(circle at top right,
+            transparent var(--user-tab-ear-rounding),
+            black calc(var(--user-tab-ear-rounding) + 0.5px)) !important;
+}
+
+/* Card style for webpage viewport (all four corners rounded with a small margin) */
+:root:not([inDOMFullscreen]) .browserContainer {
+    margin: 4px 4px 5px 4px !important;
+    border-radius: 8px !important;
+    overflow: clip !important;
+}
+
+/* Align sidebar bottom with webpage bottom */
+#sidebar-box {
+    padding-block-end: 5px !important;
+}
+
+/* Make sidebar-button look pressed/active when sidebar is open */
+body:has(#sidebar-box:not([hidden])) #sidebar-button .toolbarbutton-badge-stack {
+    background-color: var(--toolbarbutton-active-background, color-mix(in srgb, currentColor 25%, transparent)) !important;
+}
+
+body:has(#sidebar-box:not([hidden])) #sidebar-button:hover .toolbarbutton-badge-stack {
+    background-color: var(--toolbarbutton-hover-background, color-mix(in srgb, currentColor 35%, transparent)) !important;
+}
+
+/* Vertical Tabs Styling (matches Sidebery look: cards with rounded corners, no selected "ears", close button on hover only) */
+
+/* Hide the curved "ears" on selected tabs when in vertical mode */
+#tabbrowser-tabs[orient="vertical"] .tab-background::before,
+#tabbrowser-tabs[orient="vertical"] .tab-background::after {
+    display: none !important;
+}
+
+/* Style the tab backgrounds as neat cards with margins and rounded corners */
+#tabbrowser-tabs[orient="vertical"] .tab-background {
+    border-radius: 4px !important;
+    margin-inline: 4px !important;
+}
+
+/* Hide tab close button by default and show it only when hovering over the tab */
+.tabbrowser-tab .tab-close-button {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.15s ease !important;
+}
+
+.tabbrowser-tab:hover .tab-close-button {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}

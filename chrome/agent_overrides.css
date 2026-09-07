@@ -1,0 +1,410 @@
+/* Custom styles for sidebar panel headers and padding reduction */
+.sidebar-panel {
+    padding: 4px !important; /* reduce padding from 12px */
+}
+
+/* Align Bookmarks Toolbar and Main Toolbar icons with the sidebar launcher */
+#PersonalToolbar {
+    padding-inline-start: 4px !important;
+}
+
+#sidebar-button,
+#nav-bar-customization-target > toolbarbutton:first-child,
+#nav-bar-customization-target > toolbaritem:first-child {
+    margin-inline-start: 5px !important;
+}
+
+/* Clear default padding inside moz-button's shadow-root button */
+button#main-button:has(> span[type*="icon"]) {
+    padding: 0px !important;
+    padding-inline: 0px !important;
+}
+sidebar-panel-header,
+#sidebar-panel-header {
+    padding: 0px 0px !important;
+    margin-top: -4px !important; /* offset new parent padding */
+    height: auto !important;
+    min-height: auto !important;
+    gap: 2px !important; /* reduce gap between heading and search box */
+}
+sidebar-panel-header .options-container {
+    height: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.sidebar-panel-heading,
+#sidebar-panel-header > h4,
+#sidebar-panel-header > html\:h4 {
+    font-size: 12px !important; /* set font size to 12px */
+    font-weight: bold !important;
+    margin: 0px 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+}
+#sidebar-panel-header > h4,
+#sidebar-panel-header > html\:h4 {
+    line-height: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+}
+.sidebar-panel-heading h4,
+.sidebar-panel-heading .text-truncated-ellipsis {
+    padding: 0 !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
+}
+sidebar-panel-header moz-button,
+#sidebar-panel-close {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    --button-size-icon: 28px !important;
+    --button-min-height: 28px !important;
+    --space-small: 0px !important;
+}
+sidebar-panel-header .menu-button {
+    margin-inline-start: 6px !important;
+    margin-inline-end: 4px !important;
+}
+#sidebar-search-container {
+    padding: 4px 0px !important;
+    height: auto !important;
+    min-height: auto !important;
+}
+
+/* Downloads panel header (injected via JS) styled to match standard sidebar-header */
+#downloads-sidebar-header {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0 !important;                  /* No padding, matches standard sidebar-panel-header */
+    margin: -4px 0 0 0 !important;          /* Shift up by -4px to touch the top edge, matches standard */
+    gap: 0 !important;                      /* No flex gap, spacing is handled by padding/margins */
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
+    background: transparent !important;
+    border: none !important;
+}
+.downloads-sidebar-title-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    height: 28px !important;                /* Matches standard sidebar-panel-header height */
+    min-height: 28px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.downloads-sidebar-title-row h4 {
+    font-size: 12px !important;             /* Matches standard h4 size */
+    font-weight: 700 !important;            /* Matches standard h4 weight (bold) */
+    color: var(--sidebar-text-color, currentColor) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 28px !important;           /* Centers text vertically in the 28px header */
+    height: 28px !important;
+    flex: 1 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+#downloads-sidebar-close {
+    appearance: none !important;
+    border: none !important;
+    background: transparent !important;
+    width: 28px !important;                 /* Matches standard close button width */
+    height: 28px !important;                /* Matches standard close button height */
+    min-width: 28px !important;
+    min-height: 28px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    cursor: pointer !important;
+    border-radius: 4px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    opacity: 0.7 !important;
+}
+#downloads-sidebar-close:hover {
+    background: var(--button-bgcolor-hover, rgba(255,255,255,0.1)) !important;
+    opacity: 1 !important;
+}
+#downloads-sidebar-close image,
+#downloads-sidebar-close img {
+    width: 16px !important;
+    height: 16px !important;
+    -moz-context-properties: fill !important;
+    fill: currentColor !important;
+}
+
+/* Compact downloads list for sidebar */
+#contentAreaDownloadsView {
+    padding: 4px !important;                 /* Matches Bookmarks root padding of 4px on all sides */
+    font-size: 12px !important;
+    background-color: transparent !important; /* Blends into sidebar background */
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 100% !important;
+    box-sizing: border-box !important;
+}
+#downloadsListBox.allDownloadsListBox {
+    padding: 0 !important;
+    margin: 0 !important;
+    background-color: transparent !important; /* Blends into sidebar background */
+    border: none !important;                  /* Removes the distinct inner frame/border */
+    flex-grow: 1 !important;
+}
+richlistitem.download {
+    min-height: 40px !important;
+    max-height: 40px !important;
+    height: 40px !important;
+    padding: 2px 0 !important;
+    margin: 0 !important;
+    outline: none !important;
+    border-radius: 4px !important;
+}
+
+/* Neutral hover state: subtle grey background */
+richlistitem.download:hover {
+    background-color: var(--toolbarbutton-hover-background, rgba(255, 255, 255, 0.08)) !important;
+    outline: none !important;
+}
+
+/* Neutral selected/focused state: matching bookmarks selection (dotted outline, very light background) */
+richlistitem.download[selected="true"] {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    outline: 1px dotted color-mix(in srgb, currentColor 50%, transparent) !important;
+    outline-offset: -1px !important;
+}
+
+/* Ensure text inside selected item remains light and readable */
+richlistitem.download[selected="true"] .downloadTarget {
+    color: var(--sidebar-text-color, currentColor) !important;
+}
+
+richlistitem.download[selected="true"] .downloadDetails {
+    color: var(--sidebar-text-color, currentColor) !important;
+    opacity: 0.65 !important;
+}
+
+/* Active focus ring removal */
+richlistitem.download:focus,
+richlistitem.download:focus-visible {
+    outline: none !important;
+}
+.downloadMainArea {
+    min-height: 36px !important;
+    max-height: 36px !important;
+    height: 36px !important;
+    padding: 0 4px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+.downloadTypeIcon {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    min-height: 16px !important;
+    margin: 0 4px 0 2px !important;
+    padding: 0 !important;
+}
+.downloadContainer {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    margin-inline-end: 4px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.downloadTarget {
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+}
+/* Show progress bar and details in compact format */
+.downloadProgress {
+    height: 3px !important;
+    min-height: 3px !important;
+    margin: 2px 0 !important;
+    border: none !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 2px !important;
+}
+.downloadProgress::-moz-progress-bar {
+    background-color: var(--toolbarbutton-active-background, #0a84ff) !important;
+    border-radius: 2px !important;
+}
+.downloadDetails {
+    font-size: 9px !important;
+    opacity: 0.6 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+}
+.downloadBlockedBadge {
+    width: 12px !important;
+    height: 12px !important;
+    min-width: 12px !important;
+    min-height: 12px !important;
+    margin: 0 4px !important;
+}
+.downloadButton {
+    min-height: 24px !important;
+    max-height: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    max-width: 24px !important;
+    width: 24px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.downloadButton[hidden] {
+    display: none !important;
+}
+.downloadButton > .button-box {
+    padding: 2px !important;
+    margin: 0 !important;
+}
+.downloadButton .button-icon {
+    width: 14px !important;
+    height: 14px !important;
+}
+
+/* Custom search input styling for downloads sidebar */
+#downloads-sidebar-search-container {
+    padding: 4px 0px !important;
+    display: flex !important;
+    align-items: center !important;
+    height: 34px !important;                /* Matches standard sidebar-search-container height */
+    box-sizing: border-box !important;
+}
+#downloads-sidebar-search {
+    width: 100% !important;
+    height: 26px !important;
+    border-radius: 99px !important;
+    border: 1px solid color-mix(in srgb, currentColor 45%, transparent) !important;
+    background-color: var(--input-text-background-color, Field) !important;
+    background-image: url("chrome://global/skin/icons/search-textbox.svg") !important;
+    background-repeat: no-repeat !important;
+    background-position: 8px center !important;
+    background-size: 13px !important;
+    -moz-context-properties: fill !important;
+    fill: var(--toolbar-field-color, currentColor) !important;
+    color: var(--toolbar-field-color, currentColor) !important;
+    padding: 0 8px 0 28px !important;
+    font-size: 12px !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+}
+#downloads-sidebar-search:focus {
+    border: 1.5px solid var(--toolbar-field-border-color-focus, rgb(91, 110, 139)) !important;
+    background-color: var(--toolbar-field-background-color-focus, rgba(60, 64, 67, 1)) !important;
+    fill: var(--toolbar-field-color-focus, currentColor) !important;
+}
+
+/* Style search inputs in Bookmarks and History sidebars to match the address bar */
+moz-input-search {
+    --input-text-border-radius: 99px !important;
+    --input-text-min-height: 26px !important;
+    --focus-outline: none !important;
+    --focus-outline-color: transparent !important;
+    --focus-outline-width: 0px !important;
+}
+
+moz-input-search:focus-within {
+    --input-text-border: 1.5px solid var(--toolbar-field-border-color-focus, rgb(91, 110, 139)) !important;
+    --input-text-background-color: var(--toolbar-field-background-color-focus, rgba(60, 64, 67, 1)) !important;
+}
+
+/* ── Nav-bar toolbar button density ─────────────────────────────────────────
+   NOTE: these rules MUST live in sidebar_agent.css because it is registered as
+   AGENT_SHEET — the only way to override Firefox's own agent-sheet button styles.
+   Rules in userChrome.css (user sheet) are lower-priority and get overridden. */
+#nav-bar {
+    --toolbarbutton-padding-outer: 0px;
+    --toolbarbutton-border-radius: 4px;
+}
+
+#nav-bar .toolbarbutton-1 {
+    margin-inline: 1px !important;
+}
+
+/* Unify hover highlights and icon sizes for ALL navigation bar buttons.
+   - We set the parent button padding to 0 so it aligns tightly.
+   - We set all icons to 24x24px with 4px padding so the rendered image is 16px.
+   - If a button has a badge-stack, we clear the badge-stack's padding to avoid double-shrinking the icon. */
+#nav-bar .toolbarbutton-1 {
+    padding: 0px !important;
+    min-width: 24px !important;
+}
+
+#nav-bar .toolbarbutton-icon {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+    padding: 4px !important;
+    box-sizing: border-box !important;
+}
+
+#nav-bar .toolbarbutton-badge-stack {
+    padding: 0px !important;
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+}
+
+#nav-bar toolbarbutton {
+    overflow: visible !important;
+}
+
+#nav-bar .toolbarbutton-badge {
+    margin-top: -2px !important;
+    margin-right: -2px !important;
+}
+
+/* Custom clear downloads footer styling for downloads sidebar */
+#downloads-sidebar-footer {
+    margin-top: auto !important;
+    padding: 8px !important;
+    display: flex !important;
+    justify-content: center !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+#downloads-sidebar-clear-btn {
+    appearance: none !important;
+    background-color: var(--button-hover-background, rgba(255, 255, 255, 0.08)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: currentColor !important;
+    padding: 6px 12px !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    width: 100% !important;
+    text-align: center !important;
+}
+
+#downloads-sidebar-clear-btn:hover {
+    background-color: var(--button-active-background, rgba(255, 255, 255, 0.15)) !important;
+}
+
+/* Hide Clear Downloads footer when there are no download items */
+#contentAreaDownloadsView:not(:has(richlistitem.download)) #downloads-sidebar-footer {
+    display: none !important;
+}
