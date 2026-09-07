@@ -8,7 +8,7 @@ aligned sidebar, Downloads-as-a-sidebar-view, pill-shaped search fields) bundled
 official tarball and applies the tweaks to it.
 
 This repository only contains the **tweaks and the installer**. Bookmarklets live in a
-separate project — **[ddbml](https://github.com/.../ddbml)** — attached as a git submodule
+separate project — **[ddblm](https://github.com/DayDve/ddblm)** (DayDve BookmarkLet Manager) — attached as a git submodule
 under `bookmarklets/`.
 
 ## Highlights
@@ -32,7 +32,7 @@ under `bookmarklets/`.
 ## Quick start
 
 ```bash
-git clone --recurse-submodules https://github.com/your/dbrepo-myfox.git myfox
+git clone --recurse-submodules https://github.com/DayDve/myfox.git myfox
 cd myfox
 ./install.sh
 ```
@@ -83,11 +83,12 @@ offers to restore it.
 Required prefs (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`,
 `sidebar.verticalTabs`) are set automatically by `firefox.cfg` on first start.
 
-## Bookmarklets (ddbml)
+## Bookmarklets (ddblm)
 
-Bookmarklets are a [separate project](https://github.com/.../ddbml). At install time you
+Bookmarklets are a [separate project](https://github.com/DayDve/ddblm). At install time you
 may opt in to `blm` tweaks (custom icons + hidden labels on the Bookmarks Toolbar) and a
-link to the bookmarklet gallery hosted on GitHub Pages. To manage them yourself:
+link to the bookmarklet gallery hosted on GitHub Pages
+([https://daydve.github.io/ddblm/](https://daydve.github.io/ddblm/)). To manage them yourself:
 
 ```bash
 cd bookmarklets
