@@ -136,3 +136,5 @@ python3 scratch/reload_userchrome.py
 
 Architecture details: [docs/logic.md](docs/logic.md). Agent guidelines: [AGENTS.md](AGENTS.md).
 Test plan: [tests/README.md](tests/README.md).
+
+License: [MIT](LICENSE) © DayDve.
