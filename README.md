@@ -80,8 +80,8 @@ offers to restore it.
 | `~/.local/share/applications/firefox-myfox.desktop` | launcher «Firefox (myfox)» |
 | `~/.local/state/myfox/install.json` | installer state (see [docs/logic.md](docs/logic.md)) |
 
-Required prefs (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`,
-`sidebar.verticalTabs`) are set automatically by `firefox.cfg` on first start.
+Required prefs (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`)
+are set automatically by `firefox.cfg` on first start.
 
 ## Bookmarklets (ddblm)
 

@@ -96,7 +96,7 @@ MYFOX_NONINTERACTIVE=1 profile_resolve
 /tmp/myfox-test/firefox --profile /tmp/myfox-test-prof
 ```
 - [ ] карточный стиль (закруглённые углы вкладки-вкладки, отступы)
-- [ ] сайдбар с вертикальными вкладками (`sidebar.verticalTabs=true` в about:config)
+- [ ] сайдбар работает (`sidebar.revamp=true`); вертикальные вкладки НЕ включены по умолчанию (`sidebar.verticalTabs` не установлен)
 - [ ] поле поиска в sidebar/скачивания — пилюля
 - [ ] кнопка переключения сайдбара подсвечивается при открытой панели
 - [ ] downloads как вид сайдбара

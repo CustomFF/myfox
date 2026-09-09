@@ -51,7 +51,12 @@ firefox_local_version() {
 firefox_download_archive() {
     local url="$1" out="$2"
     if command -v aria2c >/dev/null 2>&1; then
-        aria2c -x16 -j16 --console-log-level=notice --summary-interval=0 -o "$out" "$url"
+        # aria2c трактует -o как имя относительно CWD (в отличие от curl -o),
+        # поэтому передаём каталог и имя отдельно. mktemp уже создал пустой
+        # target-файл, а aria2c по умолчанию не перезаписывает существующий файл
+        # (пишет в *.1) — поэтому нужен allow-overwrite=true.
+        aria2c -x16 -j16 --allow-overwrite=true --console-log-level=notice --summary-interval=0 \
+            --dir "$(dirname "$out")" -o "$(basename "$out")" "$url" 1>&2
     else
         curl -L --progress-bar -o "$out" "$url"
     fi
@@ -91,14 +96,16 @@ firefox_install_tarball() {
     remote_ver=$(echo "$effective_url" | grep -oP "(?<=firefox-)[^/]+(?=\.tar)" | head -1)
     [[ -z "$remote_ver" ]] && remote_ver="unknown"
 
-    echo -e "${BOLD}Firefox${NC}"
-    echo "  Version:  ${GREEN}${remote_ver}${NC}"
-    echo "  Language: ${lang}"
-    echo "  Target:   ${install_dir}"
-    echo ""
+    # Баннер печатаем в stderr: install.sh захватывает stdout функции в переменную
+    # (firefox_version), поэтому в stdout должен оставаться только результат.
+    echo -e "${BOLD}Firefox${NC}" >&2
+    echo "  Version:  ${GREEN}${remote_ver}${NC}" >&2
+    echo "  Language: ${lang}" >&2
+    echo "  Target:   ${install_dir}" >&2
+    echo "" >&2
 
     if [[ -z $MYFOX_NONINTERACTIVE ]] && ! confirm "Proceed with installation?"; then
-        echo "Cancelled."
+        echo "Cancelled." >&2
         exit 0
     fi
 
