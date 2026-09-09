@@ -11,7 +11,8 @@ MyFox — набор твиков для Firefox и инсталлер. Осно
    - **`autoconfig/`** — включение Autoconfig (`autoconfig.js` в `defaults/pref/`) и сам твик-скрипт `firefox.cfg` (privileged JS: регистрирует `agent_overrides.css` как `AGENT_SHEET`, патчит sidebar/downloads, ставит нужные префы).
    - **`chrome/`** — CSS: `userChrome.css` (user-sheet) и `agent_overrides.css` (agent-sheet, регистрируется firefox.cfg).
    - **Префы** — выставляются самим `firefox.cfg` (block «corePreferencesInitialized»).
-3. **Букмарклеты** — НЕ часть этого репозитория. Это отдельный репозиторий **ddbml**, подключаемый как **git submodule** в `bookmarklets/`. Инсталлер лишь опционально дёргает его (`blm build` + `blm patchff`) для твиков букмарклетов.
+3. **Букмарклеты** — НЕ часть этого репозитория и НЕ сабмодуль. Это отдельный проект **ddblm**, живущий в отдельном каталоге `/home/daydve/development/ddblm` (содержимое `/home/daydve/development/myfox/bookmarklets/` в current checkout является ЛЕГАСИ-субмодулем и в него НЕ коммитим; его существование не означает, что он нужен пользователю). Пользователю myfox НЕ нужно самостоятельно генерировать букмарклеты — он только **добавляет готовые** из галереи и подтягивает для них соответствующие твики (CSS) и значки. Твики берутся из `docs/blm_panel.css` и `icons/*.svg` проекта ddblm.
+   **Тестирование твиков**: пока что — РУЧНОЙ аппарат: копируем нужные файлы (`blm_panel.css`, `panel-icons/*.svg`) в `chrome/` тестового профиля напрямую из локального ddblm. Автоматизацию (в install.sh) делать только после того, как твики проверены вручную.
 
 Навеска на уже установленный (системный) Firefox НЕ реализована в скриптах — только инструкция в README (секция «Applying to an existing Firefox»). Не добавляй логику навески в install.sh без явной просьбы (YAGNI).
 
@@ -29,7 +30,6 @@ myfox/
 ├── install.sh        # главный инсталлер
 ├── uninstall.sh      # деинсталлер
 ├── scratch/          # dev-инструменты (RDP hot-reload и пр.)
-├── bookmarklets/     # submodule → ddbml (не коммитится напрямую)
 ├── docs/             # логика, скриншоты
 ├── tests/            # тест-план
 └── AGENTS.md, README.md, README.ru.md
@@ -54,7 +54,7 @@ myfox/
 
 ### blm (букмарклеты)
 - Твики букмарклетов применяются опционально. По умолчанию инсталлер спрашивает; флаг `--noblm` отключает.
-- Для работы нужен submodule: `git submodule update --init --recursive`.
+- ddblm — отдельный проект (`/home/daydve/development/ddblm`), **НЕ сабмодуль**. Копируем из него нужные файлы вручную (пока; автоматизацию — после ручного теста твиков).
 - `apply_bookmarklets()` вызывает `blm build` и `blm patchff` — blm **сам** управляет профилем (пишет `~/.config/blm/config.json`).
 
 ## Правила для агентов
@@ -65,7 +65,7 @@ myfox/
    - blm → живёт в ddbml и вызывается как внешний инструмент.
 3. **Изменения твиков**: `autoconfig/firefox.cfg` и CSS правь аккуратно — они исполняются в privileged-контексте Firefox. Префы для включения твиков ставятся блоками-одноразовиками в `firefox.cfg` (`myfox.corePreferencesInitialized`, `sidebar.main.tools.downloadsInitialized`, `sidebar.launcherAboveSidebar.initialized`) — не добавляй их в `user.js` и не дублируй. Guards срабатывают только раз: изменил преф внутри блока — на существующем профиле он НЕ переприменится, пока не сбросишь guard преф (about:config или удалить преф).
 4. **`set -eo pipefail`** в скриптах активен (без `-u`). При работе с командными подстановками от функций (возврат значения через stdout) всегда обертывай вызовы `|| true` там, где функции могут вернуть ненулевой код, а логирование (log/success/warn/error) уже уходит в **stderr** — не перехватывай его в переменные.
-5. **Не коммить**: `Office.conf`, любые бэкапы, маркеры, содержимое `bookmarklets/` (это submodule), сгенерированные `docs/` из ddbml.
+5. **Не коммить**: `Office.conf`, любые бэкапы, маркеры, файлы ddblm (правим/копируем их только вручную при тесте твиков), сгенерированные `docs/` из ddblm.
 6. **Тесты**: автоматической тест-инфраструктуры нет — только ручные чек-листы в `tests/README.md`. Минимум перед сдачей:
    - `bash -n install.sh uninstall.sh lib/*.sh`
    - `shellcheck -S error install.sh uninstall.sh lib/*.sh`
@@ -81,6 +81,9 @@ myfox/
 ./install.sh --reinstall        # перекачать браузер
 ./install.sh --profile <path>   # явный профиль
 ./install.sh --noblm            # без букмарклет-твиков
+./install.sh --noaddons         # без дополнений (uBlock, тема)
+./install.sh --plasma-integration  # принудительно ставить plasma-integration (и без вопроса)
+./install.sh --noplasma         # не ставить plasma-integration даже под Plasma
 ./install.sh -y                 # без подтверждений
 ./uninstall.sh [-y]             # удаление твиков (+восстановление бэкапа при наличии)
 ```
