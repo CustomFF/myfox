@@ -78,8 +78,8 @@ cd myfox
 | `~/.local/share/applications/firefox-myfox.desktop` | ярлык «Firefox (myfox)» |
 | `~/.local/state/myfox/install.json` | состояние инсталлера (см. [docs/logic.md](docs/logic.md)) |
 
-Необходимые префы (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`,
-`sidebar.verticalTabs`) выставляются автоматически `firefox.cfg` при первом старте.
+Необходимые префы (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`)
+выставляются автоматически `firefox.cfg` при первом старте.
 
 ## Букмарклеты (ddblm)
 
