@@ -30,6 +30,8 @@ done
 . "$MYFOX_ROOT/lib/common.sh"
 # shellcheck source=lib/firefox.sh
 . "$MYFOX_ROOT/lib/firefox.sh"
+# shellcheck source=lib/addons.sh
+. "$MYFOX_ROOT/lib/addons.sh"
 
 # ─── Проверка наличия установки ─────────────────────────────────────────────
 
@@ -76,6 +78,28 @@ if [[ -n "$PROFILE_DIR" && -d "$PROFILE_DIR/chrome" ]]; then
     rm -f "$PROFILE_DIR/chrome/bookmarks_panel.css" 2>/dev/null || true
     rm -f "$PROFILE_DIR/chrome/panel-icons" 2>/dev/null || true
     success "Chrome styles removed from $PROFILE_DIR"
+fi
+
+# Add-ons (uBlock, theme, plasma-integration) placed into distribution/extensions
+if [[ -d "$INSTALL_DIR/distribution/extensions" ]]; then
+    for f in "$INSTALL_DIR"/distribution/extensions/*.xpi; do
+        [[ -f "$f" ]] || continue
+        rm -f "$f"
+        success "Removed add-on distribution file: $(basename "$f")"
+    done
+    rmdir "$INSTALL_DIR/distribution/extensions" 2>/dev/null || true
+    rmdir "$INSTALL_DIR/distribution" 2>/dev/null || true
+fi
+
+# Distribution add-ons are copied into the profile by Firefox on first start;
+# remove those copies too (unless the browser was never started with them).
+if [[ -n "$PROFILE_DIR" && -d "$PROFILE_DIR/extensions" ]]; then
+    for f in "$PROFILE_DIR"/extensions/*.xpi; do
+        [[ -f "$f" ]] || continue
+        rm -f "$f"
+        success "Removed add-on from profile: $(basename "$f")"
+    done
+    rmdir "$PROFILE_DIR/extensions" 2>/dev/null || true
 fi
 
 # ─── Восстановление бэкапа ──────────────────────────────────────────────────
