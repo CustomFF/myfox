@@ -8,8 +8,9 @@ aligned sidebar, Downloads-as-a-sidebar-view, pill-shaped search fields) bundled
 official tarball and applies the tweaks to it.
 
 This repository only contains the **tweaks and the installer**. Bookmarklets live in a
-separate project — **[ddblm](https://github.com/DayDve/ddblm)** (DayDve BookmarkLet Manager) — attached as a git submodule
-under `bookmarklets/`.
+separate project — **[ddblm](https://github.com/DayDve/ddblm)** (DayDve BookmarkLet Manager). MyFox
+downloads the ready-made tweak files (CSS + icons) from ddblm over raw.githubusercontent.com;
+you do not need to build or clone ddblm yourself.
 
 ## Highlights
 
@@ -19,8 +20,10 @@ under `bookmarklets/`.
   profile is reused, tweaks are refreshed.
 - **`uninstall.sh`** removes tweaks and can restore a backup of a previously occupied
   install directory.
-- **Optional bookmarklet tweaks** (`blm`) — icons, hidden labels, and a link to the
-  bookmarklet gallery page.
+- **Optional bookmarklet tweaks** — icons, hidden labels, and a link to the
+  bookmarklet gallery page (taken from the separate **ddblm** project).
+- **Optional add-ons** — uBlock Origin and a dark theme are installed by default into
+  `distribution/extensions`; KDE Plasma integration is available on request.
 - **No root required** — Firefox lands in `~/.local/share/firefox` and the desktop shortcut
   is named **«Firefox (myfox)»** so it never conflicts with a system-installed Firefox.
 
@@ -32,7 +35,7 @@ under `bookmarklets/`.
 ## Quick start
 
 ```bash
-git clone --recurse-submodules https://github.com/DayDve/myfox.git myfox
+git clone https://github.com/DayDve/myfox.git
 cd myfox
 ./install.sh
 ```
@@ -42,13 +45,17 @@ You will be prompted about bookmarklet tweaks at the end (say *n* to skip).
 ## Options
 
 ```text
-  --prefix <path>    Install Firefox to a custom path (default ~/.local/share/firefox).
-                     The path is remembered for future runs.
-  --reinstall        Force re-download of Firefox even if already installed.
-  --profile <path>   Use a specific Firefox profile directory (skips detection).
-  --noblm            Skip bookmarklet tweaks.
-  -y, --yes          Non-interactive (no prompts).
-  -h, --help         Show help.
+  --prefix <path>        Install Firefox to a custom path (default ~/.local/share/firefox).
+                         The path is remembered for future runs.
+  --reinstall            Force re-download of Firefox even if already installed.
+  --profile <path>       Use a specific Firefox profile directory (skips detection).
+  --noblm                Skip bookmarklet tweaks.
+  --noaddons             Skip add-ons (uBlock, theme, Plasma integration).
+  --plasma-integration   Force-install the KDE Plasma integration add-on (no prompt),
+                         even outside a Plasma session.
+  --noplasma             Skip KDE Plasma integration even under Plasma.
+  -y, --yes              Non-interactive (no prompts).
+  -h, --help             Show help.
 ```
 
 ## Updating
@@ -75,6 +82,8 @@ offers to restore it.
 |---|---|
 | `<install>/defaults/pref/autoconfig.js` | enables the Autoconfig system |
 | `<install>/firefox.cfg` | privileged JS: registers agent sheet, patches sidebar/downloads, sets prefs |
+| `<install>/distribution/policies.json` | Firefox policy (`DisableProfileImport` — no «Import bookmarks» button) |
+| `<install>/distribution/extensions/*.xpi` | add-ons (uBlock Origins, Chrome Dark theme, optional Plasma integration) |
 | `<profile>/chrome/userChrome.css` | user-sheet styles |
 | `<profile>/chrome/agent_overrides.css` | agent-sheet styles |
 | `~/.local/share/applications/firefox-myfox.desktop` | launcher «Firefox (myfox)» |
@@ -83,23 +92,34 @@ offers to restore it.
 Required prefs (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`)
 are set automatically by `firefox.cfg` on first start.
 
+On a fresh profile, `firefox.cfg` also adds two bookmarks to the Bookmarks Toolbar:
+**«Расширенные настройки»** (about:config) and **«Добавить букмарклеты»** (the ddblm
+gallery), and activates the installed Chrome Dark theme (when present).
+
+## Add-ons
+
+By default the installer puts three things into the Firefox install:
+
+- **uBlock Origin** — adblock (installed by default).
+- **Chrome Dark theme** — a dark UI theme (installed by default).
+- **KDE Plasma integration** — only under a Plasma session, and only when you confirm it.
+
+The Plasma integration add-on additionally requires the system package
+`plasma-browser-integration` (the native-messaging host). If it is missing, the
+installer offers to install it via `sudo`. Use `--plasma-integration` to force it,
+`--noplasma` to skip it even under Plasma, and `--noaddons` to skip all add-ons.
+
 ## Bookmarklets (ddblm)
 
 Bookmarklets are a [separate project](https://github.com/DayDve/ddblm). At install time you
-may opt in to `blm` tweaks (custom icons + hidden labels on the Bookmarks Toolbar) and a
-link to the bookmarklet gallery hosted on GitHub Pages
-([https://daydve.github.io/ddblm/](https://daydve.github.io/ddblm/)). To manage them yourself:
+may opt in to the tweaks (custom icons + hidden labels on the Bookmarks Toolbar taken from
+ddblm) and a link to the bookmarklet gallery hosted on GitHub Pages
+([https://daydve.github.io/ddblm/](https://daydve.github.io/ddblm/)). The installer copies
+`docs/blm_panel.css` and the required `icons/*.svg` from ddblm (raw.githubusercontent.com)
+into `<profile>/chrome/`, so you do not need to clone or build ddblm yourself.
 
-```bash
-cd bookmarklets
-git submodule update --init --recursive   # if not cloned with --recurse-submodules
-./blm config set ff_profile /path/to/profile
-./blm build
-./blm patchff
-```
-
-Then open `bookmarklets/docs/index.html`, enable the Bookmarks Toolbar (`Ctrl+Shift+B`)
-and drag the cards onto it.
+After install, open the gallery (click **«Добавить букмарклеты»** on the Bookmarks Toolbar),
+enable the toolbar (`Ctrl+Shift+B`) and drag the cards onto it.
 
 ## Applying to an existing Firefox (manual)
 
@@ -123,14 +143,15 @@ and drag the cards onto it.
 - Sidebar bottom aligns with the card bottom.
 - The sidebar toggle button highlights when the panel is open and toggles on a single click.
 - History/Bookmarks search fields become compact pills that match the address bar on focus.
-- Compact bookmarklets with custom icons and hidden text labels (when `blm` tweaks enabled).
+- Compact bookmarklets with custom icons and hidden text labels (when ddblm tweaks enabled).
 
 ## Development
 
-Hot-reload of styles without restarting the browser is possible via the RDP proxy:
+Hot-reload of styles without restarting the browser is possible via the RDP proxy
+(`firefox_rdp_proxy.py`, lives in the ddblm project):
 
 ```bash
-(cd bookmarklets && python3 firefox_rdp_proxy.py 34423)
+python3 firefox_rdp_proxy.py 34423     # from a ddblm checkout
 python3 scratch/reload_userchrome.py
 ```
 
