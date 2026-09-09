@@ -1,4 +1,12 @@
-@import url("bookmarks_panel.css") screen;
+@import url("blm_panel.css") screen;
+
+/* The Firefox View button itself is not present, but its 40px titlebar-spacer
+   slot at the left edge stays and acts as a gutter that lets the raised first
+   tab's left "ear" fit inside the window. We only hide the (absent) button,
+   keeping the spacer. */
+#firefox-view-button {
+    display: none !important;
+}
 
 .bookmark-item[label="Расширенные настройки"] .toolbarbutton-text {
     display: none !important;
@@ -20,6 +28,28 @@
 
 .bookmark-item[label="Расширенные настройки"] image {
     background-image: url("chrome://global/skin/icons/settings.svg") !important;
+}
+
+.bookmark-item[label="Добавить букмарклеты"] .toolbarbutton-text {
+    display: none !important;
+}
+
+.bookmark-item[label="Добавить букмарклеты"] {
+    & .toolbarbutton-text {
+        display: none !important;
+    }
+
+    & image {
+        width: 0 !important;
+        height: 0 !important;
+        padding: 0 0 16px 16px !important;
+        background-size: contain !important;
+        background-repeat: no-repeat !important;
+    }
+}
+
+.bookmark-item[label="Добавить букмарклеты"] image {
+    background-image: url("panel-icons/import-bookmarklets.svg") !important;
 }
 
 
@@ -401,6 +431,17 @@ menupopup:not(.in-menulist)>menu {
     -webkit-mask: radial-gradient(circle at top right,
             transparent var(--user-tab-ear-rounding),
             black calc(var(--user-tab-ear-rounding) + 0.5px)) !important;
+}
+
+/* The first tab sits at the left edge of the window, with no tab to its left.
+   Its left "ear" pseudo-element is absolutely positioned and does not take
+   part in layout, so give the first tab a left margin equal to the ear width
+   so the ear has room to render inside the window. */
+#navigator-toolbox .tabbrowser-tab:first-child {
+    margin-inline-start: var(--user-tab-ear-rounding) !important;
+    z-index: 3 !important;
+    position: relative !important;
+    overflow: visible !important;
 }
 
 /* Card style for webpage viewport (all four corners rounded with a small margin) */
