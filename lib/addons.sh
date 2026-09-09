@@ -37,7 +37,7 @@ MYFOX_ADDON_PLASMA="plasma-integration"
 # Проверяет, работаем ли мы в сессии KDE Plasma.
 # Возвращает 0 если да, 1 если нет.
 addons_is_plasma() {
-    if [[ "${XDG_CURRENT_DESKTOP:-}" =~ (^|:)KDE(;|:)|Plasma ]]; then
+    if [[ "${XDG_CURRENT_DESKTOP:-}" =~ (^|:)KDE(;|:|$)|(^|:)Plasma(;|:|$) ]]; then
         return 0
     fi
     if [[ "${KDE_FULL_SESSION:-}" =~ true|1 ]]; then
