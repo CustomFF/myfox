@@ -74,30 +74,24 @@ if [[ -n "$PROFILE_DIR" && -d "$PROFILE_DIR/chrome" ]]; then
             rm -f "$PROFILE_DIR/chrome/$f"
         fi
     done
-    # Симлинки/файлы букмарклет-твиков (blm patchff)
-    rm -f "$PROFILE_DIR/chrome/bookmarks_panel.css" 2>/dev/null || true
-    rm -f "$PROFILE_DIR/chrome/panel-icons" 2>/dev/null || true
+    # Файлы букмарклет-твиков (blm_panel.css + panel-icons из ddblm)
+    rm -f "$PROFILE_DIR/chrome/blm_panel.css" 2>/dev/null || true
+    rm -rf "$PROFILE_DIR/chrome/panel-icons" 2>/dev/null || true
+    rm -f "$PROFILE_DIR/.myfox" 2>/dev/null || true
     success "Chrome styles removed from $PROFILE_DIR"
 fi
 
-# Add-ons (uBlock, theme, plasma-integration) placed into distribution/extensions
-if [[ -d "$INSTALL_DIR/distribution/extensions" ]]; then
-    for f in "$INSTALL_DIR"/distribution/extensions/*.xpi; do
-        [[ -f "$f" ]] || continue
-        rm -f "$f"
-        success "Removed add-on distribution file: $(basename "$f")"
-    done
-    rmdir "$INSTALL_DIR/distribution/extensions" 2>/dev/null || true
-    rmdir "$INSTALL_DIR/distribution" 2>/dev/null || true
-fi
-
-# Distribution add-ons are copied into the profile by Firefox on first start;
-# remove those copies too (unless the browser was never started with them).
+# Add-ons (uBlock, theme, plasma-integration) installed per-profile:
+# remove them from the profile (addon XPI files + unpacked dirs).
 if [[ -n "$PROFILE_DIR" && -d "$PROFILE_DIR/extensions" ]]; then
     for f in "$PROFILE_DIR"/extensions/*.xpi; do
         [[ -f "$f" ]] || continue
         rm -f "$f"
-        success "Removed add-on from profile: $(basename "$f")"
+        success "Removed profile add-on: $(basename "$f")"
+    done
+    # Распакованные Firefox-ом установки аддонов (<id>/ каталоги).
+    for d in "$PROFILE_DIR"/extensions/{uBlock0@raymondhill.net,{9631ec37-35f2-4719-815e-2f84ff28b901},plasma-browser-integration@kde.org}; do
+        [[ -d "$d" ]] && rm -rf "$d"
     done
     rmdir "$PROFILE_DIR/extensions" 2>/dev/null || true
 fi

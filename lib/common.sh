@@ -17,12 +17,18 @@ MYFOX_AUTOCONFIG_DIR="$MYFOX_ROOT/autoconfig"
 MYFOX_CHROME_DIR="$MYFOX_ROOT/chrome"
 
 # Прямые (raw) ссылки на твики букмарклетов из отдельного проекта DayDve/ddblm.
-# myfox скачивает готовый bookmarks_panel.css и иконки оттуда, не требуя
+# myfox копирует готовый blm_panel.css и ВСЕ иконки оттуда, не требуя
 # локальной установки ddbml (см. lib/apply.sh → apply_bookmarklets).
 MYFOX_DDBLM_REPO="DayDve/ddblm"
 MYFOX_DDBLM_BRANCH="master"
 MYFOX_DDBLM_RAW="https://raw.githubusercontent.com/${MYFOX_DDBLM_REPO}/${MYFOX_DDBLM_BRANCH}"
 MYFOX_DDBLM_GALLERY="https://daydve.github.io/ddblm/"
+
+# Локальная копия ddblm (для тестирования твиков, пока репозиторий не запушен).
+# Пустой (по умолчанию) — файлы берутся из raw github. Во время тестирования
+# твиков задаём через переменную окружения, напр.
+#   MYFOX_DDBLM_LOCAL=/home/daydve/development/ddblm ./install.sh ...
+MYFOX_DDBLM_LOCAL="${MYFOX_DDBLM_LOCAL:-}"
 
 # Целевой путь инсталляции по умолчанию
 MYFOX_DEFAULT_PREFIX="$HOME/.local/share/firefox"

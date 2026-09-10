@@ -50,6 +50,7 @@ MYFOX_NONINTERACTIVE=1 profile_resolve
 - [ ] `<prefix>/defaults/pref/autoconfig.js` существует
 - [ ] `<prefix>/firefox.cfg` существует
 - [ ] `<prefix>/.myfox-installed` существует
+- [ ] в профиле появился маркер `<profile>/.myfox`
 - [ ] профиль создан/выбран; в `~/tmp-state` появился `install.json` с `install_dir` и `profile_dir`
 - [ ] `~/.local/share/applications/firefox-myfox.desktop` создан («Firefox (myfox)»)
 
@@ -61,16 +62,16 @@ MYFOX_NONINTERACTIVE=1 profile_resolve
 - [ ] профиль взят из маркера (в output используется тот же profile_dir)
 - [ ] твики обновлены
 
-### 2.3 Отдельная инсталляция и --noblm
+### 2.3 Отдельная инсталляция и --nobl
 ```bash
-./install.sh -y --prefix /tmp/myfox-test2 --noblm
+./install.sh -y --prefix /tmp/myfox-test2 --nobl
 ```
 - [ ] установка прошла
-- [ ] в логике не вызывался blm / не создан `blm_panel.css` в профиле
+- [ ] в логике не вызывались букмарклет-твики / не создан `blm_panel.css` в профиле
 
 ### 2.4 Дополнения (add-ons) и политика
 ```bash
-./install.sh -y --prefix /tmp/myfox-test3 --noblm
+./install.sh -y --prefix /tmp/myfox-test3 --nobl
 ```
 - [ ] `distribution/policies.json` содержит `DisableProfileImport: true`
 - [ ] `distribution/extensions/` содержит `uBlock0@raymondhill.net.xpi` и `{9631ec37-35f2-4719-815e-2f84ff28b901}.xpi`
@@ -80,8 +81,8 @@ MYFOX_NONINTERACTIVE=1 profile_resolve
 ### 2.5 KDE Plasma integration
 На машине с Plasma:
 ```bash
-./install.sh -y --prefix /tmp/myfox-test4 --noblm     # спросит про Plasma integration
-./install.sh -y --prefix /tmp/myfox-test5 --plasma-integration --noblm  # без вопроса
+./install.sh -y --prefix /tmp/myfox-test4 --nobl     # спросит про Plasma integration
+./install.sh -y --prefix /tmp/myfox-test5 --plasma-integration --nobl  # без вопроса
 ```
 - [ ] аддон `plasma-browser-integration@kde.org.xpi` появился в `distribution/extensions/`
 - [ ] если системный пакет `plasma-browser-integration` отсутствует — инсталлер предложил поставить
@@ -130,13 +131,32 @@ MYFOX_NONINTERACTIVE=1 profile_resolve
 - [ ] кнопки «Импорт закладок» НЕТ (политика `DisableProfileImport`)
 - [ ] guard-преф `myfox.galleryBookmarkAdded=true` в about:config (диагностический, не блокирует)
 
-### 3.3 Букмарклеты (ddblm, при включённых твиках)
-- [ ] в `<profile>/chrome/` появились `blm_panel.css` и `panel-icons/*.svg` (скачаны с raw.githubusercontent.com)
+### 3.3 Чужие/новые профили — чистый Firefox (маркер `.myfox`)
+1. Создать новый профиль в той же инсталляции без инсталлера (или `--profile /tmp/void-new`)
+   и запустить в нём `/tmp/myfox-test/firefox`.
+2. Политика `DisableProfileImport` в `distribution/` — глобальная для инсталляции, ок, остаётся.
+Проверки:
+- [ ] `install_dir/.myfox-installed` в профиле НЕ создан (это файл инсталла, не профиля)
+- [ ] в `<new>/chrome/` НЕТ файлов (myfox не создаёт chrome в чужом профиле)
+- [ ] префы `toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp` НЕ выставлены
+- [ ] закладок «Расширенные настройки»/«Добавить букмарклеты» НЕТ
+- [ ] интерфейс выглядит как обычный немодифицированный Firefox
+
+### 3.4 Букмарклеты (ddblm, при включённых твиках)
+
+Включить твики с локальной копией ddblm (пока не запушен):
+```bash
+MYFOX_DDBLM_LOCAL=/home/daydve/development/ddblm \
+  ./install.sh -y --prefix /tmp/myfox-test6 --profile <profile> -n
+```
+Проверки:
+- [ ] в `<profile>/chrome/` появились `blm_panel.css` и **ВСЕ** `panel-icons/*.svg` из `icons/` ddblm (13 шт., включая `import-bookmarklets.svg`)
+- [ ] кнопка «Добавить букмарклеты» на панели закладок с иконкой (не пустой/сломанной)
 - [ ] перетаскивание карточек из галереи на панель закладок работает (drag&drop)
 - [ ] иконки и скрытие подписей (через `blm_panel.css` + `userChrome.css`) применились
-- [ ] (если ddblm не запушен/raw 404) — твики применяются вручную: скопировать `blm_panel.css` и `icons/*.svg` из локального ddblm
+- [ ] при `MYFOX_DDBLM_LOCAL` пустом — твики тянутся с raw.githubusercontent.com (когда ddblm запушен; пока raw 404 ведёт к ясному предупреждению и пропуску)
 
-### 3.4 Применение к существующему браузеру (README-инструкция)
+### 3.5 Применение к существующему браузеру (README-инструкция)
 Выполнить шаги секции «Applying to an existing Firefox» на временной инсталляции:
 - [ ] копирование `autoconfig.js` → `defaults/pref/`, `firefox.cfg` → корень
 - [ ] копирование CSS → `chrome/` профиля
@@ -153,4 +173,4 @@ MYFOX_NONINTERACTIVE=1 profile_resolve
 - state: `~/.local/state/myfox/install.json`
 - бэкапы: `~/.local/state/myfox/backups/`
 - desktop: `~/.local/share/applications/firefox-myfox.desktop`
-- локальный ddblm: `/home/daydve/development/ddblm` (твики копируются вручную, пока ddblm не запушен)
+- локальный ddblm: `/home/daydve/development/ddblm` (источник твиков для `MYFOX_DDBLM_LOCAL`, пока ddblm не запушен)

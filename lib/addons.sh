@@ -1,13 +1,13 @@
 # shellcheck shell=bash
 # addons.sh — загрузка и установка дополнений (XPI) из AMO.
 #
-# Механика (enterprise-путь Firefox, без плашки подтверждения sideload):
-#   XPI скачивается со стабильного URL
-#     https://addons.mozilla.org/firefox/downloads/latest/<slug>/addon-latest.xpi
-#   и кладётся в <install_dir>/distribution/extensions/<addon-id>.xpi.
-#   При старте Firefox (installDistributionAddons) копирует его в профиль и
-#   ставит extensions.installedDistroAddon.<id>=true; новые версии обновляются,
-#   повторно не переустанавливаются при той же версии.
+# Механика ПЕР-ПРОФИЛЬНАЯ: XPI кладутся в <profile_dir>/extensions/<addon-id>.xpi.
+# При старте Firefox (первый запуск профиля) устанавливает их тихо. Так чисто
+# только в профиле, куда их положил инсталлер: чужие/новые профили не получают
+# ни uBlock, ни темы, ни plasma — браузер там остаётся немодифицированным.
+#
+# (Раньше XPI ставились через distribution/extensions/ — это глобально для всей
+# инсталляции и попадало во все профили. Отказались.)
 #
 # ID для имени файла берём из AMO API (guid): у тем без gecko.id в манифесте
 # это единственный надёжный источник (GUID из сертификата подписи).
@@ -107,12 +107,14 @@ addons_pkg_install() {
 
 # ─── Применение дополнений ───────────────────────────────────────────────────
 
-# addons_apply <install_dir> <slug>... — скачивает XPI с AMO и кладёт
-# в distribution/extensions/ браузера (тихая установка при следующем старте).
+# addons_apply <profile_dir> <slug>... — скачивает XPI с AMO и кладёт
+# в <profile_dir>/extensions/ (пер-профильная тихая установка на первом старте).
+# ВАЖНО: Firefox должен быть остановлен; файлы лягут, а при следующем старте
+# профиля аддоны поставятся.
 addons_apply() {
-    local install_dir="$1"; shift
-    local distro_dir="$install_dir/distribution/extensions"
-    mkdir -p "$distro_dir"
+    local profile_dir="$1"; shift
+    local addon_dir="$profile_dir/extensions"
+    mkdir -p "$addon_dir"
 
     local slug out id
     for slug in "$@"; do
@@ -126,14 +128,13 @@ addons_apply() {
             rm -f "$out"
             continue
         fi
-        install -m 0644 "$out" "$distro_dir/$id.xpi"
+        install -m 0644 "$out" "$addon_dir/$id.xpi"
         rm -f "$out"
-        success "Installed ${slug} → distribution/extensions/${id}.xpi"
+        success "Installed ${slug} → profile/extensions/${id}.xpi"
     done
 
-    if [[ -z "$(ls -A "$distro_dir" 2>/dev/null)" ]]; then
-        rmdir "$distro_dir" 2>/dev/null || true
-        rmdir "$install_dir/distribution" 2>/dev/null || true
+    if [[ -z "$(ls -A "$addon_dir" 2>/dev/null)" ]]; then
+        rmdir "$addon_dir" 2>/dev/null || true
     fi
     return 0
 }

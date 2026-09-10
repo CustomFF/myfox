@@ -79,22 +79,38 @@ apply_chrome() {
     log "Installing chrome styles..."
     install -m 0644 "$MYFOX_CHROME_DIR/userChrome.css" "$profile_dir/chrome/userChrome.css"
     install -m 0644 "$MYFOX_CHROME_DIR/agent_overrides.css" "$profile_dir/chrome/agent_overrides.css"
+
+    # Маркер «нашего» профиля: firefox.cfg проверяет его в начале и применяет твики
+    # ТОЛЬКО к профилю с этим файлом. Новые чистые профили без маркера остаются
+    # немодифицированным Firefox (никаких твиков/префов/CSS).
+    touch "$profile_dir/.myfox"
+
     success "Chrome styles installed."
 }
 
-# ─── Букмарклеты (твики из отдельного проекта ddblm по прямой ссылке) ───────
+# ─── Букмарклеты (твики из отдельного проекта ddblm) ────────────────────────
 #
-# Применяет твики букмарклетов из отдельного проекта DayDve/ddblm: готовый
-# bookmarks_panel.css и svg-иконки скачиваются напрямую из raw.githubusercontent.com
-# в chrome/ профиля. Локальная установка ddbml (blm) НЕ требуется — only raw-файлы.
-# Ссылка на галерею букмарклетов на панель закладок добавляется отдельно (firefox.cfg).
-# ВНИМАНИЕ: пока твики проверяются РУЧНЫМ копированием из локального ddblm,
-# автоматизация (эта функция) может не сработать, пока ddblm не запушен.
+# Применяет твики букмарклетов из отдельного проекта DayDve/ddblm:
+#   - docs/blm_panel.css  → chrome/blm_panel.css
+#   - ВСЕ icons/*.svg     → chrome/panel-icons/  (не только те, что упомянуты
+#     в css: иконки могут понадобиться galler-букмарклетам, добавленным позже).
+#
+# Источник файлов:
+#   - если доступна локальная копия ddblm (MYFOX_DDBLM_LOCAL) — копируем её
+#     (используется при тестировании твиков);
+#   - иначе тянем из raw.githubusercontent.com (когда ddblm запушен).
+# Ссылка на галерею на панель закладок добавляется отдельно (firefox.cfg).
 
-# Скачивает один raw-файл из репо ddblm. <rel> — путь без ведущего слэша, напр.
-# "docs/bookmarks_panel.css" или "icons/foo.svg".
-ddblm_fetch() {
+# Копирует/скачивает один файл ddblm. <rel> — путь без ведущего слэша
+# (напр. "docs/blm_panel.css" или "icons/foo.svg"). Источник выбирается
+# автоматически: локальный каталог → raw github.
+# Второй аргумент — целевой путь в chrome/ профиля.
+ddblm_file() {
     local rel="$1" out="$2"
+    if [[ -n "$MYFOX_DDBLM_LOCAL" && -f "$MYFOX_DDBLM_LOCAL/$rel" ]]; then
+        install -m 0644 "$MYFOX_DDBLM_LOCAL/$rel" "$out"
+        return 0
+    fi
     local url="${MYFOX_DDBLM_RAW}/${rel}"
     log "Fetching ${url}"
     curl -L --fail --silent --show-error -o "$out" "$url"
@@ -106,24 +122,42 @@ apply_bookmarklets() {
 
     [[ -d "$c_dir" ]] || mkdir -p "$c_dir"
 
+    local src_dir rel f
+
+    # Источник: локальная копия ddblm (для теста твиков) или raw github.
+    src_dir=""
+    if [[ -n "$MYFOX_DDBLM_LOCAL" && -d "$MYFOX_DDBLM_LOCAL/icons" ]]; then
+        src_dir="$MYFOX_DDBLM_LOCAL"
+        log "Using local ddblm copy: $src_dir"
+    fi
+
     # 1) Готовый blm_panel.css (иконки + скрытие текста букмарклетов).
-    local css="$c_dir/blm_panel.css"
-    if ! ddblm_fetch "docs/blm_panel.css" "$css"; then
+    if ! ddblm_file "docs/blm_panel.css" "$c_dir/blm_panel.css"; then
         warn "Could not fetch blm_panel.css from ddblm — skipping bookmarklet tweaks."
         return 1
     fi
 
-    # 2) Иконки, на которые ссылается css (panel-icons/<name>.svg).
-    local names
-    names=$(grep -o 'url("panel-icons/[^"]*")' "$css" "$c_dir/userChrome.css" \
-        | sed 's/.*url("panel-icons\///;s/")//' | sort -u || true)
-    if [[ -n "$names" ]]; then
-        mkdir -p "$c_dir/panel-icons"
-        local n
-        for n in $names; do
-            ddblm_fetch "icons/$n" "$c_dir/panel-icons/$n" \
-                || warn "Icon not available in ddblm repo: $n"
+    # 2) ВСЕ иконки (panel-icons/<имя>.svg). Локально — копируем папку целиком.
+    mkdir -p "$c_dir/panel-icons"
+    if [[ -n "$src_dir" ]]; then
+        for f in "$src_dir"/icons/*.svg; do
+            [[ -f "$f" ]] || continue
+            install -m 0644 "$f" "$c_dir/panel-icons/$(basename "$f")"
         done
+    else
+        # На удалённом источнике список имён берём из css (panel-icons/...).
+        # Глобально не знаем полного каталога raw-репо; тут он совпадает с icons/.
+        local names
+        names=$(grep -o 'url("panel-icons/[^"]*")' "$c_dir/blm_panel.css" "$c_dir/userChrome.css" \
+            | sed 's/.*url("panel-icons\///;s/")//' | sort -u || true)
+        # Кнопка «Добавить букмарклеты» в userChrome.css опирается на неё.
+        names+=" import-bookmarklets"
+        for rel in $names; do
+            ddblm_file "icons/$rel.svg" "$c_dir/panel-icons/$rel.svg" \
+                || warn "Icon not available in ddblm repo: $rel"
+        done
+        # Иконки, которые могут понадобиться позже (если всё же известны в css).
+        # IMG
     fi
 
     success "Bookmarklet tweaks applied (from ddblm)."

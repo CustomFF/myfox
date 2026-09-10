@@ -49,7 +49,7 @@ You will be prompted about bookmarklet tweaks at the end (say *n* to skip).
                          The path is remembered for future runs.
   --reinstall            Force re-download of Firefox even if already installed.
   --profile <path>       Use a specific Firefox profile directory (skips detection).
-  --noblm                Skip bookmarklet tweaks.
+  --nobl                 Skip bookmarklet tweaks.
   --noaddons             Skip add-ons (uBlock, theme, Plasma integration).
   --plasma-integration   Force-install the KDE Plasma integration add-on (no prompt),
                          even outside a Plasma session.
@@ -86,13 +86,17 @@ offers to restore it.
 | `<install>/distribution/extensions/*.xpi` | add-ons (uBlock Origins, Chrome Dark theme, optional Plasma integration) |
 | `<profile>/chrome/userChrome.css` | user-sheet styles |
 | `<profile>/chrome/agent_overrides.css` | agent-sheet styles |
+| `<profile>/.myfox` | profile marker — only marked profiles get tweaks |
 | `~/.local/share/applications/firefox-myfox.desktop` | launcher «Firefox (myfox)» |
 | `~/.local/state/myfox/install.json` | installer state (see [docs/logic.md](docs/logic.md)) |
 
 Required prefs (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`)
-are set automatically by `firefox.cfg` on first start.
+are set automatically by `firefox.cfg` on first start — **but only for the profile marked by
+myfox** (`<profile>/.myfox`, or fallback: a legacy profile that already has
+`chrome/agent_overrides.css`). Any other profile stays a pristine, unmodified Firefox:
+`firefox.cfg` refuses to apply anything to it (no prefs, no styles, no window tweaks).
 
-On a fresh profile, `firefox.cfg` also adds two bookmarks to the Bookmarks Toolbar:
+On the marked profile, `firefox.cfg` also adds two bookmarks to the Bookmarks Toolbar:
 **«Расширенные настройки»** (about:config) and **«Добавить букмарклеты»** (the ddblm
 gallery), and activates the installed Chrome Dark theme (when present).
 
@@ -115,7 +119,8 @@ Bookmarklets are a [separate project](https://github.com/DayDve/ddblm). At insta
 may opt in to the tweaks (custom icons + hidden labels on the Bookmarks Toolbar taken from
 ddblm) and a link to the bookmarklet gallery hosted on GitHub Pages
 ([https://daydve.github.io/ddblm/](https://daydve.github.io/ddblm/)). The installer copies
-`docs/blm_panel.css` and the required `icons/*.svg` from ddblm (raw.githubusercontent.com)
+`docs/blm_panel.css` and **all** `icons/*.svg` from ddblm (raw.githubusercontent.com for
+published ddblm; a local checkout via `MYFOX_DDBLM_LOCAL=/path` while developing)
 into `<profile>/chrome/`, so you do not need to clone or build ddblm yourself.
 
 After install, open the gallery (click **«Добавить букмарклеты»** on the Bookmarks Toolbar),
