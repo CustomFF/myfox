@@ -49,7 +49,7 @@ cd myfox
                          Путь запоминается для следующих запусков.
   --reinstall            Принудительно перекачать Firefox, даже если он уже установлен.
   --profile <path>       Использовать конкретный каталог профиля (минуя определение).
-  --noblm                Не применять твики букмарклетов.
+  --nobl                Не применять твики букмарклетов.
   --noaddons             Не ставить дополнения (uBlock, тема, интеграция с Plasma).
   --plasma-integration   Принудительно поставить дополнение KDE Plasma integration
                          (без вопросов), даже вне сессии Plasma.
@@ -85,13 +85,18 @@ cd myfox
 | `<install>/distribution/extensions/*.xpi` | дополнения (uBlock Origin, тёмная тема, опционально Plasma integration) |
 | `<profile>/chrome/userChrome.css` | стили user-sheet |
 | `<profile>/chrome/agent_overrides.css` | стили agent-sheet |
+| `<profile>/.myfox` | маркер профиля — твики получает только помеченный профиль |
 | `~/.local/share/applications/firefox-myfox.desktop` | ярлык «Firefox (myfox)» |
 | `~/.local/state/myfox/install.json` | состояние инсталлера (см. [docs/logic.md](docs/logic.md)) |
 
 Необходимые префы (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`)
-выставляются автоматически `firefox.cfg` при первом старте.
+выставляются автоматически `firefox.cfg` при первом старте — **но только для профиля,
+помеченного myfox** (`<profile>/.myfox`, или fallback: старый профиль, где уже лежит
+`chrome/agent_overrides.css`). Любой другой профиль остаётся чистым немодифицированным
+Firefox: `firefox.cfg` отказывается применять к нему что-либо (ни префы, ни стили, ни
+твики окна).
 
-На свежем профиле `firefox.cfg` также добавляет на панель закладок две закладки:
+На помеченном профиле `firefox.cfg` также добавляет на панель закладок две закладки:
 **«Расширенные настройки»** (about:config) и **«Добавить букмарклеты»** (галерея ddblm),
 и включает установленную тёмную тему Chrome Dark (если она есть).
 
@@ -114,7 +119,8 @@ cd myfox
 подключить твики (кастомные иконки + скрытые подписи на панели закладок, берутся из ddblm)
 и ссылку на галерею, размещённую на GitHub Pages
 ([https://daydve.github.io/ddblm/](https://daydve.github.io/ddblm/)). Инсталлер копирует
-`docs/blm_panel.css` и нужные `icons/*.svg` из ddblm (raw.githubusercontent.com)
+`docs/blm_panel.css` и **все** `icons/*.svg` из ddblm (raw.githubusercontent.com для
+запушенного ddblm; локальный checkout через `MYFOX_DDBLM_LOCAL=/путь` при разработке)
 в `<profile>/chrome/` — клонировать и собирать ddblm самостоятельно не нужно.
 
 После установки откройте галерею (кнопка **«Добавить букмарклеты»** на панели закладок),

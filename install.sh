@@ -2,14 +2,14 @@
 # install.sh — MyFox installer.
 #
 # Ставит Firefox из официального тарбола и применяет на него твики myfox.
-# Опционально применяет букмарклет-твики из отдельного проекта ddblm (blm, raw-файлы).
+# Опционально применяет букмарклет-твики из отдельного проекта ddblm (raw-файлы).
 #
 # Использование:
 #   install.sh                    установка по умолчанию (тарбол + твики)
 #   install.sh --prefix <path>    целевой путь инсталляции (по умолчанию ~/.local/share/firefox)
 #   install.sh --reinstall        перекачать браузер заново (даже если инсталляция уже есть)
 #   install.sh --profile <path>   явно указать профиль (переопределяет детекцию)
-#   install.sh --noblm            не применять букмарклет-твики
+#   install.sh --nobl             не применять букмарклет-твики
 #   install.sh -y/--yes           без подтверждений
 #   install.sh -h/--help
 #
@@ -32,7 +32,7 @@ Options:
   --prefix <path>    Install directory (default: ~/.local/share/firefox)
   --reinstall        Force re-download of the browser even if already installed
   --profile <path>   Explicit Firefox profile directory (overrides detection)
-  --noblm            Skip bookmarklet tweaks (blm)
+  --nobl             Skip bookmarklet tweaks
   --noaddons         Skip add-ons and browser theme installation (uBlock, theme)
   --plasma-integration  Force install KDE Plasma integration (no prompt)
   --noplasma         Skip KDE Plasma integration even under Plasma
@@ -47,7 +47,7 @@ EOF
 PREFIX=""
 REINSTALL=false
 PROFILE_ARG=""
-NOBLM=false
+NOBL=false
 NOADDONS=false
 PLASMA_FORCE=false
 NO_PLASMA=false
@@ -58,7 +58,7 @@ while [[ $# -gt 0 ]]; do
         --prefix)  PREFIX="$2"; shift 2 ;;
         --reinstall) REINSTALL=true; shift ;;
         --profile) PROFILE_ARG="$2"; shift 2 ;;
-        --noblm)   NOBLM=true; shift ;;
+        --nobl)    NOBL=true; shift ;;
         --noaddons) NOADDONS=true; shift ;;
         --plasma-integration) PLASMA_FORCE=true; shift ;;
         --noplasma) NO_PLASMA=true; shift ;;
@@ -139,7 +139,7 @@ state_set installed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # ─── Букмарклеты (опционально) ──────────────────────────────────────────────
 
-if [[ "$NOBLM" == false ]]; then
+if [[ "$NOBL" == false ]]; then
     if confirm "Apply bookmarklet tweaks (icons + hidden labels from ddblm) and open the gallery page?" "n"; then
         gallery=$(apply_bookmarklets "$PROFILE_DIR") || true
         if [[ -n "$gallery" ]]; then
@@ -150,7 +150,7 @@ if [[ "$NOBLM" == false ]]; then
         log "Skipping bookmarklet tweaks."
     fi
 else
-    log "Bookmarklet tweaks skipped (--noblm)."
+    log "Bookmarklet tweaks skipped (--nobl)."
 fi
 
 # ─── Дополнения (add-ons): uBlock, тема, plasma-integration ─────────────────
@@ -191,7 +191,7 @@ if [[ "$NOADDONS" == false ]]; then
     fi
 
     if [[ ${#addons_list[@]} -gt 0 ]]; then
-        addons_apply "$INSTALL_DIR" "${addons_list[@]}"
+        addons_apply "$PROFILE_DIR" "${addons_list[@]}"
     fi
 else
     log "Add-on installation skipped (--noaddons)."

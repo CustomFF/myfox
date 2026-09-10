@@ -8,7 +8,7 @@ MyFox — набор твиков для браузера **Firefox** (инте�
 2. применяет на него твики;
 3. опционально подключает твики для букмарклетов.
 
-Букмарклеты — отдельный проект **ddbml**, подключаемый git submodule'ом в `bookmarklets/`.
+Букмарклеты — отдельный проект **ddbml** (отдельный каталог, **НЕ submodule** myfox). Инсталлер только копирует готовые твики (CSS + иконки) из него — локально при тестировании (`MYFOX_DDBLM_LOCAL`) или с raw.githubusercontent.com.
 
 ## Модель установки
 
@@ -23,7 +23,7 @@ install.sh --default
    │              userChrome.css, agent_overrides.css → <profile>/chrome/
    │              префы ставятся самим firefox.cfg при старте
    ├─ [desktop]  «Firefox (myfox)» → ~/.local/share/applications/firefox-myfox.desktop
-   └─ [blm?]     (опц.) blm build + blm patchff → твики букмарклетов в профиль
+   └─ [bl?]     (опц.) букмарклет-твики: blm_panel.css + все иконки ddblm в профиль
 ```
 
 **Навеска на существующий браузер** НЕ реализована в скриптах. Она описана в README (секция «Applying to an existing Firefox») как ручные шаги.
@@ -53,16 +53,16 @@ install.sh --default
 - `common.sh` — инфраструктура (логирование в stderr, работа с state, подтверждения) — переиспользуется и install, и uninstall.
 - `firefox.sh` — тарбол-установка (адаптация идей старого `mozinst.sh`: arch/lang, URL, версия, desktop entry; убран Thunderbird).
 - `profile.sh` — работа с profiles.ini (detect/create), отдельно для тестируемости.
-- `apply.sh` — перенос артефактов и запуск blm, отдельно для тестируемости.
+- `apply.sh` — перенос артефактов и букмарклет-твиков, отдельно для тестируемости.
 
-### Роль ddbml (submodule)
-- Репозиторий ddbml — самостоятельный проект букмарклетов (Python CLI `blm`, исходники в `src/`, иконки, генерация галереи в `docs/index.html`).
+### Роль ddblm (отдельный проект)
+- Репозиторий ddblm — самостоятельный проект букмарклетов (исходники в `src/`, иконки, генерация галереи в `docs/index.html`).
 - Галерея публикуется на GitHub Pages (drag&drop закладок).
-- Installer вызывает blm как внешний инструмент; blm сам управляет своим конфигом `~/.config/blm/config.json`.
+- Installer копирует из ddblm готовые твики: `docs/blm_panel.css` → `chrome/blm_panel.css` и ВСЕ `icons/*.svg` → `chrome/panel-icons/`. Источник: локальная копия (`MYFOX_DDBLM_LOCAL`) при тестировании, иначе raw.githubusercontent.com. Сам ddblm myfox не устанавливает и не собирает.
 
 ## Поток установки по шагам (install.sh)
 
-1. Парсинг флагов (`--prefix`, `--reinstall`, `--profile`, `--noblm`, `-y/--yes`, `-h/--help`).
+1. Парсинг флагов (`--prefix`, `--reinstall`, `--profile`, `--nobl`, `--noaddons`, `--plasma-integration`, `--noplasma`, `-y/--yes`, `-h/--help`).
 2. Загрузка `lib/*.sh`, `check_deps` (curl, tar, grep, awk).
 3. `INSTALL_DIR` = `--prefix` ? так : (из state ? так : `~/.local/share/firefox`).
 4. Браузерная часть (`lib/firefox.sh`):
@@ -76,14 +76,15 @@ install.sh --default
 6. `apply_autoconfig`, `apply_chrome` (копирование файлов).
 7. `firefox_create_desktop_entry` (имя «Firefox (myfox)»).
 8. Запись state (`install_dir`, `installed_at`, `firefox_version`).
-9. B lm — если не `--noblm` и пользователь согласен → `apply_bookmarklets`.
-10. Сводка.
+9. Букмарклеты — если не `--nobl` и пользователь согласен → `apply_bookmarklets` (копирует blm_panel.css + все иконки из локального ddblm или raw github).
+10. Дополнения: uBlock, тема Chrome Dark, plasma-integration (см. `--plasma-integration`/`--noplasma`).
+11. Сводка.
 
 ## Поток удаления (uninstall.sh)
 
 1. Нет state → предупреждение и выход (твики ставились вручную → см. README).
 2. Подтверждение.
-3. Удаление autoconfig (`defaults/pref/autoconfig.js`, `firefox.cfg`, `.myfox-installed`), chrome CSS, файлов blm.
+3. Удаление autoconfig (`defaults/pref/autoconfig.js`, `firefox.cfg`, `.myfox-installed`), chrome CSS, файлов букмарклет-твиков (blm_panel.css, panel-icons/).
 4. Если есть `backup_dir` → предложить восстановить (восстановление в `install_dir`).
 5. Удаление desktop entry.
 6. Браузер (сам install_dir) — спросить, оставляем или удаляем.
@@ -100,9 +101,8 @@ install.sh --default
 | `lib/common.sh` | логика, state, helpers |
 | `lib/firefox.sh` | тарбол-установка (адаптация mozinst) |
 | `lib/profile.sh` | профили |
-| `lib/apply.sh` | применение твиков + blm |
+| `lib/apply.sh` | применение твиков + букмарклет-твики (ddblm) |
 | `install.sh` / `uninstall.sh` | точки входа |
-| `bookmarklets/` | submodule → ddbml |
 
 ## Известные ограничения
 
