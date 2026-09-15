@@ -1,8 +1,10 @@
 # shellcheck shell=bash
 # profile.sh — детекция и управление профилями Firefox.
 #
-# Ищет profiles.ini в стандартных местах (~/.mozilla, flatpak, snap),
-# парсит профили, позволяет эксплицитно указать профиль, создаёт новый.
+# Профильный store — ОБЩИЙ с обычным Firefox: ~/.mozilla/firefox (или плотар/snap).
+# Так устроено у Mozilla: все установки делят один profiles.ini/installs.ini, у
+# каждой — своя секция [Install<HASH>]. Мы правим ТОЛЬКО секции под нашу
+# установку ([Install<HASH>] и [ProfileN] Name=myfox), чужие не трогаем.
 # Требуется common.sh.
 
 # ─── Поиск profiles.ini ─────────────────────────────────────────────────────
@@ -109,7 +111,7 @@ profile_list_all() {
 
 # ─── Создание нового профиля ────────────────────────────────────────────────
 #
-# Создаёт профиль с именем myfox и уникальным путём (myfox-XXXX) в стандартном
+# Создаёт профиль с именем myfox и уникальным путём (myfox-XXXX) в общем
 # profiles-каталоге. Возвращает абсолютный путь профиля.
 profile_create_new() {
     local ini ini_dir ppath
@@ -134,8 +136,10 @@ profile_create_new() {
     touch "$ini_dir/$ppath/.myfox-created"
 
     if [[ -f "$ini" ]]; then
+        # Следующий свободный номер [ProfileN] = max существующего + 1.
+        # (grep -c подвёл бы при пропущенных номерах → коллизия с чужим профилем.)
         local section
-        section=$(grep -c '^\[Profile' "$ini")
+        section=$(awk -F'[][]' '/^\[Profile[0-9]+\]$/ { n=substr($2,8)+0; if (n>m) m=n } END { print m+1 }' "$ini")
         cat >> "$ini" <<EOF
 
 [Profile${section}]
@@ -153,6 +157,255 @@ EOF
     fi
 
     echo "$ini_dir/$ppath"
+}
+
+# ─── Пиннинг профиля на инсталляцию (профиль на инсталляцию, FF 67+) ─────────
+#
+# Firefox 67+ хранит в profiles.ini секции [Install<HASH>], где <HASH> =
+# CityHash64 от каталога установки; браузер при запуске открывает профиль из
+# Default= своей секции. HASH мы САМИ не считаем: один раз запускаем нашу
+# инсталляцию headless — Firefox сам выполнит first-run, посчитает hash и
+# напишет свою секцию [Install<HASH>] в profiles.ini (+installs.ini). Остаётся
+# прочитать появившуюся секцию и выставить в ней Default= на наш профиль.
+
+# Список имен секций инсталляций в ini (пусто, если нет). Hash — hex, 1..16
+# символов: CityHash64 даёт 16, но ведущий ноль Firefox отбрасывает (реально 15).
+_profile_install_sections() {
+    grep -o '^\[Install[0-9A-F]\{1,16\}\]' "$1" 2>/dev/null || true
+}
+
+# Удалить секцию "[<name>]" (и все строки до следующей секции) из ini, записав
+# результат в out. Атомарность — на стороне вызывающего (tmp + mv).
+_ini_remove_section() {
+    local ini="$1" name="$2" out="$3"
+    if [[ ! -f "$ini" ]]; then
+        : > "$out"
+        return 0
+    fi
+    awk -v s="[$name]" '
+        /^\[/ { if ($0 == s) { skip=1; next } skip=0 }
+        !skip { print }
+    ' "$ini" > "$out"
+}
+
+# Путь профиля (значение Path= как в profiles.ini) для каталога target_dir.
+# Возвращает 0 и печатает Path если профиль найден в ini.
+_profile_entry_path_for() {
+    local ini="$1" target_dir="$2"
+    local ini_dir line path isrel abs
+    ini_dir=$(dirname "$ini")
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        path="${line%%|*}"
+        rest="${line#*|}"
+        rest="${rest#*|}"
+        rest="${rest#*|}"
+        isrel="${rest##*|}"
+        abs=$(profile_resolve_dir "$ini_dir" "$isrel" "$path")
+        if [[ "$abs" == "$target_dir" ]]; then
+            echo "$path"
+            return 0
+        fi
+    done < <(profile_parse_ini "$ini")
+    return 1
+}
+
+# Однократный запуск нашей инсталляции в headless-режиме, чтобы Firefox
+# выполнил first-run и записал [Install<HASH>] (profiles.ini) / [<HASH>]
+# (installs.ini) в ОБЩИЙ store. Секционную регистрацию ловим в обоих файлах:
+# на части версий FF hash пишется только в installs.ini. Первый запуск бывает
+# медленным — ищем щедрым таймаутом и повторяем попытку один раз.
+# Печатает имя секции вида "Install<HASH>", если появилась новая; иначе пусто.
+profile_headless_once() {
+    local install_dir="$1"
+    local bin="$install_dir/firefox"
+    [[ -x "$bin" ]] || return 1
+
+    local ini inst_ini shot ini_before inst_before
+    ini=$(profile_find_ini) || true
+    ini_before=""
+    [[ -n "$ini" ]] && ini_before=$(_profile_install_sections "$ini")
+    inst_ini=""
+    [[ -n "$ini" ]] && inst_ini="$(dirname "$ini")/installs.ini"
+    inst_before=""
+    [[ -f "$inst_ini" ]] && inst_before=$(grep -o '^\[[0-9A-F]\{1,16\}\]' "$inst_ini" || true)
+
+    local attempt=0 rc new
+    while (( attempt < 2 )); do
+        attempt=$((attempt + 1))
+        shot=$(mktemp --suffix=.myfox-shot.png)
+        # first-run в headless; выход после скриншота; таймаут от зависания.
+        timeout 180 "$bin" --headless --screenshot "$shot" about:blank >/dev/null 2>&1
+        rc=$?
+        rm -f "$shot"
+        [[ $rc -ne 0 ]] && return 1
+
+        # Новая секция появилась — first-run отработал именно на нашу установку.
+        # comm требует сортированные входы; grep -o даёт их в порядке файла.
+        local ini_after inst_after
+        [[ -n "$ini" ]] && ini_after=$(_profile_install_sections "$ini")
+        inst_after=""
+        [[ -f "$inst_ini" ]] && inst_after=$(grep -o '^\[[0-9A-F]\{1,16\}\]' "$inst_ini" || true)
+        new=$(comm -13 <(printf '%s\n' "$ini_before" | sort -u) \
+            <(printf '%s\n' "$ini_after" | sort -u) \
+            | grep '^\[Install[0-9A-F]\{1,16\}\]$' || true)
+        if [[ -n "$new" ]]; then
+            new="${new%%$'\n'*}"
+            echo "${new:1:-1}"
+            return 0
+        fi
+        new=$(comm -13 <(printf '%s\n' "$inst_before" | sort -u) \
+            <(printf '%s\n' "$inst_after" | sort -u) \
+            | grep '^\[[0-9A-F]\{1,16\}\]$' || true)
+        if [[ -n "$new" ]]; then
+            new="${new%%$'\n'*}"
+            echo "Install${new:1:-1}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Детерминированный hash своей установки: запуск в изолированном (чистом) HOME.
+# Firefox при первом запуске АБСОЛЮТНО ВСЕГДА регистрирует установку на свежем
+# profiles.ini (в отличие от основного HOME, где [Install<HASH>] уже может быть
+# от прошлой установки на тот же путь). Печатает HASH (без "Install"), иначе пусто.
+profile_install_hash_fresh() {
+    local install_dir="$1"
+    local bin="$install_dir/firefox"
+    [[ -x "$bin" ]] || return 1
+
+    local tmp_home shot rc hash fresh_ini
+    tmp_home=$(mktemp -d) || return 1
+    shot="$tmp_home/.myfox-shot.png"
+
+    # Изолируем профиль-каталог: HOME и XDG во временной папке. При первом
+    # запуске Firefox создаёт там свой profiles.ini (на Linux — в ~/.mozilla или
+    # $XDG_CONFIG_HOME/mozilla) и [Install<HASH>] для нашей установки.
+    HOME="$tmp_home" XDG_CONFIG_HOME="$tmp_home/.config" XDG_DATA_HOME="$tmp_home/.local/share" \
+        timeout 180 "$bin" --headless --screenshot "$shot" about:blank >/dev/null 2>&1
+    rc=$?
+    hash=""
+    if [[ $rc -eq 0 ]]; then
+        for fresh_ini in "$tmp_home/.mozilla/firefox/profiles.ini" \
+                         "$tmp_home/.config/mozilla/firefox/profiles.ini"; do
+            [[ -f "$fresh_ini" ]] || continue
+            hash=$(grep -o '^\[Install[0-9A-F]\{1,16\}\]' "$fresh_ini" \
+                | sed -e 's/^\[Install//; s/\]$//' | head -1)
+            [[ -n "$hash" ]] && break
+        done
+    fi
+    rm -rf -- "${tmp_home}"
+    [[ -n "$hash" ]] && { printf '%s' "$hash"; return 0; }
+    return 1
+}
+
+# Пиннинг: найти/получить [Install<HASH>] нашей инсталляции и поставить
+# Default= на наш профиль. Хэш переиспользуется из state при --update/--reinstall.
+# Печатает HASH (без "Install") при успехе, иначе warning + 1.
+profile_pin_install() {
+    local install_dir="$1" profile_abs="$2"
+    local ini hash section profile_path
+
+    ini=$(profile_find_ini) || { warn "profiles.ini not found — cannot pin profile."; return 1; }
+
+    # Используем уже известный hash, если секция для него есть.
+    hash=$(state_get install_hash) || true
+    section=""
+    if [[ -n "$hash" && -n "$(grep "^\[Install${hash}\]$" "$ini" 2>/dev/null || true)" ]]; then
+        section="Install${hash}"
+    fi
+
+    if [[ -z "$section" ]]; then
+        # 1) Обычный путь: headless first-run регистрирует новую секцию.
+        section=$(profile_headless_once "$install_dir") || true
+
+        if [[ -z "$section" ]]; then
+            # 2) Новой секции нет — Firefox уже знает эту установку (повторный
+            #    запуск/переустановка, [Install<HASH>] осталась от прошлого раза).
+            #    Узнаём наш hash детерминированно: на изолированном чистом HOME
+            #    Firefox регистрирует установку всегда (hash = CityHash64 от пути).
+            local fresh_hash
+            fresh_hash=$(profile_install_hash_fresh "$install_dir") || true
+            if [[ -n "$fresh_hash" ]]; then
+                section="Install${fresh_hash}"
+                warn "Adopting the existing [${section}] section (pre-registered by an earlier install)."
+            elif [[ "$(printf '%s\n' "$(_profile_install_sections "$ini")" | grep -c '^\[Install' || true)" -eq 1 ]]; then
+                # Последний резерв: секция ровно одна и хеша мы не знаем — она от нас.
+                section="$(_profile_install_sections "$ini")"
+                section="${section:1:-1}"
+                warn "Adopting the single existing [Install...] section."
+            else
+                warn "Headless Firefox run failed — cannot pin the profile to this install."
+                warn "The desktop entry will open Firefox's own default profile (tweaks will NOT apply in it)."
+                return 1
+            fi
+        fi
+        hash="${section#Install}"
+    fi
+
+    # Проверяем, что наш профиль есть в profiles.ini и берём его Path (для Default=).
+    profile_path=$(_profile_entry_path_for "$ini" "$profile_abs") || {
+        warn "Our profile ($profile_abs) not found in profiles.ini — cannot pin it."
+        return 1
+    }
+
+    # In profiles.ini секция называется [Install<HASH>], в installs.ini — просто
+    # [<HASH>] (так делает сам Firefox; дублируем его формат).
+    _ini_write_install_section "$ini" "$section" "$profile_path"
+    local installs_ini
+    installs_ini="$(dirname "$ini")/installs.ini"
+    _ini_write_install_section "$installs_ini" "${section#Install}" "$profile_path"
+
+    success "Profile pinned: [${section}] Default=${profile_path}"
+    echo "$hash"
+}
+
+# Запись [<section>] Default=<path> Locked=1 в ini (и удаление старой такой же
+# секции, чтобы она не осталась дублем в другом месте файла).
+_ini_write_install_section() {
+    local ini="$1" section="$2" profile_path="$3"
+    local tmp="${ini}.myfox.tmp"
+    _ini_remove_section "$ini" "$section" "$tmp"
+    printf '\n[%s]\nDefault=%s\nLocked=1\n' "$section" "$profile_path" >> "$tmp"
+    mv "$tmp" "$ini"
+}
+
+# Снятие пиннинга: удалить [Install<HASH>] из profiles.ini и installs.ini.
+profile_unpin_install() {
+    local hash="$1"
+    [[ -z "$hash" ]] && return 0
+    local ini i_dir
+    ini=$(profile_find_ini) || true
+    if [[ -n "$ini" ]]; then
+        i_dir=$(dirname "$ini")
+        _ini_remove_section "$ini" "Install${hash}" "${ini}.myfox.tmp" && mv "${ini}.myfox.tmp" "$ini"
+        success "Unpinned [Install${hash}] from ${ini}"
+        local installs_ini="$i_dir/installs.ini"
+        if [[ -f "$installs_ini" ]]; then
+            _ini_remove_section "$installs_ini" "$hash" "${installs_ini}.myfox.tmp" \
+                && mv "${installs_ini}.myfox.tmp" "$installs_ini"
+            success "Unpinned [${hash}] from ${installs_ini}"
+        fi
+    fi
+}
+
+# Удалить из profiles.ini секцию [ProfileN] с Name=myfox (запись остаётся —
+# данные профиля не трогаем). Возвращает 0 если удалили/не было.
+profile_remove_myfox_section() {
+    local ini target
+    ini=$(profile_find_ini) || return 0
+    target=$(awk '
+        function flush(cur) { if (cur != "" && name == "myfox") print cur }
+        /^\[Profile[0-9]+\]/ { flush(cur); cur=$0; name=""; next }
+        cur != "" && /^Name=/ { name=substr($0, 6) }
+        END { flush(cur) }
+    ' "$ini") || true
+    [[ -z "$target" ]] && { log "No myfox profile entry in profiles.ini."; return 0; }
+    local name
+    name="${target:1:-1}"
+    _ini_remove_section "$ini" "$name" "${ini}.myfox.tmp" && mv "${ini}.myfox.tmp" "$ini"
+    success "Removed profile section [${name}] from ${ini}"
 }
 
 # ─── Точка входа: определить/выбрать/создать профиль ────────────────────────
@@ -191,6 +444,15 @@ profile_resolve() {
     existing=$(profile_list_existing) || true   # строки path|name|default
     if [[ -z "$existing" ]]; then
         log "No existing profiles found — creating a new one."
+        profile_create_new
+        return 0
+    fi
+
+    # В неинтерактивном режиме (-y) НИКОГДА не трогаем чужие профили:
+    # автоматически спросить не можем, а утащить чужой default-release —
+    # ломающий баг. Пользователь может явно указать профиль через --profile.
+    if [[ -n "$MYFOX_NONINTERACTIVE" ]]; then
+        log "Existing profiles detected but running non-interactively — creating a new one."
         profile_create_new
         return 0
     fi

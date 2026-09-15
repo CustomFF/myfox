@@ -16,17 +16,22 @@ python3 -m py_compile scratch/*.py   # если трогали dev-скрипт�
 
 Все работы — в каталоге `/tmp`, с временным `HOME` и `XDG_STATE_HOME`:
 
-### 1.1 Маркер (common.sh)
+### 1.1 Маркер и opts (common.sh)
 ```bash
 export MYFOX_STATE_DIR=/tmp/mf-state
 source lib/common.sh
 state_set install_dir /tmp/ff && state_get install_dir   # → /tmp/ff
 state_clear && state_get install_dir                      # → пусто
+opts_get bl     # → true (дефолт)
+opts_get lang   # → пусто
+opts_set bl false && opts_get bl   # → false
 ```
 
 ### 1.2 Парсинг profiles.ini (profile.sh)
 Фикстура с `IsRelative=1/0` и `Default=1` и существующими каталогами — проверка
-`profile_parse_ini`, `profile_list_existing`, `profile_find_default`.
+`profile_parse_ini`, `profile_list_existing`, `profile_find_default`,
+`_profile_entry_path_for`, `_ini_remove_section`, `_ini_write_install_section`
+(на КОПИИ profiles.ini, не на боевом).
 
 ### 1.3 Создание профиля
 ```bash
@@ -37,66 +42,115 @@ MYFOX_NONINTERACTIVE=1 profile_resolve
 # ожидаем создание /tmp/mf-home/.mozilla/firefox/myfox-1 и [Profile0] Name=myfox
 ```
 
+### 1.4 Языки (firefox.sh, нужна сеть)
+```bash
+source lib/common.sh lib/firefox.sh
+firefox_list_languages                  # печатает коды + English-названия
+firefox_validate_lang de && echo ok     # → ok
+firefox_validate_lang zz || echo bad    # → bad
+echo $LANG; firefox_detect_lang         # соответствует LANG
+```
+
 ## 2. Интеграционные тесты инсталлера (можно с реальной установкой)
 
 > Используем `-y` и `--prefix /tmp/...` — не трогаем реальный профиль.
+> Для чистоты профилей/state — временный `HOME` и `XDG_STATE_HOME`:
+> ```bash
+> export HOME=/tmp/mf-home  XDG_STATE_HOME=/tmp/mf-home/.local/state
+> ```
 
-### 2.1 Первая установка
+### 2.1 Первая установка (полная)
 ```bash
-./install.sh -y --prefix /tmp/myfox-test
+./install.sh -y --prefix /tmp/myfox-test --profile /tmp/mf-home/.mozilla/firefox/myfox-1
 ```
 Проверки:
 - [ ] тарбол скачан и распакован (есть `firefox`, `application.ini`)
-- [ ] `<prefix>/defaults/pref/autoconfig.js` существует
-- [ ] `<prefix>/firefox.cfg` существует
-- [ ] `<prefix>/.myfox-installed` существует
+- [ ] `<prefix>/defaults/pref/autoconfig.js`, `<prefix>/firefox.cfg`, `<prefix>/.myfox-installed`
 - [ ] в профиле появился маркер `<profile>/.myfox`
-- [ ] профиль создан/выбран; в `~/tmp-state` появился `install.json` с `install_dir` и `profile_dir`
-- [ ] `~/.local/share/applications/firefox-myfox.desktop` создан («Firefox (myfox)»)
+- [ ] **пиннинг**: в `profiles.ini` появилась `[Install<HASH>]` с `Default=<myfox-...>` и `Locked=1`;
+      та же секция в `installs.ini`; в `install.json` записан `install_hash`
+- [ ] после headless-прогона Firefox НЕ назначил Default на чужой/новый профиль (мы переписали на myfox)
+- [ ] `~/.local/share/applications/firefox-myfox.desktop` создан («Firefox (myfox)»), Exec без `--profile`
+- [ ] `install.json` содержит `opts: {browser_only:false, lang:…, bl, addons, plasma}`
 
-### 2.2 Повторный запуск (idempotent)
+### 2.2 Повторный запуск без флагов → меню
 ```bash
-./install.sh -y --prefix /tmp/myfox-test
+./install.sh --prefix /tmp/myfox-test
 ```
-- [ ] браузер НЕ перекачан (нет нового скачивания)
-- [ ] профиль взят из маркера (в output используется тот же profile_dir)
-- [ ] твики обновлены
+- [ ] интерактивное меню: «1) Update tweaks (default) 2) Reinstall … 3) Quit»;
+      Enter → обновление твиков (браузер НЕ перекачан)
+- [ ] `./install.sh -y --prefix /tmp/myfox-test` → без вопрпосов, твики обновлены
 
-### 2.3 Отдельная инсталляция и --nobl
+### 2.3 --update
 ```bash
-./install.sh -y --prefix /tmp/myfox-test2 --nobl
+./install.sh --update -y
 ```
-- [ ] установка прошла
-- [ ] в логике не вызывались букмарклет-твики / не создан `blm_panel.css` в профиле
+- [ ] autoconfig/chrome обновлены, браузер не качается, аддоны не трогаются
+- [ ] букмарклеты применяются, если `opts.bl=true`, и пропускаются при `false` (или `--nobl`)
+- [ ] `--update --lang de` и `--update --profile X` → ошибка (несовместимо)
+- [ ] без state (`install.json` отсутствует) → понятная ошибка
 
-### 2.4 Дополнения (add-ons) и политика
+### 2.4 --reinstall (+ язык)
 ```bash
-./install.sh -y --prefix /tmp/myfox-test3 --nobl
+./install.sh --reinstall -y --lang de
 ```
-- [ ] `distribution/policies.json` содержит `DisableProfileImport: true`
-- [ ] `distribution/extensions/` содержит `uBlock0@raymondhill.net.xpi` и `{9631ec37-35f2-4719-815e-2f84ff28b901}.xpi`
-- [ ] после первого старта в `about:addons` uBlock и тема Chrome Dark активны, кнопка «Импорт закладок» на панели не появилась
-- [ ] `--noaddons` → `distribution/extensions/` не создаётся/пуст
+- [ ] браузер перекачан заново, `[Install<HASH>]` Default снова указывает на myfox-профиль
+- [ ] `--reinstall -y` БЕЗ `--lang` → язык берётся из сохранённого `opts.lang`
+- [ ] первой установке `--reinstall` не задаёт интерактивный вопрос о языке
 
-### 2.5 KDE Plasma integration
-На машине с Plasma:
+### 2.5 --browser-only
 ```bash
-./install.sh -y --prefix /tmp/myfox-test4 --nobl     # спросит про Plasma integration
-./install.sh -y --prefix /tmp/myfox-test5 --plasma-integration --nobl  # без вопроса
+./install.sh --browser-only -y --prefix /tmp/myfox-bo
 ```
-- [ ] аддон `plasma-browser-integration@kde.org.xpi` появился в `distribution/extensions/`
-- [ ] если системный пакет `plasma-browser-integration` отсутствует — инсталлер предложил поставить
-- [ ] `--noplasma` → аддон не ставится даже под Plasma
+- [ ] тарбол + desktop entry, НО `profiles.ini` не создаётся/не меняется (нет пиннинга, нет профиля)
+- [ ] state: `opts.browser_only=true`, профиль-пути отсутствуют
+- [ ] никаких твиков/аддонов в любые профили
+- [ ] при запуске `/tmp/myfox-bo/firefox` Firefox сам создаст дедикейтед-профиль, твики не применятся
 
-### 2.6 Занятая директория (чужой Firefox)
+### 2.6 --list-languages и --lang
+```bash
+./install.sh --list-languages          # коды + English-названия в stderr, exit 0
+./install.sh --lang zz -y              # → error «Unknown language code»
+./install.sh --lang de -y --prefix /tmp/myfox-test6
+```
+- [ ] после `--lang de` в `application.ini` видно `lang=de` / каталог `browser/de`
+- [ ] `--list-languages` выходит, игнорируя остальные флаги
+
+### 2.7 Добавление --noaddons / plasma
+```bash
+./install.sh -y --prefix /tmp/myfox-test7 --noaddons --nobl --noplasma
+./install.sh -y --prefix /tmp/myfox-test8 --nobl --plasma-integration  # если пакет есть
+```
+- [ ] `--noaddons` → в `<profile>/extensions/` и `distribution/extensions/` пусто, добавлены `opts.addons=false`
+- [ ] `--plasma-integration` → аддон `plasma-browser-integration@kde.org.xpi` появился в `<profile>/extensions/`; `opts.plasma=true`
+- [ ] `--noplasma` → `opts.plasma=false`
+- [ ] политика `distribution/policies.json` содержит `DisableProfileImport: true` (ставится всегда)
+
+### 2.8 Занятая директория (чужой Firefox)
 1. Положить в `/tmp/myfox-occ` произвольный файл (эмулируем вручную поставленный ff) без `.myfox-installed`.
 2. `./install.sh -y --prefix /tmp/myfox-occ`
 - [ ] появилось предупреждение «Something is already present»
 - [ ] бэкап создан (в `install.json` есть `backup_dir`, файл существует)
 - [ ] установка прошла начисто
 
-### 2.7 uninstall с восстановлением бэкапа
-После 2.6:
+### 2.9 uninstall: unpin + секция профиля
+После установки 2.1 (профиль создан myfox, есть `.myfox-created`):
+```bash
+./uninstall.sh -y
+```
+- [ ] `[Install<HASH>]` удалён из profiles.ini и installs.ini
+- [ ] запись `[ProfileN]` Name=myfox удалена из profiles.ini (данные профиля в каталоге остались)
+- [ ] autoconfig-файлы удалены, chrome CSS удалены, desktop entry удалён, `install.json` удалён
+- [ ] при подтверждении «no» запись профиля остаётся в profiles.ini
+
+### 2.10 Деградация пиннинга (headless не смог)
+1. После установки тарбола «сломать» его (убрать shared-libs, напр. переименовать `libxul.so`).
+2. `./install.sh --reinstall -y` → headless-запуск падает.
+- [ ] warning «Headless Firefox run failed…», установка продолжается и завершается успешно
+- [ ] `install_hash` в state пуст/отсутствует; uninstall не падает без него
+
+### 2.11 uninstall с восстановлением бэкапа
+После 2.8:
 ```bash
 ./uninstall.sh -y
 ```
@@ -106,17 +160,15 @@ MYFOX_NONINTERACTIVE=1 profile_resolve
 - [ ] desktop entry удалён
 - [ ] `install.json` удалён
 
-### 2.8 uninstall без бэкапа
-После простой установки (2.1): `./uninstall.sh -y` — без бэкапа, браузер удаляется (спрашиваем/`-y`), твики удалены, state очищен.
-- [ ] удалены `distribution/extensions/*.xpi` и `distribution/policies.json`
-- [ ] удалены скопированные в профиль дистрибьютивные аддоны (`<profile>/extensions/*.xpi`)
-
 ## 3. Ручные сценарии (нужен тестовый профиль)
 
 ### 3.1 Запуск и визуальная проверка твиков
 ```bash
 /tmp/myfox-test/firefox --profile /tmp/myfox-test-prof
+# или — после пиннинга — просто:
+/tmp/myfox-test/firefox
 ```
+- [ ] после пиннинга запуск **без** `--profile` открывает именно myfox-профиль (проверить через `about:profiles`: Default стоит на myfox-…), а не созданный Firefox-ом `default-release`
 - [ ] карточный стиль (закруглённые углы вкладки-вкладки, отступы)
 - [ ] сайдбар работает (`sidebar.revamp=true`); вертикальные вкладки НЕ включены по умолчанию (`sidebar.verticalTabs` не установлен)
 - [ ] поле поиска в sidebar/скачивания — пилюля
@@ -147,7 +199,7 @@ MYFOX_NONINTERACTIVE=1 profile_resolve
 Включить твики с локальной копией ddblm (пока не запушен):
 ```bash
 MYFOX_DDBLM_LOCAL=/home/daydve/development/ddblm \
-  ./install.sh -y --prefix /tmp/myfox-test6 --profile <profile> -n
+  ./install.sh -y --prefix /tmp/myfox-test6 --profile <profile>
 ```
 Проверки:
 - [ ] в `<profile>/chrome/` появились `blm_panel.css` и **ВСЕ** `panel-icons/*.svg` из `icons/` ddblm (13 шт., включая `import-bookmarklets.svg`)
@@ -173,4 +225,5 @@ MYFOX_DDBLM_LOCAL=/home/daydve/development/ddblm \
 - state: `~/.local/state/myfox/install.json`
 - бэкапы: `~/.local/state/myfox/backups/`
 - desktop: `~/.local/share/applications/firefox-myfox.desktop`
+- профили/пиннинг: `~/.mozilla/firefox/profiles.ini`, `~/.mozilla/firefox/installs.ini`
 - локальный ddblm: `/home/daydve/development/ddblm` (источник твиков для `MYFOX_DDBLM_LOCAL`, пока ddblm не запушен)
