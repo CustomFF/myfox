@@ -11,7 +11,7 @@ set -eo pipefail
 
 MYFOX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-MYFOX_NONINTERACTIVE=""
+MYFOX_NONINTERACTIVE="${MYFOX_NONINTERACTIVE:-}"
 for arg in "$@"; do
     case "$arg" in
         -y|--yes) MYFOX_NONINTERACTIVE=1 ;;
@@ -30,6 +30,8 @@ done
 . "$MYFOX_ROOT/lib/common.sh"
 # shellcheck source=lib/firefox.sh
 . "$MYFOX_ROOT/lib/firefox.sh"
+# shellcheck source=lib/profile.sh
+. "$MYFOX_ROOT/lib/profile.sh"
 # shellcheck source=lib/addons.sh
 . "$MYFOX_ROOT/lib/addons.sh"
 
@@ -50,6 +52,15 @@ echo "  Profile dir: $PROFILE_DIR"
 if [[ -z $MYFOX_NONINTERACTIVE ]] && ! confirm "Remove MyFox tweaks?" "n"; then
     echo "Cancelled."
     exit 0
+fi
+
+# ─── Снятие пиннинга (профиль на инсталляцию) ───────────────────────────────
+
+INSTALL_HASH=$(state_get install_hash)
+if [[ -n "$INSTALL_HASH" ]]; then
+    profile_unpin_install "$INSTALL_HASH"
+else
+    log "No pinned install hash — skipping profiles.ini/installs.ini unpin."
 fi
 
 # ─── Удаление твиков ────────────────────────────────────────────────────────
@@ -79,6 +90,16 @@ if [[ -n "$PROFILE_DIR" && -d "$PROFILE_DIR/chrome" ]]; then
     rm -rf "$PROFILE_DIR/chrome/panel-icons" 2>/dev/null || true
     rm -f "$PROFILE_DIR/.myfox" 2>/dev/null || true
     success "Chrome styles removed from $PROFILE_DIR"
+fi
+
+# Профиль, созданный нами (маркер .myfox-created): предложить убрать его
+# запись из profiles.ini. Данные профиля при этом сохраняются.
+if [[ -n "$PROFILE_DIR" && -f "$PROFILE_DIR/.myfox-created" ]]; then
+    if confirm "Remove the myfox profile entry from profiles.ini? (profile data is kept)" "n"; then
+        profile_remove_myfox_section
+    else
+        log "Kept the myfox profile entry in profiles.ini."
+    fi
 fi
 
 # Add-ons (uBlock, theme, plasma-integration) installed per-profile:
@@ -118,7 +139,7 @@ firefox_remove_desktop_entry
 # ─── Браузер ────────────────────────────────────────────────────────────────
 
 if [[ -d "$INSTALL_DIR" ]]; then
-    if [[ -z $MYFOX_NONINTERACTIVE ]] && ! confirm "Remove the Firefox browser itself at $INSTALL_DIR? [y/N]" "n"; then
+    if [[ -z $MYFOX_NONINTERACTIVE ]] && ! confirm "Remove the Firefox browser itself at $INSTALL_DIR?" "n"; then
         log "Kept Firefox at $INSTALL_DIR."
     else
         rm -rf "$INSTALL_DIR"
@@ -130,3 +151,4 @@ fi
 
 state_clear
 success "MyFox has been uninstalled."
+echo -e "${GREEN}MyFox uninstalled.${NC}"
