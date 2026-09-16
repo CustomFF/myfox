@@ -23,7 +23,8 @@ MyFox — набор твиков интерфейса Firefox (плавающа
 - **Опциональные твики букмарклетов** — кастомные иконки, скрытые подписи,
   ссылка на страницу галереи букмарклетов (берутся из отдельного проекта **ddblm**).
 - **Опциональные дополнения** — uBlock Origin и тёмная тема ставятся по умолчанию
-  в `distribution/extensions`; интеграция с KDE Plasma — по запросу.
+  в `<profile>/extensions` (пер-профильно, чужие профили остаются чистыми);
+  интеграция с KDE Plasma — по запросу.
 - **Без root** — Firefox ставится в `~/.local/share/firefox`, ярлык называется
   **«Firefox (myfox)»** и не конфликтует с системным.
 
@@ -80,9 +81,7 @@ cd myfox
 | Куда | Что |
 |---|---|
 | `<install>/defaults/pref/autoconfig.js` | включает систему Autoconfig |
-| `<install>/firefox.cfg` | privileged JS: регистрирует agent sheet, правит сайдбар/загрузки, ставит префы |
-| `<install>/distribution/policies.json` | политика Firefox (`DisableProfileImport` — без кнопки «Импорт закладок») |
-| `<install>/distribution/extensions/*.xpi` | дополнения (uBlock Origin, тёмная тема, опционально Plasma integration) |
+| `<install>/firefox.cfg` | privileged JS: регистрирует agent sheet, правит сайдбар/загрузки, ставит профиль-локальные префы |
 | `<profile>/chrome/userChrome.css` | стили user-sheet |
 | `<profile>/chrome/agent_overrides.css` | стили agent-sheet |
 | `<profile>/.myfox` | маркер профиля — твики получает только помеченный профиль |
@@ -118,9 +117,12 @@ Firefox: `firefox.cfg` отказывается применять к нему �
 Букмарклеты — это [отдельный проект](https://github.com/DayDve/ddblm). При установке можно
 подключить твики (кастомные иконки + скрытые подписи на панели закладок, берутся из ddblm)
 и ссылку на галерею, размещённую на GitHub Pages
-([https://daydve.github.io/ddblm/](https://daydve.github.io/ddblm/)). Инсталлер копирует
+([https://daydve.github.io/ddblm/](https://daydve.github.io/ddblm/),
+RU-версия — [https://daydve.github.io/ddblm/?lang=ru](https://daydve.github.io/ddblm/?lang=ru),
+язык выбирается автоматически и для русскоязычного Firefox инсталлер подставляет `?lang=ru`
+в закладку-галерею). Инсталлер копирует
 `docs/blm_panel.css` и **все** `icons/*.svg` из ddblm (raw.githubusercontent.com для
-запушенного ddblm; локальный checkout через `MYFOX_DDBLM_LOCAL=/путь` при разработке)
+опубликованного ddblm; локальный checkout через `MYFOX_DDBLM_LOCAL=/путь` при разработке твиков)
 в `<profile>/chrome/` — клонировать и собирать ddblm самостоятельно не нужно.
 
 После установки откройте галерею (кнопка **«Добавить букмарклеты»** на панели закладок),
