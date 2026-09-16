@@ -17,4 +17,5 @@ __pycache__/
 # === stray files never meant for this repo ===
 Office.conf
 
-# note: bookmarklets/ is a git submodule → ddbml. It is not committed directly here.
+# bookmarklet tweaks (docs/blm_panel.css, icons/*.svg) are copied from the separate
+# ddblm project into the profile at install time — never committed here.

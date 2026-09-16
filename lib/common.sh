@@ -24,7 +24,8 @@ MYFOX_DDBLM_BRANCH="master"
 MYFOX_DDBLM_RAW="https://raw.githubusercontent.com/${MYFOX_DDBLM_REPO}/${MYFOX_DDBLM_BRANCH}"
 MYFOX_DDBLM_GALLERY="https://daydve.github.io/ddblm/"
 
-# Локальная копия ddblm (для тестирования твиков, пока репозиторий не запушен).
+# Локальная копия ddblm (для разработки/отладки твиков). Если задана и содержит
+# нужные файлы — используется вместо raw-ссылок на опубликованный репозиторий.
 # Пустой (по умолчанию) — файлы берутся из raw github. Во время тестирования
 # твиков задаём через переменную окружения, напр.
 #   MYFOX_DDBLM_LOCAL=/home/daydve/development/ddblm ./install.sh ...

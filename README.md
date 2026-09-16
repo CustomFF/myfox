@@ -23,7 +23,7 @@ you do not need to build or clone ddblm yourself.
 - **Optional bookmarklet tweaks** — icons, hidden labels, and a link to the
   bookmarklet gallery page (taken from the separate **ddblm** project).
 - **Optional add-ons** — uBlock Origin and a dark theme are installed by default into
-  `distribution/extensions`; KDE Plasma integration is available on request.
+  `<profile>/extensions` (per-profile, so other profiles stay pristine); KDE Plasma integration is available on request.
 - **No root required** — Firefox lands in `~/.local/share/firefox` and the desktop shortcut
   is named **«Firefox (myfox)»** so it never conflicts with a system-installed Firefox.
 
@@ -81,9 +81,7 @@ offers to restore it.
 | Where | What |
 |---|---|
 | `<install>/defaults/pref/autoconfig.js` | enables the Autoconfig system |
-| `<install>/firefox.cfg` | privileged JS: registers agent sheet, patches sidebar/downloads, sets prefs |
-| `<install>/distribution/policies.json` | Firefox policy (`DisableProfileImport` — no «Import bookmarks» button) |
-| `<install>/distribution/extensions/*.xpi` | add-ons (uBlock Origins, Chrome Dark theme, optional Plasma integration) |
+| `<install>/firefox.cfg` | privileged JS: registers agent sheet, patches sidebar/downloads, sets profile-local prefs |
 | `<profile>/chrome/userChrome.css` | user-sheet styles |
 | `<profile>/chrome/agent_overrides.css` | agent-sheet styles |
 | `<profile>/.myfox` | profile marker — only marked profiles get tweaks |
@@ -98,7 +96,8 @@ myfox** (`<profile>/.myfox`, or fallback: a legacy profile that already has
 
 On the marked profile, `firefox.cfg` also adds two bookmarks to the Bookmarks Toolbar:
 **«Расширенные настройки»** (about:config) and **«Добавить букмарклеты»** (the ddblm
-gallery), and activates the installed Chrome Dark theme (when present).
+gallery — bilingual, opens in Russian as `?lang=ru` for a Russian-locale Firefox), and
+activates the installed Chrome Dark theme (when present).
 
 ## Add-ons
 

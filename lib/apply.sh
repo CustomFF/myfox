@@ -32,7 +32,6 @@ backup_dir_nonempty() {
 apply_autoconfig() {
     local install_dir="$1" backup_dir_var="$2"
     mkdir -p "$install_dir/defaults/pref"
-    mkdir -p "$install_dir/distribution"
 
     # Если у инсталляции уже есть autoconfig, но это НЕ наша копия (нет наших твиков) —
     # просто перезаписываем (безопасно: инсталляция всё равно целиком наша после установки).
@@ -41,21 +40,9 @@ apply_autoconfig() {
     install -m 0644 "$MYFOX_AUTOCONFIG_DIR/firefox.cfg" "$install_dir/firefox.cfg"
     success "Autoconfig installed."
 
-    # Политика DisableProfileImport: запрещает штатный механизм Firefox
-    # «добавить кнопку Импорт закладок в панель» (maybeAddImportButton на
-    # browser-idle-startup добавляет её при <3 закладках в панели, и firefox.cfg
-    # её не переигрывает). Политикой браузер сам её убирает.
-    if [[ ! -f "$install_dir/distribution/policies.json" ]] || \
-       ! grep -q 'DisableProfileImport' "$install_dir/distribution/policies.json"; then
-        log "Installing distribution/policies.json (DisableProfileImport)..."
-        printf '%s\n' \
-            '{' \
-            '  "policies": {' \
-            '    "DisableProfileImport": true' \
-            '  }' \
-            '}' > "$install_dir/distribution/policies.json"
-        success "DisableProfileImport policy installed."
-    fi
+    # Никаких глобальных политик: distribution/policies.json не ставим.
+    # Всё твики — строго профиль-локальные (firefox.cfg + chrome/ профиля).
+    # Удалил профиль → кристально чистый ванильный Firefox.
 }
 
 # ─── Применение chrome CSS ──────────────────────────────────────────────────
@@ -98,7 +85,7 @@ apply_chrome() {
 # Источник файлов:
 #   - если доступна локальная копия ddblm (MYFOX_DDBLM_LOCAL) — копируем её
 #     (используется при тестировании твиков);
-#   - иначе тянем из raw.githubusercontent.com (когда ddblm запушен).
+#   - иначе тянем из raw.githubusercontent.com (опубликованный репозиторий).
 # Ссылка на галерею на панель закладок добавляется отдельно (firefox.cfg).
 
 # Копирует/скачивает один файл ddblm. <rel> — путь без ведущего слэша
@@ -145,15 +132,15 @@ apply_bookmarklets() {
             install -m 0644 "$f" "$c_dir/panel-icons/$(basename "$f")"
         done
     else
-        # На удалённом источнике список имён берём из css (panel-icons/...).
+        # На удалённом источнике список имён берём из css (panel-icons/<base>.svg).
         # Глобально не знаем полного каталога raw-репо; тут он совпадает с icons/.
         local names
         names=$(grep -o 'url("panel-icons/[^"]*")' "$c_dir/blm_panel.css" "$c_dir/userChrome.css" \
-            | sed 's/.*url("panel-icons\///;s/")//' | sort -u || true)
+            | sed 's/.*url("panel-icons\///;s/")//;s/\.svg$//' | sort -u || true)
         # Кнопка «Добавить букмарклеты» в userChrome.css опирается на неё.
         names+=" import-bookmarklets"
         for rel in $names; do
-            ddblm_file "icons/$rel.svg" "$c_dir/panel-icons/$rel.svg" \
+            ddblm_file "icons/${rel}.svg" "$c_dir/panel-icons/${rel}.svg" \
                 || warn "Icon not available in ddblm repo: $rel"
         done
         # Иконки, которые могут понадобиться позже (если всё же известны в css).

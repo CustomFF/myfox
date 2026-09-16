@@ -121,10 +121,10 @@ echo $LANG; firefox_detect_lang         # соответствует LANG
 ./install.sh -y --prefix /tmp/myfox-test7 --noaddons --nobl --noplasma
 ./install.sh -y --prefix /tmp/myfox-test8 --nobl --plasma-integration  # если пакет есть
 ```
-- [ ] `--noaddons` → в `<profile>/extensions/` и `distribution/extensions/` пусто, добавлены `opts.addons=false`
+- [ ] `--noaddons` → в `<profile>/extensions/` пусто, добавлены `opts.addons=false`
 - [ ] `--plasma-integration` → аддон `plasma-browser-integration@kde.org.xpi` появился в `<profile>/extensions/`; `opts.plasma=true`
 - [ ] `--noplasma` → `opts.plasma=false`
-- [ ] политика `distribution/policies.json` содержит `DisableProfileImport: true` (ставится всегда)
+- [ ] `distribution/` в инсталляции НЕ создаётся (никаких глобальных политик — всё профиль-локально)
 
 ### 2.8 Занятая директория (чужой Firefox)
 1. Положить в `/tmp/myfox-occ` произвольный файл (эмулируем вручную поставленный ff) без `.myfox-installed`.
@@ -176,37 +176,44 @@ echo $LANG; firefox_detect_lang         # соответствует LANG
 - [ ] downloads как вид сайдбара
 - [ ] `toolkit.legacyUserProfileCustomizations.stylesheets=true` (поставлен через autoconfig — проверить в about:config)
 
-### 3.2 Свежий профиль: закладки галереи + политика (важно!)
+### 3.2 Свежий профиль: закладки галереи + первый запуск (важно!)
 После **первого** старта на чистом профиле (не перезапуске):
 - [ ] на панели закладок две закладки: **«Расширенные настройки»** (about:config) и **«Добавить букмарклеты»** (https://daydve.github.io/ddblm/)
 - [ ] закладки не пропали после перезапуска (блок идемпотентен)
-- [ ] кнопки «Импорт закладок» НЕТ (политика `DisableProfileImport`)
+- [ ] кнопки «Импорт закладок» НЕТ (виджет `import-button` убирается профиль-локально в firefox.cfg)
+- [ ] приветственный визард about:welcome («Импорт из другого браузера») НЕ показывается
+- [ ] в Настройки → Внешний вид: тема оформления для сайтов = **Тёмная** (`layout.css.prefers-color-scheme.content-override=0` в about:config)
 - [ ] guard-преф `myfox.galleryBookmarkAdded=true` в about:config (диагностический, не блокирует)
 
 ### 3.3 Чужие/новые профили — чистый Firefox (маркер `.myfox`)
 1. Создать новый профиль в той же инсталляции без инсталлера (или `--profile /tmp/void-new`)
    и запустить в нём `/tmp/myfox-test/firefox`.
-2. Политика `DisableProfileImport` в `distribution/` — глобальная для инсталляции, ок, остаётся.
+2. Глобальных политик в `distribution/` нет — инсталляция профиль-агностична; снятие твиков =
+   удаление профиля обходит весь код firefox.cfg через guard.
 Проверки:
 - [ ] `install_dir/.myfox-installed` в профиле НЕ создан (это файл инсталла, не профиля)
 - [ ] в `<new>/chrome/` НЕТ файлов (myfox не создаёт chrome в чужом профиле)
-- [ ] префы `toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp` НЕ выставлены
+- [ ] префы `toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`,
+      `browser.aboutwelcome.enabled`, `layout.css.prefers-color-scheme.content-override` НЕ выставлены
 - [ ] закладок «Расширенные настройки»/«Добавить букмарклеты» НЕТ
 - [ ] интерфейс выглядит как обычный немодифицированный Firefox
 
 ### 3.4 Букмарклеты (ddblm, при включённых твиках)
 
-Включить твики с локальной копией ddblm (пока не запушен):
+Включить твики из опубликованного ddblm (raw.githubusercontent.com) или с локальной копии:
 ```bash
+./install.sh -y --prefix /tmp/myfox-test6 --profile <profile>
+# либо для проверки локальных правок твиков:
 MYFOX_DDBLM_LOCAL=/home/daydve/development/ddblm \
   ./install.sh -y --prefix /tmp/myfox-test6 --profile <profile>
 ```
 Проверки:
 - [ ] в `<profile>/chrome/` появились `blm_panel.css` и **ВСЕ** `panel-icons/*.svg` из `icons/` ddblm (13 шт., включая `import-bookmarklets.svg`)
 - [ ] кнопка «Добавить букмарклеты» на панели закладок с иконкой (не пустой/сломанной)
+- [ ] в русскоязычном Firefox закладка «Добавить букмарклеты» открывает `https://daydve.github.io/ddblm/?lang=ru`, в англоязычном — базу без параметра
 - [ ] перетаскивание карточек из галереи на панель закладок работает (drag&drop)
 - [ ] иконки и скрытие подписей (через `blm_panel.css` + `userChrome.css`) применились
-- [ ] при `MYFOX_DDBLM_LOCAL` пустом — твики тянутся с raw.githubusercontent.com (когда ddblm запушен; пока raw 404 ведёт к ясному предупреждению и пропуску)
+- [ ] при `MYFOX_DDBLM_LOCAL` пустом — твики тянутся с raw.githubusercontent.com (при 404 иконок/`blm_panel.css` — ясное предупреждение и пропуск)
 
 ### 3.5 Применение к существующему браузеру (README-инструкция)
 Выполнить шаги секции «Applying to an existing Firefox» на временной инсталляции:
@@ -226,4 +233,4 @@ MYFOX_DDBLM_LOCAL=/home/daydve/development/ddblm \
 - бэкапы: `~/.local/state/myfox/backups/`
 - desktop: `~/.local/share/applications/firefox-myfox.desktop`
 - профили/пиннинг: `~/.mozilla/firefox/profiles.ini`, `~/.mozilla/firefox/installs.ini`
-- локальный ddblm: `/home/daydve/development/ddblm` (источник твиков для `MYFOX_DDBLM_LOCAL`, пока ddblm не запушен)
+- локальный ddblm: `/home/daydve/development/ddblm` (источник твиков для `MYFOX_DDBLM_LOCAL` при отладке локальных правок твиков; опубликованная версия — `DayDve/ddblm` на GitHub Pages)
