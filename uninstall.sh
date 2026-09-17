@@ -49,9 +49,28 @@ PROFILE_DIR=$(state_get profile_dir)
 echo -e "${BOLD}MyFox uninstaller${NC}"
 echo "  Firefox dir: $INSTALL_DIR"
 echo "  Profile dir: $PROFILE_DIR"
-if [[ -z $MYFOX_NONINTERACTIVE ]] && ! confirm "Remove MyFox tweaks?" "n"; then
-    echo "Cancelled."
-    exit 0
+
+# Тип профиля: created — создан инсталлером (маркер .myfox-created),
+# existing — существующий, переданный через --profile / выбранный в мастере.
+# Для created-профиля вопрос «Remove MyFox tweaks?» бессмыслен: твики удаляются
+# вместе с профилем (или при его очистке), см. блок профиля ниже.
+PROFILE_TYPE=""
+if [[ -n "$PROFILE_DIR" ]]; then
+    if [[ -f "$PROFILE_DIR/.myfox-created" ]]; then
+        PROFILE_TYPE="created"
+    elif [[ -d "$PROFILE_DIR" ]]; then
+        PROFILE_TYPE="existing"
+    fi
+fi
+
+# «Remove MyFox tweaks?» спрашиваем ТОЛЬКО для существующего профиля — там
+# твики навешены на реальный профиль пользователя, и снятие — осознанная
+# операция. Отказ здесь отменяет весь uninstall.
+if [[ "$PROFILE_TYPE" == "existing" ]]; then
+    if [[ -z $MYFOX_NONINTERACTIVE ]] && ! confirm "Remove MyFox tweaks?" "n"; then
+        echo "Cancelled."
+        exit 0
+    fi
 fi
 
 # ─── Снятие пиннинга (профиль на инсталляцию) ───────────────────────────────
@@ -73,8 +92,23 @@ if [[ -d "$INSTALL_DIR" ]]; then
     success "Autoconfig files removed from $INSTALL_DIR"
 fi
 
-# Chrome styles
-if [[ -n "$PROFILE_DIR" && -d "$PROFILE_DIR/chrome" ]]; then
+# Chrome styles / удаление профиля
+# Профиль, созданный инсталлером (маркер .myfox-created): удаляем целиком
+# (каталог + запись) — это и есть «снятие твиков» для нашего профиля. Чужой
+# профиль (existing) НЕ удаляем, только снимаем с него твики.
+DELETE_PROFILE=false
+if [[ "$PROFILE_TYPE" == "created" ]]; then
+    if [[ -z $MYFOX_NONINTERACTIVE ]] && ! confirm "Delete the myfox profile completely (all its data)? $PROFILE_DIR" "n"; then
+        log "Keeping the myfox profile at $PROFILE_DIR."
+    else
+        rm -rf "$PROFILE_DIR"
+        profile_remove_myfox_section
+        success "Myfox profile deleted: $PROFILE_DIR"
+        DELETE_PROFILE=true
+    fi
+fi
+
+if [[ "$DELETE_PROFILE" != "true" && -n "$PROFILE_DIR" && -d "$PROFILE_DIR/chrome" ]]; then
     # Восстановить защитные копии чужих стилей (созданные apply_chrome)
     for f in userChrome.css agent_overrides.css; do
         if [[ -f "$PROFILE_DIR/chrome/$f.myfox-backup" ]]; then
@@ -92,9 +126,8 @@ if [[ -n "$PROFILE_DIR" && -d "$PROFILE_DIR/chrome" ]]; then
     success "Chrome styles removed from $PROFILE_DIR"
 fi
 
-# Профиль, созданный нами (маркер .myfox-created): предложить убрать его
-# запись из profiles.ini. Данные профиля при этом сохраняются.
-if [[ -n "$PROFILE_DIR" && -f "$PROFILE_DIR/.myfox-created" ]]; then
+# Только если профиль остался: предложить убрать его запись из profiles.ini.
+if [[ -n "$PROFILE_DIR" && -f "$PROFILE_DIR/.myfox-created" && "$DELETE_PROFILE" != "true" ]]; then
     if confirm "Remove the myfox profile entry from profiles.ini? (profile data is kept)" "n"; then
         profile_remove_myfox_section
     else
@@ -103,17 +136,23 @@ if [[ -n "$PROFILE_DIR" && -f "$PROFILE_DIR/.myfox-created" ]]; then
 fi
 
 # Add-ons (uBlock, theme, plasma-integration) installed per-profile:
-# remove them from the profile (addon XPI files + unpacked dirs).
+# удаляем ТОЛЬКО их (по фиксированным ID). КАТЕГОРИЧЕСКИ НЕЛЬЗЯ сметать
+# все *.xpi из extensions/: там живут пользовательские аддоны существующего
+# профиля (до 70+ шт. у реальных пользователей).
+MYFOX_ADDON_IDS=(
+    "uBlock0@raymondhill.net"                 # uBlock Origin
+    "{9631ec37-35f2-4719-815e-2f84ff28b901}"  # Google Chrome Dark (тема)
+    "plasma-browser-integration@kde.org"      # KDE Plasma integration
+)
 if [[ -n "$PROFILE_DIR" && -d "$PROFILE_DIR/extensions" ]]; then
-    for f in "$PROFILE_DIR"/extensions/*.xpi; do
-        [[ -f "$f" ]] || continue
-        rm -f "$f"
-        success "Removed profile add-on: $(basename "$f")"
+    for id in "${MYFOX_ADDON_IDS[@]}"; do
+        [[ -z "$id" ]] && continue
+        # Упакованный XPI (как клали myfox) и распакованная Firefox-ом установка.
+        rm -f "$PROFILE_DIR/extensions/$id.xpi" 2>/dev/null || true
+        rm -rf "$PROFILE_DIR/extensions/$id" 2>/dev/null || true
     done
-    # Распакованные Firefox-ом установки аддонов (<id>/ каталоги).
-    for d in "$PROFILE_DIR"/extensions/{uBlock0@raymondhill.net,{9631ec37-35f2-4719-815e-2f84ff28b901},plasma-browser-integration@kde.org}; do
-        [[ -d "$d" ]] && rm -rf "$d"
-    done
+    # extensions.json НЕ трогаем — если аддон остался записан, Firefox сам
+    # вычистит запись о недостающем файле. Каталог убираем только если пуст.
     rmdir "$PROFILE_DIR/extensions" 2>/dev/null || true
 fi
 
