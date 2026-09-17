@@ -210,18 +210,68 @@ _profile_entry_path_for() {
     return 1
 }
 
+# Список каталогов-профилей в store (только реально существующие, с prefs.js).
+# Используется для вычистки мусорных профилей, созданных самим Firefox.
+_profile_store_profile_dirs() {
+    local store_dir="$1"
+    find "$store_dir" -mindepth 1 -maxdepth 1 -type d \
+        -exec test -f '{}/prefs.js' \; -printf '%f\n' 2>/dev/null | sort -u
+}
+
+# Имя секции [ProfileN], чей каталог == target_dir (для удаления секции).
+_profile_section_for_dir() {
+    local ini="$1" target="$2" idir
+    idir=$(dirname "$ini")
+    awk -v target="$target" -v idir="$idir" '
+        function abs(p,rel) { return (rel=="1") ? (idir "/" p) : p }
+        /^\[/ { sec=$0; path=""; isrel=""; next }
+        sec ~ /^\[Profile[0-9]+\]$/ && /^Path=/ { path=substr($0,6) }
+        sec ~ /^\[Profile[0-9]+\]$/ && /^IsRelative=/ { isrel=substr($0,12) }
+        sec ~ /^\[Profile[0-9]+\]$/ && path!="" && isrel!="" && abs(path,isrel)==target {
+            print substr(sec,2,length(sec)-2); exit
+        }
+    ' "$ini"
+}
+
+# Вычистка «мусорных» профилей, которые Firefox создаёт сам при first-run
+# (headless-прогон для пиннинга): новый каталог профиля + его [ProfileN] секция.
+# Наш профиль (сторона инсталлера) и каталоги, существовавшие ДО прогона, не трогаем.
+# $1=store_dir  $2=profiles.ini  $3=наш профиль(abs, не трогаем)  $4=каталоги до (по одному в строке)
+_profile_purge_headless_strays() {
+    local store_dir="$1" ini="$2" our="$3" before="$4"
+    [[ -n "$store_dir" && -d "$store_dir" ]] || return 0
+    local d abs sec
+    while IFS= read -r d; do
+        [[ -z "$d" ]] && continue
+        abs="$store_dir/$d"
+        [[ "$abs" == "$our" ]] && continue
+        grep -qxF "$d" <<<"$before" && continue
+        [[ -d "$abs" ]] || continue
+        # Секция [ProfileN] для этого каталога (если Firefox её создал) — убрать.
+        if [[ -n "$ini" && -f "$ini" ]]; then
+            sec=$(_profile_section_for_dir "$ini" "$abs")
+            if [[ -n "$sec" ]]; then
+                _ini_remove_section "$ini" "$sec" "${ini}.myfox.tmp" && mv "${ini}.myfox.tmp" "$ini"
+            fi
+        fi
+        rm -rf -- "$abs"
+    done <<< "$(_profile_store_profile_dirs "$store_dir")"
+}
+
 # Однократный запуск нашей инсталляции в headless-режиме, чтобы Firefox
 # выполнил first-run и записал [Install<HASH>] (profiles.ini) / [<HASH>]
 # (installs.ini) в ОБЩИЙ store. Секционную регистрацию ловим в обоих файлах:
 # на части версий FF hash пишется только в installs.ini. Первый запуск бывает
 # медленным — ищем щедрым таймаутом и повторяем попытку один раз.
+# Побочный эффект first-run — Firefox создаёт собственный временный профиль
+# (default-*) в store; его каталог и [ProfileN] секцию вычищаем после.
 # Печатает имя секции вида "Install<HASH>", если появилась новая; иначе пусто.
 profile_headless_once() {
-    local install_dir="$1"
+    local install_dir="$1" our_profile="$2"
     local bin="$install_dir/firefox"
     [[ -x "$bin" ]] || return 1
 
-    local ini inst_ini shot ini_before inst_before
+    local ini inst_ini shot ini_before inst_before store_dir before_dirs
     ini=$(profile_find_ini) || true
     ini_before=""
     [[ -n "$ini" ]] && ini_before=$(_profile_install_sections "$ini")
@@ -230,7 +280,20 @@ profile_headless_once() {
     inst_before=""
     [[ -f "$inst_ini" ]] && inst_before=$(grep -o '^\[[0-9A-F]\{1,16\}\]' "$inst_ini" || true)
 
-    local attempt=0 rc new
+    # Снимок профилей ДО прогона: те, что создаст Firefox для first-run,
+    # после удалим (мусор, см. _profile_purge_headless_strays).
+    store_dir=""
+    before_dirs=""
+    if [[ -n "$ini" ]]; then
+        store_dir=$(dirname "$ini")
+    else
+        # profiles.ini ещё нет — headless-Firefox создаст его в первом каталоге
+        # поиска ($HOME/.mozilla/firefox); туда же смотреть для вычистки.
+        store_dir=$(profile_search_dirs | head -1)
+    fi
+    [[ -n "$store_dir" ]] && before_dirs=$(_profile_store_profile_dirs "$store_dir")
+
+    local attempt=0 rc new found=""
     while (( attempt < 2 )); do
         attempt=$((attempt + 1))
         shot=$(mktemp --suffix=.myfox-shot.png)
@@ -238,7 +301,7 @@ profile_headless_once() {
         timeout 180 "$bin" --headless --screenshot "$shot" about:blank >/dev/null 2>&1
         rc=$?
         rm -f "$shot"
-        [[ $rc -ne 0 ]] && return 1
+        [[ $rc -ne 0 ]] && break
 
         # Новая секция появилась — first-run отработал именно на нашу установку.
         # comm требует сортированные входы; grep -o даёт их в порядке файла.
@@ -250,19 +313,25 @@ profile_headless_once() {
             <(printf '%s\n' "$ini_after" | sort -u) \
             | grep '^\[Install[0-9A-F]\{1,16\}\]$' || true)
         if [[ -n "$new" ]]; then
-            new="${new%%$'\n'*}"
-            echo "${new:1:-1}"
-            return 0
+            found="${new%%$'\n'*}"
+            break
         fi
         new=$(comm -13 <(printf '%s\n' "$inst_before" | sort -u) \
             <(printf '%s\n' "$inst_after" | sort -u) \
             | grep '^\[[0-9A-F]\{1,16\}\]$' || true)
         if [[ -n "$new" ]]; then
-            new="${new%%$'\n'*}"
-            echo "Install${new:1:-1}"
-            return 0
+            found="${new%%$'\n'*}"
+            break
         fi
     done
+
+    # Убираем профиль, который Firefox создал для first-run (если создал).
+    _profile_purge_headless_strays "$store_dir" "$ini" "$our_profile" "$before_dirs"
+
+    if [[ -n "$found" ]]; then
+        echo "${found:1:-1}"
+        return 0
+    fi
     return 1
 }
 
@@ -317,8 +386,9 @@ profile_pin_install() {
     fi
 
     if [[ -z "$section" ]]; then
-        # 1) Обычный путь: headless first-run регистрирует новую секцию.
-        section=$(profile_headless_once "$install_dir") || true
+        # 1) Обычный путь: headless first-run регистрирует новую секцию
+        #    (наш профиль передаём, чтобы мусорку-профилей его не задело).
+        section=$(profile_headless_once "$install_dir" "$profile_abs") || true
 
         if [[ -z "$section" ]]; then
             # 2) Новой секции нет — Firefox уже знает эту установку (повторный

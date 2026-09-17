@@ -70,6 +70,7 @@ echo $LANG; firefox_detect_lang         # соответствует LANG
 - [ ] **пиннинг**: в `profiles.ini` появилась `[Install<HASH>]` с `Default=<myfox-...>` и `Locked=1`;
       та же секция в `installs.ini`; в `install.json` записан `install_hash`
 - [ ] после headless-прогона Firefox НЕ назначил Default на чужой/новый профиль (мы переписали на myfox)
+- [ ] после headless-пиннинга в `~/.mozilla/firefox` НЕТ мусорного `default-*` профиля (cat + `[ProfileN]` вычищены)
 - [ ] `~/.local/share/applications/firefox-myfox.desktop` создан («Firefox (myfox)»), Exec без `--profile`
 - [ ] `install.json` содержит `opts: {browser_only:false, lang:…, bl, addons, plasma}`
 
@@ -139,9 +140,23 @@ echo $LANG; firefox_detect_lang         # соответствует LANG
 ./uninstall.sh -y
 ```
 - [ ] `[Install<HASH>]` удалён из profiles.ini и installs.ini
-- [ ] запись `[ProfileN]` Name=myfox удалена из profiles.ini (данные профиля в каталоге остались)
+- [ ] запись `[ProfileN]` Name=myfox удалена из profiles.ini
+- [ ] **профиль удалён** целиком (каталог + запись) — `-y` подтверждает удаление
 - [ ] autoconfig-файлы удалены, chrome CSS удалены, desktop entry удалён, `install.json` удалён
-- [ ] при подтверждении «no» запись профиля остаётся в profiles.ini
+- [ ] вопрос «Remove MyFox tweaks?» для профиля, созданного инсталлером, НЕ показывается — вместо него сразу «Delete the myfox profile completely?»
+
+Интерактивно для профиля с `.myfox-created`:
+```bash
+./uninstall.sh
+```
+- [ ] первый вопрос — «Delete the myfox profile completely?»; ответ «n»: данные профиля и запись в profiles.ini сохранены, твики всё равно сняты
+
+Интерактивно для СУЩЕСТВУЮЩЕГО профиля (`--profile` без `.myfox-created`):
+```bash
+./uninstall.sh
+```
+- [ ] вопрос «Remove MyFox tweaks?» показывается; ответ «n» — отмена всего
+- [ ] ответ «y»: твики сняты, профиль НЕ удалён и НЕ предлагается к удалению
 
 ### 2.10 Деградация пиннинга (headless не смог)
 1. После установки тарбола «сломать» его (убрать shared-libs, напр. переименовать `libxul.so`).
@@ -183,6 +198,8 @@ echo $LANG; firefox_detect_lang         # соответствует LANG
 - [ ] кнопки «Импорт закладок» НЕТ (виджет `import-button` убирается профиль-локально в firefox.cfg)
 - [ ] приветственный визард about:welcome («Импорт из другого браузера») НЕ показывается
 - [ ] в Настройки → Внешний вид: тема оформления для сайтов = **Тёмная** (`layout.css.prefers-color-scheme.content-override=0` в about:config)
+- [ ] панель закладок видна **на любой вкладке**, не только на новой (`browser.toolbars.bookmarks.visibility="always"`)
+- [ ] кнопки профиля (`fxa-toolbar-menu-button`) на панели НЕТ
 - [ ] guard-преф `myfox.galleryBookmarkAdded=true` в about:config (диагностический, не блокирует)
 
 ### 3.3 Чужие/новые профили — чистый Firefox (маркер `.myfox`)

@@ -51,7 +51,7 @@ myfox/
 - `lib/profile.sh` ищет `profiles.ini` в `~/.mozilla/firefox`, flatpak, snap. Store — **общий** с обычным Firefox: правим ТОЛЬКО секции под нашу установку.
 - **Не-деструктивность (критично)**: инсталлер добавляет/переключает исключительно `[Install<HASH>] Default=<наш профиль>` и `[ProfileN] Name=myfox`. Чужие `[Install<HASH>]`, `[ProfileN]`, `Default=1` и каталоги не трогать. Новый `[ProfileN]` нумеруется `max+1`, а не `grep -c`.
 - **`-y`/неинтерактив: чужой профиль НЕ трогать никогда** — только создать новый `myfox-N` (`Name=myfox`, путь `myfox-<N>`). Использовать чужой профиль можно лишь явным `--profile <path>` (переопределяет всё). В интерактивном режиме можно спросить «использовать существующий?».
-- Пиннинг `[Install<HASH>]` (FF 67+): HASH самому не считать — один раз гоняем инсталляцию headless (`--screenshot about:blank`, таймаут 180с), Firefox сам пишет секцию; fallback — детерминированный hash на чистом HOME или единственная существующая `[Install...]`. Пишется и в `profiles.ini`, и в `installs.ini`.
+- Пиннинг `[Install<HASH>]` (FF 67+): HASH самому не считать — один раз гоняем инсталляцию headless (`--screenshot about:blank`, таймаут 180с), Firefox сам пишет секцию; после прогона **автоматически вычищается мусорный профиль** (каталог + `[ProfileN]`), который Firefox создаёт для своего first-run (см. `_profile_purge_headless_strays`); fallback — детерминированный hash на чистом HOME или единственная существующая `[Install...]`. Пишется и в `profiles.ini`, и в `installs.ini`.
 
 ### Мастер (wizard) установки
 - Первая полная установка на интерактивном tty при наличии `dialog`/`whiptail` запускает мастер: welcome → lang → профиль (tweaked **или clean** — чистый профиль без твиков и маркера) → букмарклеты → stable/beta. Результаты: `TWEAKED_PROFILE`, `BL_ON`, `CHANNEL`, `MYFOX_SKIP_CONFIRM`. Без tty/без `-y` — последовательный поток.
@@ -108,7 +108,7 @@ myfox/
 ./install.sh --noplasma              # не ставить plasma-integration даже под Plasma
 ./install.sh -y                      # неинтерактивно
 ./install.sh -v                      # подробный вывод
-./uninstall.sh [-y]                  # снять твики (+восстановить бэкап при наличии)
+./uninstall.sh [-y]                  # снять твики; для созданного профиля — вопрос об удалении целиком; +восстановить бэкап при наличии
 
 MYFOX_DDBLM_LOCAL=/path/to/ddblm ./install.sh ...   # тест букмарклет-твиков из локальной копии ddblm
 scratch/sandbox.sh /tmp/mf -- ./install.sh -y ...   # полностью изолированный тест инсталлера
