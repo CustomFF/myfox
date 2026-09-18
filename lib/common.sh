@@ -66,9 +66,32 @@ error()   { echo -e "${RED}[ERR]${NC} $*" >&2; exit 1; }
 #   default=n → приглашение «[y/N]», пустой Enter = нет
 # В неинтерактивном режиме (-y) всегда возвращает 0 (да), сохраняя прежнюю
 # семантику «-y = согласиться на всё».
+# Когда интерактив, stdin — tty, GUI доступен и мы НЕ внутри gauge/fence —
+# рисует dialog/whiptail --yesno вместо plain [y/N]. Каждый вызов владеет
+# своей парой tui_enter/tui_reset (в мастере fenced GUI рисует в уже
+# открытом alt-экране и tui_enter не нужен).
 confirm() {
     local prompt="${1:-Continue?}" default="${2:-n}"
     [[ -n $MYFOX_NONINTERACTIVE ]] && return 0
+    local defno=""
+    [[ "${default,,}" == "n" ]] && defno="--defaultno"
+    # TUI yesno: только когда stdin/tty, нет gauge/fence, GUI доступен
+    if [[ -t 0 && -z "${MYFOX_GAUGE_FD:-}" && "${MYFOX_TUI_FENCED:-}" != "1" ]]; then
+        if command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; then
+            local rc=0
+            tui_enter
+            if command -v dialog >/dev/null 2>&1; then
+                dialog --stdout --clear --yes-label "Yes" --no-label "No" \
+                    $defno --yesno "$prompt" 0 0 || rc=$?
+            else
+                whiptail --clear --yes-button "Yes" --no-button "No" \
+                    $defno --yesno "$prompt" 0 0 || rc=$?
+            fi
+            tui_reset
+            [[ "$rc" -eq 0 ]] && return 0 || return 1
+        fi
+    fi
+    # Fallback: plain [y/N] / [Y/n] prompt
     local marker
     case "${default,,}" in
         y|yes|true) default="y"; marker="[Y/n]" ;;

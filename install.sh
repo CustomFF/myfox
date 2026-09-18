@@ -150,6 +150,34 @@ menu_select_mode() {
         return 0
     fi
     log "MyFox is already installed at $INSTALL_DIR. What do you want to do?"
+    local text="MyFox is already installed at ${INSTALL_DIR}.\nSelect an action:"
+    # Меню через dialog/whiptail, когда есть GUI и stdin — tty (вне gauge).
+    if [[ -t 0 && -z "${MYFOX_GAUGE_FD:-}" ]] \
+        && { command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; }; then
+        local tag rc=0
+        tui_enter
+        if command -v dialog >/dev/null 2>&1; then
+            tag=$(dialog --stdout --clear --ok-label "OK" --cancel-label "Quit" \
+                --default-item "update" --menu "$text" 0 0 0 \
+                "update"    "Update tweaks (default)" \
+                "reinstall" "Reinstall the browser (re-download + re-apply everything)" \
+                "quit"      "Quit") || rc=$?
+        else
+            tag=$(whiptail --clear --ok-button "OK" --default-item "update" \
+                --menu "$text" 0 0 0 \
+                "update"    "Update tweaks (default)" \
+                "reinstall" "Reinstall the browser (re-download + re-apply everything)" \
+                "quit"      "Quit" 3>&1 1>&2 2>&3) || rc=$?
+        fi
+        tui_reset
+        case "${tag:-$rc}" in
+            update) MODE="update" ;;
+            reinstall) MODE="reinstall" ;;
+            *) echo "Quit." >&2; exit 0 ;;
+        esac
+        return 0
+    fi
+    # Fallback: plain-меню
     echo ""
     echo "  ${BOLD}1) Update tweaks (default)${NC}"
     echo "  2) Reinstall the browser (re-download + re-apply everything)"
