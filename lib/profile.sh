@@ -217,6 +217,29 @@ _profile_store_profile_dirs() {
         -exec test -f '{}/prefs.js' \; -printf '%f\n' 2>/dev/null | sort -u
 }
 
+# Регистрация записи [ProfileN] для существующего каталога профиля, у которого
+# её нет (сирота после деинсталляции «не удалять профиль» + «удалить запись»).
+# Каталог и данные НЕ трогаем, только добавляем секцию (нумерация max+1,
+# как в profile_create_new). Печатает Path (значение для Default= в Install-секции).
+profile_register_entry() {
+    local ini="$1" profile_abs="$2"
+    local ini_dir rel isrel
+    ini_dir=$(dirname "$ini")
+    if [[ "$profile_abs" == "$ini_dir/"* ]]; then
+        rel="${profile_abs#"$ini_dir/"}"
+        isrel=1
+    else
+        rel="$profile_abs"
+        isrel=0
+    fi
+    local section
+    section=$(awk -F'[][]' '/^\[Profile[0-9]+\]$/ { n=substr($2,8)+0; if (n>m) m=n } END { print m+1 }' "$ini")
+    printf '\n[Profile%s]\nName=myfox\nIsRelative=%s\nPath=%s\n' \
+        "$section" "$isrel" "$rel" >> "$ini"
+    log "Registered [Profile${section}] for kept profile (Path=$rel)."
+    echo "$rel"
+}
+
 # Имя секции [ProfileN], чей каталог == target_dir (для удаления секции).
 _profile_section_for_dir() {
     local ini="$1" target="$2" idir
@@ -415,8 +438,12 @@ profile_pin_install() {
 
     # Проверяем, что наш профиль есть в profiles.ini и берём его Path (для Default=).
     profile_path=$(_profile_entry_path_for "$ini" "$profile_abs") || {
-        warn "Our profile ($profile_abs) not found in profiles.ini — cannot pin it."
-        return 1
+        # Профиль-сирота (выбран сохранённый при деинсталляции): каталог есть,
+        # а записи [ProfileN] нет — регистрируем её и используем как Path.
+        profile_path=$(profile_register_entry "$ini" "$profile_abs") || {
+            warn "Our profile ($profile_abs) not found in profiles.ini — cannot pin it."
+            return 1
+        }
     }
 
     # In profiles.ini секция называется [Install<HASH>], в installs.ini — просто
@@ -577,6 +604,7 @@ profile_pick_myfox() {  # <list path|name …>
     done <<< "$list"
     local _fenced="${MYFOX_TUI_FENCED:-0}"
     if [[ "$_fenced" != "1" ]]; then
+        use_ui_terminfo_noalt || true
         tui_enter
     fi
     local tag rc=0
@@ -591,6 +619,7 @@ profile_pick_myfox() {  # <list path|name …>
     fi
     if [[ "$_fenced" != "1" ]]; then
         tui_reset
+        reset_ui_terminfo_noalt
     fi
     [[ "$rc" -ne 0 ]] && return 1
     [[ "$tag" == "new" ]] && return 0
