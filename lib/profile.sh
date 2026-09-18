@@ -70,8 +70,13 @@ profile_resolve_dir() {
 # Список ТОЛЬКО наших myfox-профилей: <path>|<name>. Профили других браузеров /
 # установок (каталог без префикса myfox-) игнорируем целиком — myfox их не
 # предлагает и не трогает.
+# Кроме записей profiles.ini ищет «сиротские» каталоги myfox-* с маркером
+# .myfox-created: так повторная установка находит профиль, который пользователь
+# сохранил при деинсталляции (запись [ProfileN] могла быть удалена, а данные —
+# оставлены). Сироты не дублируются, если профиль уже есть в profiles.ini.
 profile_list_myfox() {
     local ini ini_dir isrel path name rest abs
+    local -A seen
     while IFS= read -r ini; do
         [[ -z "$ini" ]] && continue
         ini_dir=$(dirname "$ini")
@@ -83,10 +88,24 @@ profile_list_myfox() {
             isrel="${rest##*|}"
             abs=$(profile_resolve_dir "$ini_dir" "$isrel" "$path")
             if [[ "$(basename "$abs")" == myfox-* && -d "$abs" ]]; then
+                seen["$abs"]=1
                 echo "$abs|$name"
             fi
         done < <(profile_parse_ini "$ini")
     done < <(profile_find_ini)
+    # Сироты: каталог myfox-* с маркером .myfox-created, без записи в profiles.ini
+    local base_dir d
+    while IFS= read -r base_dir; do
+        [[ -z "$base_dir" ]] && continue
+        [[ -d "$base_dir" ]] || continue
+        while IFS= read -r -d '' d; do
+            d="${d%/}"
+            [[ -v "seen[$d]" ]] && continue
+            [[ -f "$d/.myfox-created" ]] || continue
+            seen["$d"]=1
+            echo "$d|"
+        done < <(find "$base_dir" -maxdepth 1 -type d -name 'myfox-*' -print0 2>/dev/null)
+    done < <(profile_search_dirs)
 }
 
 # ─── Создание нового профиля ────────────────────────────────────────────────

@@ -80,6 +80,33 @@ echo $LANG; firefox_detect_lang         # соответствует LANG
       терминал «висящим» в alt-экране (срабатывает EXIT-trap `_wizard_trap_cleanup`)
 - [ ] `-y` и неинтерактив идут прежним последовательным потоком БЕЗ gauge
 
+### 2.0a Повторный запуск (уже установлен, state есть)
+```bash
+./install.sh --prefix <тот_же_путь>        # БЕЗ -y, на tty
+```
+- [ ] вместо текстового меню — dialog-меню «Update tweaks / Reinstall / Quit»,
+      дефолт «Update tweaks»; Enter выбирает дефолт, «Quit» выходит без действий
+- [ ] без dialog/whiptail или не на tty — прежнее plain-меню `Choice [1]: `
+
+### 2.0b Деинсталляция (интерактивная)
+```bash
+./uninstall.sh                             # на tty
+```
+- [ ] все подтверждения — dialog `--yesno` (дефолт «No»): «Remove MyFox tweaks?» /
+      «Delete the myfox profile completely?» / «Remove the entry from profiles.ini?» /
+      «Restore backup?» / «Remove the Firefox browser itself?»
+- [ ] «не удалять профиль» + «не удалять запись»: каталог myfox-*, `.myfox-created`,
+      `[ProfileN] Name=myfox` в profiles.ini сохраняются
+
+### 2.0c Reinstall видит сохранённый профиль
+```bash
+# установить (created), затем ./uninstall.sh: «не удалять профиль» (± убрать запись), затем:
+./install.sh --prefix <тот_же_путь>        # через мастера → шаг профиля
+```
+- [ ] на шаге выбора профиля ВИДЕН сохранённый `myfox-N` как «Existing MyFox profile»
+      даже если запись `[ProfileN]` была удалена (сиротский каталог с `.myfox-created`),
+      без дублей при наличии записи
+
 ### 2.1 Первая установка (полная)
 ```bash
 ./install.sh -y --prefix /tmp/myfox-test --profile /tmp/mf-home/.mozilla/firefox/myfox-1
