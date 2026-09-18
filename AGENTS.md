@@ -22,7 +22,7 @@ myfox/
 ├── chrome/           # userChrome.css + agent_overrides.css
 ├── lib/              # bash-библиотеки (подключаются через . "$MYFOX_ROOT/lib/*.sh")
 │   ├── common.sh     # логирование (stderr), state/opts (install.json), confirm, TUI-хелперы
-│   ├── firefox.sh    # тарбол: arch/lang, скачивание (aria2c/curl), версия, desktop entry, выбор языка
+│   ├── firefox.sh    # тарбол: arch/lang, скачивание (curl), версия, desktop entry, выбор языка
 │   ├── profile.sh    # profiles.ini/installs.ini, пиннинг [Install<HASH>], создание профилей
 │   ├── apply.sh      # autoconfig/chrome, бэкап занятой директории, букмарклеты (ddblm)
 │   └── addons.sh     # XPI с AMO в <profile>/extensions/ (uBlock, тема, plasma)
@@ -55,10 +55,12 @@ myfox/
 
 ### Мастер (wizard) установки
 - Первая полная установка на интерактивном tty при наличии `dialog`/`whiptail` запускает мастер: welcome → lang → профиль (tweaked **или clean** — чистый профиль без твиков и маркера) → букмарклеты → stable/beta. Результаты: `TWEAKED_PROFILE`, `BL_ON`, `CHANNEL`, `MYFOX_SKIP_CONFIRM`. Без tty/без `-y` — последовательный поток.
+- **Установка — финальный шаг мастера, а не отдельный поток.** Шаг `version` (кнопка Install) НЕ выходит из alt-экрана: ставит `MYFOX_WIZARD_INSTALL=1` и возвращает управление. `run_full` открывает `dialog --gauge` (`lib/common.sh`: `gauge_open`/`gauge_set`/`gauge_close`/`gauge_spin`), гонит по этапам проценты (download → extract → profile → pin → tweaks → bl → addons) и в конце `_wizard_finish` закрывает gauge, делает `tui_reset` и печатает `print_summary` УЖЕ на обычном экране (сводка остаётся видимой). EXIT-trap `_wizard_trap_cleanup` снимает alt-экран при ошибке.
+  - Протокол GNU dialog `--gauge`: `XXX\n<pct>\n<текст>\nXXX` (не пустая строка!); whiptail понимает только голое число. dialog/whiptail рисуют в **stdout**, поэтому `gauge_open` направляет их вывод на `/dev/tty`, а FIFO открывает в режиме read-write (`<>`) — не блокируется и не даёт EOF после кадра.
 - Инварианты TUI (не ломать):
   - каталог языков качается синхронно ДО входа в alt-экран (`firefox_prepare_lang_list`/`MYFOX_LANG_LIST`) — между диалогами мастера не должно быть **ни одной сетевой операции**, иначе экраны мигают;
-  - `dialog` сам рвёт alt-экран на каждый вызов; это гасят флагом `use_ui_terminfo_noalt` (копия terminfo без smcup/rmcup через infocmp+tic, кэш в `~/.cache/myfox/terminfo`) и единой парой `tui_enter`/`tui_reset` на весь мастер (флаг `MYFOX_TUI_FENCED`). Всё пишется в `/dev/tty`.
-- Выбор языка (`firefox_detect_lang`) маппит `LANG` → коды Mozilla; интерактив через dialog/whiptail/scrollable bash-меню/промпт-fallback. Источник языков — сеть: `product-details.mozilla.org/1.0/languages.json`.
+  - `dialog` сам рвёт alt-экран на каждый вызов; это гасят флагом `use_ui_terminfo_noalt` (копия terminfo без smcup/rmcup через infocmp+tic, кэш в `~/.cache/myfox/terminfo`) и единой парой `tui_enter`/`tui_reset` на весь мастер (флаг `MYFOX_TUI_FENCED`, снимается только в `_wizard_finish`/`_wizard_trap_cleanup`). Всё пишется в `/dev/tty`.
+- Выбор языка (`firefox_detect_lang`) маппит `LANG` → коды Mozilla; интерактив через dialog/whiptail/scrollable bash-меню/промпт-fallback. У dialog/whiptail нет встроенного поиска — пункт «Search / filter…» в меню открывает `--inputbox`, по подстроке (код/English-название, регистронезависимо) список сужается; при активном фильтре Enter выбирает первый результат; в bash-меню поиск — клавиша `/`. Источник языков — сеть: `product-details.mozilla.org/1.0/languages.json`.
 
 ### Твики и префы (autoconfig/firefox.cfg)
 - **Guard профиля** в самом начале firefox.cfg: нет `<profile>/.myfox` и нет `chrome/agent_overrides.css` → `throw`; дальше по блоку ничего не исполняется. Не обходить и не выносить логику за него.
@@ -68,7 +70,7 @@ myfox/
 
 ### Аддоны (lib/addons.sh)
 - Пер-профильно: по AMO-слагу `addon_guid` тянет guid через API (`addons.mozilla.org/api/v5`), XPI кладётся в `<profile>/extensions/<guid>.xpi` — при первом старте профиля ставится тихо (важно: `extensions.autoDisableScopes=0` defaultPref в firefox.cfg). Требует curl + python3.
-- uBlock + Google Chrome Dark — по умолчанию; KDE Plasma integration — только в сессии Plasma после подтверждения (`--plasma-integration` форсит, `--noplasma` гасит), дополнительно требует системный пакет `plasma-browser-integration` (может спросить sudo, см. `addons_pkg_install`).
+- uBlock + Google Chrome Dark — по умолчанию; KDE Plasma integration — ставится молча вместе с твиками в сессии Plasma или при `--plasma-integration` (`--noplasma` гасит). Аддон требует системный пакет `plasma-browser-integration` (native host): инсталлер проверяет его наличие и, если пакета нет, печатает заметку с командой установки в конце (никаких sudo-промптов в разрыв диалогов).
 - Плазменный аддон в `profile/extensions` регистрируется по `plasma-browser-integration@kde.org`.
 
 ### Букмарклеты (bl)

@@ -59,6 +59,27 @@ echo $LANG; firefox_detect_lang         # соответствует LANG
 > export HOME=/tmp/mf-home  XDG_STATE_HOME=/tmp/mf-home/.local/state
 > ```
 
+### 2.0 Мастер установки (интерактивно, tty + dialog/whiptail)
+```bash
+./install.sh --prefix /tmp/myfox-wiz        # БЕЗ -y, на реальном tty
+```
+- [ ] от старта до конца — один пошаговый визард, экран НЕ мигает между шагами
+      (welcome → lang → профиль tweaked/clean → bl → stable/beta)
+- [ ] кнопки: Continue/No/Cancel, «Back» есть на всех шагах кроме первого,
+      на последнем шаге — кнопка «Install»
+- [ ] шаг языка: пункт «Search / filter…» открывает поле фильтра; Enter по коду
+      или названию (напр. `german`) сужает список, Enter сразу выбирает первый
+      результат; Esc в фильтре возвращает к списку с сохранённым фильтром;
+      пустой фильтр показывает все языки
+- [ ] после «Install» установка идёт **внутри того же alt-экрана**: виден gauge
+      с этапами «Downloading Firefox…» → «Extracting…» → «Pinning profile…» →
+      «Applying tweaks…» → «Installing add-ons…»
+- [ ] в самом конце alt-экран снимается, а итоговая сводка `=== MyFox ===`
+      остаётся на обычном экране
+- [ ] ошибка во время установки (напр. нет сети → «Download failed.») не оставляет
+      терминал «висящим» в alt-экране (срабатывает EXIT-trap `_wizard_trap_cleanup`)
+- [ ] `-y` и неинтерактив идут прежним последовательным потоком БЕЗ gauge
+
 ### 2.1 Первая установка (полная)
 ```bash
 ./install.sh -y --prefix /tmp/myfox-test --profile /tmp/mf-home/.mozilla/firefox/myfox-1

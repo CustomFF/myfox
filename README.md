@@ -105,12 +105,13 @@ By default the installer puts three things into the Firefox install:
 
 - **uBlock Origin** — adblock (installed by default).
 - **Chrome Dark theme** — a dark UI theme (installed by default).
-- **KDE Plasma integration** — only under a Plasma session, and only when you confirm it.
+- **KDE Plasma integration** — installed silently under a Plasma session (or with `--plasma-integration`).
 
 The Plasma integration add-on additionally requires the system package
-`plasma-browser-integration` (the native-messaging host). If it is missing, the
-installer offers to install it via `sudo`. Use `--plasma-integration` to force it,
-`--noplasma` to skip it even under Plasma, and `--noaddons` to skip all add-ons.
+`plasma-browser-integration` (the native-messaging host). The installer checks it:
+if the package is missing, a note with the install command is printed at the end of
+the setup — no `sudo` prompts interrupting the dialogs. Use `--noplasma` to skip it
+even under Plasma, and `--noaddons` to skip all add-ons.
 
 ## Bookmarklets (ddblm)
 

@@ -67,9 +67,11 @@ profile_resolve_dir() {
     fi
 }
 
-# Список абсолютных путей существующих профилей: <path>|<name>|<default>
-profile_list_existing() {
-    local ini ini_dir isrel path name def abs
+# Список ТОЛЬКО наших myfox-профилей: <path>|<name>. Профили других браузеров /
+# установок (каталог без префикса myfox-) игнорируем целиком — myfox их не
+# предлагает и не трогает.
+profile_list_myfox() {
+    local ini ini_dir isrel path name rest abs
     while IFS= read -r ini; do
         [[ -z "$ini" ]] && continue
         ini_dir=$(dirname "$ini")
@@ -78,35 +80,13 @@ profile_list_existing() {
             path="${line%%|*}"
             rest="${line#*|}"
             name="${rest%%|*}"
-            rest="${rest#*|}"
-            def="${rest%%|*}"
             isrel="${rest##*|}"
             abs=$(profile_resolve_dir "$ini_dir" "$isrel" "$path")
-            if [[ -d "$abs" ]]; then
-                echo "$abs|$name|$def"
+            if [[ "$(basename "$abs")" == myfox-* && -d "$abs" ]]; then
+                echo "$abs|$name"
             fi
         done < <(profile_parse_ini "$ini")
     done < <(profile_find_ini)
-}
-
-# Поиск «дефолтного» профиля который подтянется при запуске нашей инсталляции.
-# На деле Firefox выбирает Profile0 если нет Default=1; учитываем оба.
-profile_find_default() {
-    local line abs
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        def="${line##*|}"
-        [[ "$def" == "1" ]] && { echo "${line%%|*}"; return 0; }
-    done < <(profile_list_existing)
-    # Нет Default=1 — берём первый (Profile0)
-    line=$(profile_list_existing | head -1)
-    [[ -z "$line" ]] && return 1
-    echo "${line%%|*}"
-}
-
-# Все существующие профили одной строкой (paths); если несколько — их выводим в список.
-profile_list_all() {
-    profile_list_existing
 }
 
 # ─── Создание нового профиля ────────────────────────────────────────────────
@@ -481,23 +461,34 @@ profile_remove_myfox_section() {
 # ─── Точка входа: определить/выбрать/создать профиль ────────────────────────
 #
 # profile_resolve [--explicit <path>]
-#   1. если передан --explicit и путь существует → использовать.
-#   2. если в маркере есть profile_dir и он существует → использовать.
-#   3. иначе (первый запуск):
-#      - если найден «по умолчанию» подтягивающийся профиль → спросить (использовать/создать новый)
-#      - если не найдено → создать новый.
+#   1. передан --explicit и путь существует → использовать.
+#   2. MYFOX_PROFILE_FORCE_NEW=1 (мастер выбрал «создать новый») → создать.
+#   3. в маркере есть profile_dir и он существует → использовать.
+#   4. иначе (первый запуск): рассматриваются ТОЛЬКО наши myfox-профили
+#      (profile_list_myfox). Если их нет → создать новый; есть и интерактив и
+#      dialog/whiptail → меню со списком (по умолчанию «создать новый»); во всех
+#      остальных случаях (неинтерактив, под gauge/alt-экраном, без GUI) —
+#      создать новый. Никогда никаких echo-списков и read над диалогом.
 profile_resolve() {
     local explicit=""
     if [[ "$1" == "--explicit" ]]; then explicit="$2"; fi
 
-    # 1. Явный
+    # 1. Явный (--profile или выбор существующего профиля из мастера)
     if [[ -n "$explicit" ]]; then
         [[ -d "$explicit" ]] || error "Profile directory not found: $explicit"
         echo "$explicit"
         return 0
     fi
 
-    # 2. Из маркера
+    # 2. Мастер выбрал «создать новый» — вопрос уже задан на шаге profile,
+    #    сразу создаём (никаких read: идём из-под gauge/alt-экрана).
+    if [[ "$MYFOX_PROFILE_FORCE_NEW" == "1" ]]; then
+        log "Creating a new profile (wizard choice)."
+        profile_create_new
+        return 0
+    fi
+
+    # 3. Из маркера
     local marked
     marked=$(state_get profile_dir)
     if [[ -n "$marked" && -d "$marked" ]]; then
@@ -509,31 +500,38 @@ profile_resolve() {
         warn "Saved profile no longer exists: $marked"
     fi
 
-    # 3. Первый запуск
-    local existing
-    existing=$(profile_list_existing) || true   # строки path|name|default
-    if [[ -z "$existing" ]]; then
-        log "No existing profiles found — creating a new one."
+    # 4. Первый запуск: только наши myfox-профили.
+    local myfox_list
+    myfox_list=$(profile_list_myfox) || true
+    if [[ -z "$myfox_list" ]]; then
+        log "No MyFox profiles found — creating a new one."
         profile_create_new
         return 0
     fi
 
-    # В неинтерактивном режиме (-y) НИКОГДА не трогаем чужие профили:
-    # автоматически спросить не можем, а утащить чужой default-release —
-    # ломающий баг. Пользователь может явно указать профиль через --profile.
+    # Неинтерактив (-y): спросить не можем → создаём свежий myfox-N.
     if [[ -n "$MYFOX_NONINTERACTIVE" ]]; then
-        log "Existing profiles detected but running non-interactively — creating a new one."
+        log "MyFox profiles exist but running non-interactively — creating a new one."
         profile_create_new
         return 0
     fi
 
-    local default_abs
-    default_abs=$(profile_find_default) || true
-    if [[ -n "$default_abs" ]]; then
-        warn "An existing Firefox profile might be picked up automatically:"
-        log "    $default_abs"
-        if confirm "Use this existing profile instead of creating a new one? (recommended: create new)" "n"; then
-            echo "$default_abs"
+    # Защита от future-regressions: если мы под dialog/gauge/alt-экраном,
+    # интерактивный выбор здесь невозможен (его делает мастер на шаге profile).
+    # Блокирующий echo+read здесь недопустим — просто создаём новый.
+    if [[ -n "$MYFOX_GAUGE_FD" || "$MYFOX_TUI_FENCED" == "1" ]]; then
+        log "MyFox profiles exist but a TUI is active — creating a new one."
+        profile_create_new
+        return 0
+    fi
+
+    # Интерактив вне мастера: только dialog/whiptail-меню (список + «создать
+    # новый», дефолт на «создать новый»). Им владеет своя пара tui_enter/reset.
+    if command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; then
+        local chosen
+        chosen=$(profile_pick_myfox "$myfox_list") || { error "Profile selection cancelled."; return 1; }
+        if [[ -n "$chosen" ]]; then
+            echo "$chosen"
             return 0
         fi
         log "Creating a new profile..."
@@ -541,6 +539,41 @@ profile_resolve() {
         return 0
     fi
 
-    log "Creating a new profile..."
+    # Нет GUI вовсе: список/echo/read не печатаем — молча создаём новый.
+    log "No dialog/whiptail available — creating a new MyFox profile."
     profile_create_new
+}
+
+# Диалог выбора профиля: существующие myfox-профили + «создать новый» (дефолт).
+# Всё рисуется в текущий экран (в мастере — внутрь alt-экрана), alt-экран НЕ
+# переключается (terminfo без smcup/rmcup, как в языковом меню). stdout: путь
+# выбранного профиля, или пусто = «создать новый»; rc 1 — отмена пользователем.
+profile_pick_myfox() {  # <list path|name …>
+    local list="$1"
+    local items=("new" "Create a new MyFox profile (recommended)")
+    local p n
+    while IFS='|' read -r p n; do
+        [[ -z "$p" ]] && continue
+        items+=("$p" "Existing MyFox profile  ($(basename "$p"))")
+    done <<< "$list"
+    local _fenced="${MYFOX_TUI_FENCED:-0}"
+    if [[ "$_fenced" != "1" ]]; then
+        tui_enter
+    fi
+    local tag rc=0
+    if command -v dialog >/dev/null 2>&1; then
+        tag=$(dialog --stdout --clear --ok-label "Continue" --default-item "new" \
+            --menu "Select the Firefox profile to use (only MyFox profiles are listed):" \
+            0 0 0 "${items[@]}") || rc=$?
+    else
+        tag=$(whiptail --clear --ok-button "Continue" --default-item "new" \
+            --menu "Select the Firefox profile to use (only MyFox profiles are listed):" \
+            0 0 0 "${items[@]}" 3>&1 1>&2 2>&3) || rc=$?
+    fi
+    if [[ "$_fenced" != "1" ]]; then
+        tui_reset
+    fi
+    [[ "$rc" -ne 0 ]] && return 1
+    [[ "$tag" == "new" ]] && return 0
+    if [[ -n "$tag" ]]; then echo "$tag"; fi
 }
