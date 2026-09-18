@@ -325,51 +325,16 @@ firefox_interactive_lang() {
 
 # ─── Скачивание ─────────────────────────────────────────────────────────────
 #
-# Основной качальщик — aria2c (многопоточный, x16; с сервера Mozilla это в разы
-# быстрее однопоточного curl). Его собственный вывод глушим (--console-log-level=error),
-# а вместо него рисуем ОДИН маленький прогрессбар по росту файла (на tty).
-# curl остаётся только как fallback, если aria2c не установлен.
-
-# Одна строка прогресса: [██████████ 62% 53/86 MiB] (перерисовывается через \r).
-_aria_progress() {
-    local total="$1" file="$2" pid="$3"
-    local sz pct
-    while kill -0 "$pid" 2>/dev/null; do
-        sz=$(stat -c %s "$file" 2>/dev/null || echo 0)
-        pct=$(( total > 0 ? sz * 100 / total : 0 ))
-        printf '\r  [%-40s] %3d%%  %s/%s MiB' \
-            "$(printf '#%.0s' $(seq 1 $((pct * 40 / 100))) 2>/dev/null)" \
-            "$pct" "$((sz / 1048576))" "$((total / 1048576))" >&2
-        ((sz >= total)) && break
-        sleep 0.5
-    done
-    printf '\r  [%-40s] 100%%  %s/%s MiB\n' \
-        "$(printf '#%.0s' $(seq 1 40) 2>/dev/null)" \
-        "$((total / 1048576))" "$((total / 1048576))" >&2
-}
+# Качаем только curl'ом (без внешних ускорителей вроде aria2c). В обычном
+# режиме curl сам рисует прогрессбар (--progress-bar). В мастере (активен
+# gauge) вывод curl глушим, а прогресс показывает gauge-спиннер — иначе строка
+# curl затёрла бы dialog.
 
 firefox_download_archive() {
     local url="$1" out="$2"
-    if command -v aria2c >/dev/null 2>&1; then
-        local total=""
-        if [[ -t 2 ]]; then
-            total=$(curl -sIL --max-time 20 "$url" 2>/dev/null \
-                | awk -v IGNORECASE=1 '/^content-length:/{v=$2} END{print v+0}')
-        fi
-        # aria2c трактует -o как имя относительно CWD (в отличие от curl -o),
-        # поэтому передаём каталог и имя отдельно. mktemp уже создал пустой
-        # target-файл, а aria2c по умолчанию не перезаписывает существующий файл
-        # (пишет в *.1) — поэтому нужен allow-overwrite=true.
-        aria2c -x16 -j16 --allow-overwrite=true --console-log-level=error \
-            --summary-interval=0 --dir "$(dirname "$out")" -o "$(basename "$out")" "$url" \
-            >/dev/null 2>&1 &
-        local pid=$!
-        if [[ -n "$total" && "$total" -gt 0 ]]; then
-            _aria_progress "$total" "$out" "$pid"
-        fi
-        wait "$pid"
-        local rc=$?
-        return $rc
+    if [[ -n "$MYFOX_GAUGE_FD" ]]; then
+        gauge_spin 5 60 \
+            curl -L --fail --silent --show-error --retry 1 -o "$out" "$url"
     else
         curl -L --fail --progress-bar --retry 1 -o "$out" "$url"
     fi
@@ -423,7 +388,10 @@ firefox_install_tarball() {
 
     # Баннер печатаем в stderr: install.sh захватывает stdout функции в переменную
     # (firefox_version), поэтому в stdout должен оставаться только результат.
-    echo -e "${BOLD}Firefox ${GREEN}${remote_ver}${NC}${BOLD}${channel_tag}  ·  ${lang}  →  ${install_dir}${NC}" >&2
+    # При активном gauge текстовый вывод не нужен (он затёр бы dialog).
+    if [[ -z "$MYFOX_GAUGE_FD" ]]; then
+        echo -e "${BOLD}Firefox ${GREEN}${remote_ver}${NC}${BOLD}${channel_tag}  ·  ${lang}  →  ${install_dir}${NC}" >&2
+    fi
 
     # Подтверждение «Proceed?» — для путей БЕЗ мастера (browser-only, fallback без
     # dialog). Мастер заканчивается кнопкой Install и ставит MYFOX_SKIP_CONFIRM=1.
@@ -437,7 +405,11 @@ firefox_install_tarball() {
 
     mkdir -p "$install_dir"
 
-    echo "  Downloading…" >&2
+    if [[ -z "$MYFOX_GAUGE_FD" ]]; then
+        echo "  Downloading…" >&2
+    else
+        gauge_set 5 "Downloading Firefox…"
+    fi
     dl_archive=$(mktemp "/tmp/moz_dl_XXXXXX.tar.xz")
     trap 'rm -f "$dl_archive"' INT
 
@@ -447,8 +419,12 @@ firefox_install_tarball() {
         echo "" >&2
         error "Download failed."
     fi
-    echo "" >&2
-    echo "  Extracting…" >&2
+    if [[ -z "$MYFOX_GAUGE_FD" ]]; then
+        echo "" >&2
+        echo "  Extracting…" >&2
+    else
+        gauge_set 62 "Extracting Firefox…"
+    fi
     if ! tar -xJf "$dl_archive" -C "$install_dir" --strip-components=1; then
         rm -f "$dl_archive"
         trap - INT

@@ -105,12 +105,13 @@ Firefox: `firefox.cfg` отказывается применять к нему �
 
 - **uBlock Origin** — блокировщик рекламы (ставится по умолчанию).
 - **Chrome Dark theme** — тёмная тема интерфейса (ставится по умолчанию).
-- **KDE Plasma integration** — только в сессии Plasma и только по вашему подтверждению.
+- **KDE Plasma integration** — ставится молча в сессии Plasma (или по `--plasma-integration`).
 
-Дополнение Plasma integration дополнительно требует системный пакет
-`plasma-browser-integration` (native-messaging host). Если его нет, инсталлер предложит
-поставить через `sudo`. `--plasma-integration` форсирует установку, `--noplasma`
-пропускает даже под Plasma, `--noaddons` — пропускает все дополнения.
+Аддон Plasma integration требует системный пакет `plasma-browser-integration`
+(native-messaging host). Инсталлер проверяет его наличие: если пакета нет, в конце
+установки печатается заметка с командой установки — без `sudo`-запросов в разрыв
+диалогов. `--noplasma` пропускает аддон даже под Plasma, `--noaddons` — пропускает
+все дополнения.
 
 ## Букмарклеты (ddblm)
 

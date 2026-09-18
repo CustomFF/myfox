@@ -77,6 +77,7 @@ NOBL=false
 NOADDONS=false
 PLASMA_FORCE=false
 NO_PLASMA=false
+PLASMA_PKG_HINT=""  # команда установки системного пакета, если он не найден (для подсказки в конце)
 MYFOX_NONINTERACTIVE="${MYFOX_NONINTERACTIVE:-}"
 
 while [[ $# -gt 0 ]]; do
@@ -399,6 +400,8 @@ wizard_full() {
     TWEAKED_PROFILE=true
     BL_ON=false
     CHANNEL="stable"
+    WIZ_PROFILE=""        # выбранный существующий myfox-профиль (путь)
+    WIZ_PROFILE_NEW=0     # 1 — мастер решил «создать новый myfox-N»
     # Шаг 4 заканчивается кнопкой Install — отдельный «Proceed?» не нужен.
     MYFOX_SKIP_CONFIRM=1
 
@@ -439,13 +442,56 @@ Continue?" || rc=$?
                 step="profile"
                 ;;
             profile)
+                # Шаг выбора профиля: показываем только наши myfox-профили
+                # (чужие браузеры не пересекаем) + «создать новый» по умолчанию.
+                # Если myfox-профилей нет — выбор пропускается.
+                rc=0
+                local prof_list="" prof_found=0
+                prof_list=$(profile_list_myfox || true)
+                if [[ -n "$prof_list" ]]; then
+                    local prof_items=("new" "Create a new MyFox profile (recommended)")
+                    local pp=""
+                    while IFS='|' read -r pp _unused; do
+                        [[ -z "$pp" ]] && continue
+                        prof_found=1
+                        prof_items+=("$pp" "Existing MyFox profile  ($(basename "$pp"))")
+                    done <<< "$prof_list"
+                    _wiz_menu "Continue" 1 "new" \
+"Select the Firefox profile to use (only MyFox profiles are listed):" \
+                        "${prof_items[@]}" || rc=$?
+                    if [[ "$rc" -eq 3 ]]; then
+                        step="lang"
+                    elif [[ "$rc" -ne 0 || -z "$WIZ_TAG" ]]; then
+                        wizard_cancel
+                    else
+                        if [[ "$WIZ_TAG" == "new" ]]; then
+                            WIZ_PROFILE_NEW=1
+                            WIZ_PROFILE=""
+                        else
+                            WIZ_PROFILE_NEW=0
+                            WIZ_PROFILE="$WIZ_TAG"
+                        fi
+                        if [[ "$WIZ_PROFILE_NEW" == 1 ]]; then
+                            step="profilestyle"
+                        else
+                            TWEAKED_PROFILE=true
+                            step="bl"
+                        fi
+                    fi
+                else
+                    WIZ_PROFILE_NEW=1
+                    WIZ_PROFILE=""
+                    step="profilestyle"
+                fi
+                ;;
+            profilestyle)
                 rc=0
                 _wiz_menu "Continue" 1 "tweaked" \
-"Do you want to apply MyFox tweaks to the Firefox profile?" \
+"Do you want to apply MyFox tweaks to the new Firefox profile?" \
 "tweaked" "Yes — tweaked profile (Autoconfig, userChrome, prefs)" \
 "clean"   "No — clean profile (unmodified)" || rc=$?
                 if [[ "$rc" -eq 3 ]]; then
-                    step="lang"
+                    step="profile"
                 elif [[ "$rc" -ne 0 || -z "$WIZ_TAG" ]]; then
                     wizard_cancel
                 else
@@ -466,7 +512,7 @@ Continue?" || rc=$?
                 case "$rc" in
                     0) BL_ON=true;  step="version" ;;
                     1) BL_ON=false; step="version" ;;
-                    3) step="profile" ;;
+                    3) { [[ "$WIZ_PROFILE_NEW" == 1 ]] && step="profilestyle" || step="profile"; } ;;
                     *) wizard_cancel ;;
                 esac
                 ;;
@@ -486,14 +532,43 @@ Continue?" || rc=$?
                     wizard_cancel
                 else
                     [[ "$WIZ_TAG" == "beta" ]] && CHANNEL="beta" || CHANNEL="stable"
-                    unset MYFOX_TUI_FENCED
-                    tui_reset
-                    reset_ui_terminfo_noalt
+                    # Alt-экран НЕ покидаем: установка — финальный шаг мастера
+                    # (gauge-прогресс), выход из alt-экрана и сводка — в конце,
+                    # в _wizard_finish. Так пользователь не видит ни одного
+                    # переключения экрана от старта до готового результата.
+                    MYFOX_WIZARD_INSTALL=1
                     return 0
                 fi
                 ;;
         esac
     done
+}
+
+# Завершение установки в режиме мастера: закрыть gauge, выйти из alt-экрана и
+# напечатать сводку УЖЕ на обычном экране — так она остаётся видимой. Для путей
+# без мастера это просто print_summary (gauge не открыт, tui не активирован).
+_wizard_finish() {
+    gauge_close
+    if [[ -n "$MYFOX_TUI_FENCED" ]]; then
+        unset MYFOX_TUI_FENCED MYFOX_WIZARD_INSTALL
+        tui_reset
+        reset_ui_terminfo_noalt
+    fi
+    print_summary
+}
+
+# Аварийная очистка (EXIT-trap): если установка в мастере прервана ошибкой,
+# нужно закрыть gauge и вернуть терминал из alt-экрана, иначе он останется
+# «висящим». На нормальном завершении _wizard_finish уже всё снял — no-op.
+_wizard_trap_cleanup() {
+    local rc=$?
+    gauge_close
+    if [[ -n "$MYFOX_TUI_FENCED" ]]; then
+        unset MYFOX_TUI_FENCED MYFOX_WIZARD_INSTALL
+        tui_reset
+        reset_ui_terminfo_noalt
+    fi
+    return "$rc"
 }
 
 # Полная установка или --reinstall: тарбол + профиль + пиннинг + твики + всё прочее.
@@ -512,11 +587,20 @@ run_full() {
     : "${CHANNEL:=${MYFOX_CHANNEL:-stable}}"
     local do_bookmarklets=""
 
+    # В мастере установка идёт внутри alt-экрана как его финальный шаг: держим
+    # открытый dialog-gauge и обновляем его вместо текстовых логов.
+    if [[ "$wizard_run" == true && -n "$MYFOX_WIZARD_INSTALL" ]]; then
+        trap '_wizard_trap_cleanup' EXIT
+        gauge_open "Installing Firefox (myfox)" 8 || true
+    fi
+    gauge_set 2 "Preparing installation…"
+
     if [[ "$MODE" == "reinstall" ]]; then
         install_browser_tarball reinstall
     else
         install_browser_tarball first
     fi
+    gauge_set 72 "Preparing profile…"
 
     state_set install_dir "$INSTALL_DIR"
     state_set installed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -525,7 +609,18 @@ run_full() {
     opts_set channel "$CHANNEL"
 
     # ─── Профиль ────────────────────────────────────────────────────────────
-    PROFILE_DIR=$(profile_resolve --explicit "$PROFILE_ARG")
+    # В мастере профиль уже выбран на шаге profile (до gauge): либо существующий
+    # myfox-профиль (WIZ_PROFILE → --explicit), либо «создать новый»
+    # (MYFOX_PROFILE_FORCE_NEW=1). Так в run_full не выполняется ни одного
+    # интерактивного read поверх gauge/alt-экрана.
+    if [[ "$WIZ_PROFILE_NEW" == "1" ]]; then
+        PROFILE_DIR=$(MYFOX_PROFILE_FORCE_NEW=1 profile_resolve --explicit "$PROFILE_ARG")
+    elif [[ -n "${WIZ_PROFILE:-}" ]]; then
+        PROFILE_DIR=$(profile_resolve --explicit "$WIZ_PROFILE")
+        log "Using selected profile: $WIZ_PROFILE"
+    else
+        PROFILE_DIR=$(profile_resolve --explicit "$PROFILE_ARG")
+    fi
     state_set profile_dir "$PROFILE_DIR"
     log "Using Firefox profile: $PROFILE_DIR"
 
@@ -536,11 +631,13 @@ run_full() {
 firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKTOP_NAME"
         opts_set bl false
         opts_set addons false
-        print_summary
+        gauge_set 100 "Done"
+        _wizard_finish
         return 0
     fi
 
     # ─── Пиннинг профиля на инсталляцию ────────────────────────────────────
+    gauge_set 76 "Pinning profile to this installation…"
     local pin_hash
     pin_hash=$(profile_pin_install "$INSTALL_DIR" "$PROFILE_DIR") || true
     if [[ -n "$pin_hash" ]]; then
@@ -548,6 +645,7 @@ firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKT
     fi
 
     # ─── Твики ──────────────────────────────────────────────────────────────
+    gauge_set 88 "Applying tweaks…"
     apply_autoconfig "$INSTALL_DIR"
     apply_chrome "$PROFILE_DIR"
     firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKTOP_NAME"
@@ -583,6 +681,7 @@ firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKT
     fi
     if [[ -n "$do_bookmarklets" ]]; then
         local gallery
+        gauge_set 93 "Applying bookmarklet tweaks…"
         gallery=$(apply_bookmarklets "$do_bookmarklets") || true
         if [[ -n "$gallery" ]]; then
             log "Bookmarklet gallery: $gallery"
@@ -592,9 +691,11 @@ firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKT
     fi
 
     # ─── Дополнения (add-ons): uBlock, тема, plasma-integration ─────────────
+    gauge_set 96 "Installing add-ons…"
     install_addons "$wizard_run"
 
-    print_summary
+    gauge_set 100 "Done"
+    _wizard_finish
 }
 
 # Дополнения: uBlock + тема по умолчанию; KDE Plasma — если сессия Plasma /
@@ -604,6 +705,7 @@ firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKT
 install_addons() {
     local wizard_run="${1:-false}"
     addons_list=()
+    PLASMA_PKG_HINT=""
 
     if [[ "$NOADDONS" == true ]]; then
         opts_set addons false
@@ -632,7 +734,9 @@ install_addons() {
     addons_list+=("$MYFOX_ADDON_UBLOCK")
     addons_list+=("$MYFOX_ADDON_THEME")
 
-    # KDE Plasma integration.
+    # KDE Plasma integration: аддон ставится молча (вместе с твиками) в сессии
+    # Plasma или при --plasma-integration; --noplasma гасит. Системный пакет
+    # проверяется отдельно — если его нет, в конце установки печатаем команду.
     local plasma_opt
     plasma_opt=$(opts_get plasma)
     if [[ "$NO_PLASMA" == true ]]; then
@@ -640,25 +744,18 @@ install_addons() {
         log "KDE Plasma integration skipped (--noplasma)."
     elif [[ "$PLASMA_FORCE" == true ]]; then
         opts_set plasma true
-        maybe_add_plasma || true
+        maybe_add_plasma
     elif [[ -n "$plasma_opt" ]]; then
         if [[ "$plasma_opt" == "true" ]]; then
-            addons_list+=("$MYFOX_ADDON_PLASMA")
             log "KDE Plasma integration enabled (saved choice)."
+            maybe_add_plasma
         else
             log "KDE Plasma integration skipped (saved choice)."
         fi
     elif addons_is_plasma; then
-        if confirm "Install KDE Plasma integration add-on?" "n"; then
-            if maybe_add_plasma; then
-                opts_set plasma true
-            else
-                opts_set plasma false
-            fi
-        else
-            opts_set plasma false
-            log "KDE Plasma integration skipped."
-        fi
+        opts_set plasma true
+        log "KDE Plasma integration enabled (Plasma session)."
+        maybe_add_plasma
     else
         opts_set plasma false
         log "KDE Plasma integration skipped (not a Plasma session)."
@@ -669,28 +766,25 @@ install_addons() {
     fi
 }
 
-# Добавить plasma-аддон в addons_list (проверка системного пакета, при
-# необходимости — установка через sudo). Возвращает 0 если добавлен.
+# Аддон plasma-integration кладём в addons_list БЕЗ подтверждений (ставится
+# молча вместе с твиками), если активна сессия Plasma или задан --plasma-integration.
+# Отдельно проверяем системный пакет (native host): если его нет — запоминаем
+# команду установки для заметки в конце (в print_summary). Никаких sudo-запросов
+# в разрыв диалогов/мастера. Возвращает 0.
 maybe_add_plasma() {
+    addons_list+=("$MYFOX_ADDON_PLASMA")
     if addons_pkg_installed; then
         log "System package 'plasma-browser-integration' already installed."
-        addons_list+=("$MYFOX_ADDON_PLASMA")
         return 0
     fi
-    warn "System package 'plasma-browser-integration' is missing."
-    if confirm "Install it via sudo now?" "n"; then
-        if addons_pkg_install; then
-            addons_list+=("$MYFOX_ADDON_PLASMA")
-            return 0
-        else
-            log "Skipping Plasma integration add-on (system package not installed)."
-            return 1
-        fi
+    warn "System package 'plasma-browser-integration' is missing (native-messaging host)."
+    PLASMA_PKG_HINT=$(addons_pkg_suggest) || true
+    if [[ -z "$PLASMA_PKG_HINT" ]]; then
+        log "Install 'plasma-browser-integration' manually to enable KDE integration."
     else
-        log "Skipping Plasma integration add-on. Install the package later:"
-        log "  sudo apt install plasma-browser-integration"
-        return 1
+        log "Install the package later: ${PLASMA_PKG_HINT}"
     fi
+    return 0
 }
 
 # Итоговая сводка.
@@ -712,6 +806,12 @@ print_summary() {
     fi
     echo ""
     echo "To remove: ./uninstall.sh"
+    if [[ -n "${PLASMA_PKG_HINT:-}" ]]; then
+        echo ""
+        echo -e "${BOLD}KDE Plasma integration:${NC} the system package for the browser"
+        echo "bridge is missing. To enable it after installing the add-on, run:"
+        echo "  ${PLASMA_PKG_HINT}"
+    fi
 }
 
 # ─── Диспетчер режима ───────────────────────────────────────────────────────

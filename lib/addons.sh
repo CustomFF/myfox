@@ -88,20 +88,18 @@ addons_pkg_installed() {
     return 1
 }
 
-# addons_pkg_install — ставит системный пакет через sudo. Возвращает 0 при успехе.
-addons_pkg_install() {
-    warn "Installing system package 'plasma-browser-integration' (requires sudo)..."
+# addons_pkg_suggest — печатает команду установки системного пакета для
+# обнаруженного пакетного менеджера (для заметки в конце установки). Пусто,
+# если менеджер не распознан (тогда пользователь ставит пакет вручную).
+addons_pkg_suggest() {
     if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get install -y plasma-browser-integration
+        echo "sudo apt install plasma-browser-integration"
     elif command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y plasma-browser-integration
+        echo "sudo dnf install plasma-browser-integration"
     elif command -v pacman >/dev/null 2>&1; then
-        sudo pacman -S --noconfirm plasma-browser-integration
+        echo "sudo pacman -S plasma-browser-integration"
     elif command -v zypper >/dev/null 2>&1; then
-        sudo zypper install -y plasma-browser-integration
-    else
-        warn "No supported package manager found. Install 'plasma-browser-integration' manually."
-        return 1
+        echo "sudo zypper install plasma-browser-integration"
     fi
 }
 

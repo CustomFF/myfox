@@ -151,6 +151,106 @@ reset_ui_terminfo_noalt() {
     unset TERMINFO MYFOX_TERMINFO_NOALT
 }
 
+# ─── TUI: gauge прогресс-бар установки ───────────────────────────────────────
+#
+# Один dialog --gauge на время установки (в мастере, внутри alt-экрана).
+# dialog читает из FIFO; write-FD держим открытым весь gauge (иначе EOF закроет
+# dialog после первого обновления). Смена процента/текста —
+# "XXX\n<pct>\n<text>\nXXX"; whiptail понимает только голое число.
+#
+# gauge_open "title" [height]   — открыть gauge
+# gauge_set <pct> [text]        — обновить процент (0..100) и текст
+# gauge_close                    — закрыть, убрать FIFO
+MYFOX_GAUGE_PID=""
+MYFOX_GAUGE_FIFO=""
+MYFOX_GAUGE_FD=""
+MYFOX_GAUGE_DIALOG=""
+
+gauge_open() {
+    [[ -z "$MYFOX_GAUGE_OFF" ]] || return 0
+    command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1 || return 1
+    local title="$1" h="${2:-8}"
+    local fifo
+    fifo=$(mktemp -u "${TMPDIR:-/tmp}/myfox-gauge-XXXXXX") || return 1
+    mkfifo "$fifo" 2>/dev/null || return 1
+    MYFOX_GAUGE_FIFO="$fifo"
+    # Открываем fifo в РЕЖИМЕ read-write (O_RDWR на FIFO не блокируется): это
+    # держит канал открытым — dialog не получает EOF после каждого обновления и
+    # нам не нужно ждать, пока читатель откроется. Закрытие FD в gauge_close
+    # убирает последнего писателя, поэтому dialog выходит сам (с kill-фолбэком).
+    if ! exec {MYFOX_GAUGE_FD}<>"$fifo"; then
+        rm -f "$fifo"; MYFOX_GAUGE_FIFO=""; return 1
+    fi
+    # ВАЖНО: dialog/whiptail рисуют в stdout, поэтому его нельзя глушить —
+    # направляем вывод прямо на терминал (/dev/tty), независимо от redirect'ов
+    # вызывающего кода (напр. внутри $(...)). stderr — туда же.
+    if command -v dialog >/dev/null 2>&1; then
+        MYFOX_GAUGE_DIALOG=dialog
+        dialog --title "$title" --gauge "" "$h" 0 0 <"$fifo" >/dev/tty 2>&1 &
+    else
+        MYFOX_GAUGE_DIALOG=whiptail
+        whiptail --title "$title" --gauge "$title" "$((h - 1))" 0 0 <"$fifo" >/dev/tty 2>&1 &
+    fi
+    MYFOX_GAUGE_PID=$!
+    gauge_set 0
+    return 0
+}
+
+gauge_set() {
+    local pct="${1:-0}" text="${2:-}"
+    (( pct < 0 )) && pct=0
+    (( pct > 100 )) && pct=100
+    [[ -n "$MYFOX_GAUGE_FD" ]] || return 0
+    # Протокол GNU dialog --gauge: "XXX" → строка с процентом → строки промпта
+    # → "XXX". whiptail понимает только голое число (текст не меняется).
+    if [[ "$MYFOX_GAUGE_DIALOG" == "dialog" && -n "$text" ]]; then
+        printf 'XXX\n%d\n%s\nXXX\n' "$pct" "$text" >&"$MYFOX_GAUGE_FD"
+    else
+        printf '%d\n' "$pct" >&"$MYFOX_GAUGE_FD"
+    fi
+}
+
+gauge_close() {
+    [[ -n "$MYFOX_GAUGE_FD" ]] || { MYFOX_GAUGE_PID=""; return 0; }
+    # Закрываем FD (убираем последнего писателя) и снимаем dialog: kill
+    # гарантирует выход даже если EOF не дошёл (напр. whiptail/иной терминал).
+    eval "exec ${MYFOX_GAUGE_FD}>&-"
+    MYFOX_GAUGE_FD=""
+    if [[ -n "$MYFOX_GAUGE_PID" ]]; then
+        kill "$MYFOX_GAUGE_PID" 2>/dev/null || true
+        wait "$MYFOX_GAUGE_PID" 2>/dev/null || true
+    fi
+    rm -f "$MYFOX_GAUGE_FIFO"
+    MYFOX_GAUGE_FIFO=""
+    MYFOX_GAUGE_PID=""
+    MYFOX_GAUGE_DIALOG=""
+}
+
+# gauge_spin <start> <end> <cmd...> — команда в фоне; проценты плавно ползут
+# от start к end, пока она бежит. Возвращает код команды.
+gauge_spin() {
+    local start="${1:-0}" end="${2:-100}"
+    shift 2
+    local pid step pct t=0
+    "$@" >/dev/null 2>&1 &
+    pid=$!
+    step=$(( (end - start) / 60 ))
+    (( step < 1 )) && step=1
+    pct=$start
+    while kill -0 "$pid" 2>/dev/null; do
+        gauge_set "$pct"
+        sleep 0.1
+        t=$((t + 1))
+        if (( t % 10 == 0 )) && (( pct + step <= end )); then
+            pct=$((pct + step))
+        fi
+    done
+    wait "$pid"
+    local rc=$?
+    gauge_set "$end"
+    return $rc
+}
+
 check_deps() {
     local deps=("curl" "tar" "grep" "awk")
     for dep in "${deps[@]}"; do
