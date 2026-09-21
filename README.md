@@ -18,8 +18,7 @@ you do not need to build or clone ddblm yourself.
   and applies everything: autoconfig, styles, required `about:config` prefs.
 - **Re-runs are smart (idempotent)** — the browser is not re-downloaded, your chosen
   profile is reused, tweaks are refreshed.
-- **`uninstall.sh`** removes tweaks and can restore a backup of a previously occupied
-  install directory.
+- **`uninstall.sh`** removes the application and (optionally) the MyFox profile.
 - **Optional bookmarklet tweaks** — icons, hidden labels, and a link to the
   bookmarklet gallery page (taken from the separate **ddblm** project).
 - **Optional add-ons** — uBlock Origin and a dark theme are installed by default into
@@ -71,10 +70,9 @@ You will be prompted about bookmarklet tweaks at the end (say *n* to skip).
 ./uninstall.sh [-y]
 ```
 
-It removes the tweaks (autoconfig files, chrome styles), deletes the desktop entry and
-asks whether to keep or delete the Firefox installation itself. If the install directory
-was previously occupied by a hand-installed Firefox, a backup was created — `uninstall.sh`
-offers to restore it.
+It removes the application (autoconfig files, chrome styles, desktop entry) and asks
+whether to delete the MyFox profile as well. A profile you passed in with `--profile`
+is never deleted — only the MyFox tweaks are removed from it.
 
 ## What gets installed
 

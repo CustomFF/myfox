@@ -24,10 +24,10 @@ myfox/
 │   ├── common.sh     # логирование (stderr), state/opts (install.json), confirm, TUI-хелперы
 │   ├── firefox.sh    # тарбол: arch/lang, скачивание (curl), версия, desktop entry, выбор языка
 │   ├── profile.sh    # profiles.ini/installs.ini, пиннинг [Install<HASH>], создание профилей
-│   ├── apply.sh      # autoconfig/chrome, бэкап занятой директории, букмарклеты (ddblm)
+│   ├── apply.sh      # autoconfig/chrome, букмарклеты (ddblm)
 │   └── addons.sh     # XPI с AMO в <profile>/extensions/ (uBlock, тема, plasma)
 ├── install.sh        # главный инсталлер (моды: install / --update / --reinstall / --browser-only)
-├── uninstall.sh      # деинсталлятор (+восстановление бэкапа)
+├── uninstall.sh      # деинсталлятор
 ├── scratch/          # dev-инструменты: sandbox.sh (безопасный тест), hot-reload python-скрипты
 ├── docs/logic.md     # архитектура
 ├── tests/README.md   # ручные чек-листы (автотестов нет)
@@ -40,10 +40,10 @@ myfox/
 - Без режима при сохранённом state → интерактивное меню «1) Update tweaks · 2) Reinstall · 3) Quit»; с `-y` → автоматически `update`.
 - `--update` — только твики из сохранённого state (браузер/профиль не трогаются); `--lang`/`--profile` с ним НЕсовместимы (ошибка).
 - `--browser-only` — только тарбол + desktop entry, без профиля/твиков/аддонов (Firefox потом сам заведёт dedicated-профиль).
-- `--reinstall` — перекачать браузер и переприменить всё; если директория занята чужим Firefox — бэкап в `backup_dir`.
+- `--reinstall` — перекачать браузер и переприменить всё (занятая чужая директория заменяется начисто, без бэкапа).
 
 ### Маркер (state) и opts
-- State: `$XDG_STATE_HOME/myfox/install.json` (по умолч. `~/.local/state/myfox/install.json`): `install_dir`, `firefox_version`, `profile_dir`, `backup_dir`, `install_hash`, `installed_at` + объект **`opts`** `{browser_only, lang, bl, addons, plasma}` (сохранённые выборы, переиспользуются при --update/повторных запусках; старые маркеры без opts подставляют дефолты).
+- State: `$XDG_STATE_HOME/myfox/install.json` (по умолч. `~/.local/state/myfox/install.json`): `install_dir`, `firefox_version`, `profile_dir`, `install_hash`, `installed_at` + объект **`opts`** `{browser_only, lang, bl, addons, plasma}` (сохранённые выборы, переиспользуются при --update/повторных запусках; старые маркеры без opts подставляют дефолты).
 - `state_set`/`opts_set` при существующем файле требуют **jq или python3**; `state_get` простых строк имеет grep-fallback без них. `--update`/`profiles` и т.п. полагаются на `opts`.
 - Флаг `install_dir/.myfox-installed` отличает «нашу» инсталляцию от чужой по тому же пути.
 
@@ -110,7 +110,7 @@ myfox/
 ./install.sh --noplasma              # не ставить plasma-integration даже под Plasma
 ./install.sh -y                      # неинтерактивно
 ./install.sh -v                      # подробный вывод
-./uninstall.sh [-y]                  # снять твики; для созданного профиля — вопрос об удалении целиком; +восстановить бэкап при наличии
+./uninstall.sh [-y]                  # снять твики; для созданного профиля — вопрос об удалении целиком
 
 MYFOX_DDBLM_LOCAL=/path/to/ddblm ./install.sh ...   # тест букмарклет-твиков из локальной копии ddblm
 scratch/sandbox.sh /tmp/mf -- ./install.sh -y ...   # полностью изолированный тест инсталлера

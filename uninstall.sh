@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# uninstall.sh — удаляет твики myfox.
+# uninstall.sh — снимает твики myfox и удаляет инсталляцию.
 #
-# Спрашивает, восстанавливать ли бэкап (если он был при установке).
-# По умолчанию сам браузер не удаляет — спрашивает.
+# Интерактивный мастер из двух экранов (dialog/whiptail, fallback — [y/N]):
+#   1) «Remove the Firefox application?»  radio Yes/No, кнопки Next/Cancel.
+#      No на этом экране = отмена всей деинсталляции.
+#   2) «Delete the MyFox profile?»        radio Yes/No, кнопки Back/Cancel/Uninstall.
+#      (для existing-профиля: «Remove MyFox tweaks from the profile?» —
+#       папка существующего профиля НИКОГДА не удаляется)
+# Если профиля в state нет — единственный экран с кнопкой Uninstall.
 #
 # Usage:
 #   uninstall.sh [-y|--yes] [-h|--help]
@@ -18,7 +23,8 @@ for arg in "$@"; do
         -h|--help)
             cat <<EOF
 MyFox uninstaller.
-Removes tweaks applied by install.sh and optionally restores backup.
+Removes the Firefox application installed by MyFox and (optionally) the MyFox profile.
+In interactive mode you'll be asked: remove the application? remove the profile?
 
 Usage: $0 [-y|--yes]
 EOF
@@ -52,8 +58,7 @@ echo "  Profile dir: $PROFILE_DIR"
 
 # Тип профиля: created — создан инсталлером (маркер .myfox-created),
 # existing — существующий, переданный через --profile / выбранный в мастере.
-# Для created-профиля вопрос «Remove MyFox tweaks?» бессмыслен: твики удаляются
-# вместе с профилем (или при его очистке), см. блок профиля ниже.
+# created можно удалить целиком; existing — только снять твики (папку не трогаем).
 PROFILE_TYPE=""
 if [[ -n "$PROFILE_DIR" ]]; then
     if [[ -f "$PROFILE_DIR/.myfox-created" ]]; then
@@ -63,14 +68,96 @@ if [[ -n "$PROFILE_DIR" ]]; then
     fi
 fi
 
-# «Remove MyFox tweaks?» спрашиваем ТОЛЬКО для существующего профиля — там
-# твики навешены на реальный профиль пользователя, и снятие — осознанная
-# операция. Отказ здесь отменяет весь uninstall.
-if [[ "$PROFILE_TYPE" == "existing" ]]; then
-    if [[ -z $MYFOX_NONINTERACTIVE ]] && ! confirm "Remove MyFox tweaks?" "n"; then
-        echo "Cancelled."
-        exit 0
+# ─── Диалог выбора Yes/No ────────────────────────────────────────────────────
+#
+# Menu с пунктами yes/no (default — no): выбор курсором (стрелки) + Enter,
+# как во всех прочих меню мастера. Печатает в stdout выбранный tag и возвращает
+# rc: 0 — OK (Next/Uninstall), 1 — Cancel, 3 — Back (extra-button, только
+# dialog; у whiptail Back нет). Без tty/no GUI — plain [y/N].
+_uninstall_radio() {
+    local title="$1" oklabel="$2" back="$3" prompt="$4"
+    local out=""
+    if [[ -t 0 ]] && { command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; }; then
+        use_ui_terminfo_noalt || true
+        tui_enter
+        if command -v dialog >/dev/null 2>&1; then
+            local args=(dialog --stdout --clear --title "$title" --ok-label "$oklabel" --cancel-label "Cancel")
+            [[ "$back" == "1" ]] && args+=(--extra-button --extra-label "Back")
+            args+=(--default-item "no" --no-tags --no-collapse \
+                --menu "$prompt" 0 0 0 yes "Yes" no "No")
+            out=$("${args[@]}")
+        else
+            local w=(whiptail --clear --title "$title" --ok-button "$oklabel" --cancel-button "Cancel")
+            w+=(--default-item "no" \
+                --menu "$prompt" 0 0 0 yes "Yes" no "No")
+            out=$("${w[@]}" 3>&1 1>&2 2>&3)
+        fi
+        tui_reset
+        reset_ui_terminfo_noalt
+    else
+        # Fallback: plain [y/N] / [Y/n] (без кнопки Cancel)
+        read -rp "$prompt [y/N] " ans
+        case "${ans,,}" in
+            y|yes|д|да) printf '%s\n' "yes" && return 0 ;;
+            *) printf '%s\n' "no"  && return 0 ;;
+        esac
     fi
+    printf '%s\n' "$out"
+    return 0
+}
+
+# Отмена всего uninstall (в т.ч. через No на первом экране).
+queued_cancel() {
+    echo -e "${YELLOW}Uninstall cancelled.${NC}"
+    exit 0
+}
+
+# ─── Мастер решений ─────────────────────────────────────────────────────────
+
+DEL_APP="no"      # удалить ли install dir (вместе с desktop entry/autoconfig)
+DEL_PROFILE="no"  # created: удалить ли папку профиля; existing: снять ли твики
+
+if [[ -n $MYFOX_NONINTERACTIVE ]]; then
+    # -y: согласие на всё. Для existing-профиля это значит «снять твики»,
+    # папка существующего профиля и при -y не удаляется.
+    DEL_APP="yes"
+    DEL_PROFILE="yes"
+else
+    s1_oklabel="Next"
+    [[ -z "$PROFILE_DIR" ]] && s1_oklabel="Uninstall"
+    while :; do
+        # ── Экран 1: Remove the Firefox application? ──
+        out="$(_uninstall_radio "MyFox uninstaller" "$s1_oklabel" 0 \
+            "Remove the Firefox application?" 2>/dev/null)" && rc=0 || rc=$?
+        [[ "$rc" -eq 1 || "$rc" -eq 255 ]] && queued_cancel
+        [[ "$out" == "yes" ]] || queued_cancel
+        # Профиля нет — единственный экран, приступаем
+        if [[ -z "$PROFILE_DIR" ]]; then
+            DEL_APP="yes"
+            break
+        fi
+        # ── Экран 2: профиль (только когда он есть) ──
+        if [[ "$PROFILE_TYPE" == "existing" ]]; then
+            q2="Remove MyFox tweaks from the profile?"
+        else
+            q2="Delete the MyFox profile completely (all its data)?"
+        fi
+        back_to_s1=0
+        while :; do
+            out="$(_uninstall_radio "MyFox uninstaller" "Uninstall" 1 \
+                "$q2" 2>/dev/null)" && rc=0 || rc=$?
+            [[ "$rc" -eq 1 || "$rc" -eq 255 ]] && queued_cancel
+            if [[ "$rc" -eq 3 ]]; then  # Back → экран 1
+                back_to_s1=1
+                break
+            fi
+            DEL_APP="yes"
+            DEL_PROFILE="$out"
+            break
+        done
+        [[ "$back_to_s1" == "1" ]] && continue
+        break
+    done
 fi
 
 # ─── Снятие пиннинга (профиль на инсталляцию) ───────────────────────────────
@@ -92,24 +179,21 @@ if [[ -d "$INSTALL_DIR" ]]; then
     success "Autoconfig files removed from $INSTALL_DIR"
 fi
 
-# Chrome styles / удаление профиля
-# Профиль, созданный инсталлером (маркер .myfox-created): удаляем целиком
-# (каталог + запись) — это и есть «снятие твиков» для нашего профиля. Чужой
-# профиль (existing) НЕ удаляем, только снимаем с него твики.
-DELETE_PROFILE=false
+# Профиль
+# created + DEL_PROFILE=yes → удалить целиком (папка + запись из profiles.ini).
+# created + DEL_PROFILE=no  → папку НЕ трогать, но запись убрать (см. требование
+#   «папка остаётся, записи из ini удаляются»). existing — только снять твики.
 if [[ "$PROFILE_TYPE" == "created" ]]; then
-    if [[ -z $MYFOX_NONINTERACTIVE ]] && ! confirm "Delete the myfox profile completely (all its data)? $PROFILE_DIR" "n"; then
-        log "Keeping the myfox profile at $PROFILE_DIR."
-    else
+    if [[ "$DEL_PROFILE" == "yes" ]]; then
         rm -rf "$PROFILE_DIR"
         profile_remove_myfox_section
         success "Myfox profile deleted: $PROFILE_DIR"
-        DELETE_PROFILE=true
+    else
+        log "Keeping the myfox profile at $PROFILE_DIR."
+        profile_remove_myfox_section
     fi
-fi
-
-if [[ "$DELETE_PROFILE" != "true" && -n "$PROFILE_DIR" && -d "$PROFILE_DIR/chrome" ]]; then
-    # Восстановить защитные копии чужих стилей (созданные apply_chrome)
+elif [[ "$PROFILE_TYPE" == "existing" && "$DEL_PROFILE" == "yes" && -d "$PROFILE_DIR/chrome" ]]; then
+    # Снять твики, восстановить защитные копии стилей (папку не трогаем).
     for f in userChrome.css agent_overrides.css; do
         if [[ -f "$PROFILE_DIR/chrome/$f.myfox-backup" ]]; then
             rm -f "$PROFILE_DIR/chrome/$f"
@@ -126,25 +210,18 @@ if [[ "$DELETE_PROFILE" != "true" && -n "$PROFILE_DIR" && -d "$PROFILE_DIR/chrom
     success "Chrome styles removed from $PROFILE_DIR"
 fi
 
-# Только если профиль остался: предложить убрать его запись из profiles.ini.
-if [[ -n "$PROFILE_DIR" && -f "$PROFILE_DIR/.myfox-created" && "$DELETE_PROFILE" != "true" ]]; then
-    if confirm "Remove the myfox profile entry from profiles.ini? (profile data is kept)" "n"; then
-        profile_remove_myfox_section
-    else
-        log "Kept the myfox profile entry in profiles.ini."
-    fi
-fi
-
 # Add-ons (uBlock, theme, plasma-integration) installed per-profile:
 # удаляем ТОЛЬКО их (по фиксированным ID). КАТЕГОРИЧЕСКИ НЕЛЬЗЯ сметать
 # все *.xpi из extensions/: там живут пользовательские аддоны существующего
 # профиля (до 70+ шт. у реальных пользователей).
+# Для created+yes аддоны уходят вместе с папкой (rm -rf выше); для created+no
+# профиль остаётся как есть — аддоны не трогаем.
 MYFOX_ADDON_IDS=(
     "uBlock0@raymondhill.net"                 # uBlock Origin
     "{9631ec37-35f2-4719-815e-2f84ff28b901}"  # Google Chrome Dark (тема)
     "plasma-browser-integration@kde.org"      # KDE Plasma integration
 )
-if [[ -n "$PROFILE_DIR" && -d "$PROFILE_DIR/extensions" ]]; then
+if [[ "$PROFILE_TYPE" == "existing" && "$DEL_PROFILE" == "yes" && -n "$PROFILE_DIR" && -d "$PROFILE_DIR/extensions" ]]; then
     for id in "${MYFOX_ADDON_IDS[@]}"; do
         [[ -z "$id" ]] && continue
         # Упакованный XPI (как клали myfox) и распакованная Firefox-ом установка.
@@ -156,38 +233,27 @@ if [[ -n "$PROFILE_DIR" && -d "$PROFILE_DIR/extensions" ]]; then
     rmdir "$PROFILE_DIR/extensions" 2>/dev/null || true
 fi
 
-# ─── Восстановление бэкапа ──────────────────────────────────────────────────
-
-BACKUP=$(state_get backup_dir)
-if [[ -n "$BACKUP" && -f "$BACKUP" ]]; then
-    echo ""
-    if [[ -z $MYFOX_NONINTERACTIVE ]] && ! confirm "A backup of a previously-occupied directory exists. Restore it?" "n"; then
-        log "Backup not restored. It remains at: $BACKUP"
-    else
-        warn "Restoring backup to $INSTALL_DIR..."
-        find "$INSTALL_DIR" -mindepth 1 -delete 2>/dev/null || true
-        tar -xzf "$BACKUP" -C "$INSTALL_DIR"
-        success "Backup restored."
-    fi
-fi
-
 # ─── Desktop entry ──────────────────────────────────────────────────────────
 
-firefox_remove_desktop_entry
+[[ -n "$DEL_APP" ]] && firefox_remove_desktop_entry
 
 # ─── Браузер ────────────────────────────────────────────────────────────────
 
 if [[ -d "$INSTALL_DIR" ]]; then
-    if [[ -z $MYFOX_NONINTERACTIVE ]] && ! confirm "Remove the Firefox browser itself at $INSTALL_DIR?" "n"; then
-        log "Kept Firefox at $INSTALL_DIR."
-    else
-        rm -rf "$INSTALL_DIR"
-        success "Removed $INSTALL_DIR"
-    fi
+    rm -rf "$INSTALL_DIR"
+    success "Removed $INSTALL_DIR"
 fi
 
 # ─── Маркер ─────────────────────────────────────────────────────────────────
 
 state_clear
-success "MyFox has been uninstalled."
-echo -e "${GREEN}MyFox uninstalled.${NC}"
+
+echo ""
+if [[ "$DEL_PROFILE" == "no" && -n "$PROFILE_DIR" ]]; then
+    echo -e "${GREEN}Application removed.${NC}"
+    echo "  Firefox application uninstalled."
+    echo "  MyFox profile kept at: $PROFILE_DIR"
+else
+    success "MyFox has been uninstalled."
+    echo -e "${GREEN}MyFox uninstalled.${NC}"
+fi

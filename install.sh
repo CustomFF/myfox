@@ -155,6 +155,7 @@ menu_select_mode() {
     if [[ -t 0 && -z "${MYFOX_GAUGE_FD:-}" ]] \
         && { command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; }; then
         local tag rc=0
+        use_ui_terminfo_noalt || true
         tui_enter
         if command -v dialog >/dev/null 2>&1; then
             tag=$(dialog --stdout --clear --ok-label "OK" --cancel-label "Quit" \
@@ -170,6 +171,7 @@ menu_select_mode() {
                 "quit"      "Quit" 3>&1 1>&2 2>&3) || rc=$?
         fi
         tui_reset
+        reset_ui_terminfo_noalt
         case "${tag:-$rc}" in
             update) MODE="update" ;;
             reinstall) MODE="reinstall" ;;
@@ -228,30 +230,20 @@ install_browser_tarball() {
     FIREFOX_VERSION=""
 
     if [[ "$first_install" == "reinstall" ]]; then
-        # Чужая занятая директория (не наша) — бэкап; наша — просто перекатываем.
+        # Чужой занятый каталог — только предупреждаем: содержимое будет заменено.
         if [[ -d "$INSTALL_DIR" && -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]] \
-           && [[ ! -f "$INSTALL_DIR/.myfox-installed" ]]; then
+           && ! is_myfox_dir "$INSTALL_DIR"; then
             warn "Something is already present in $INSTALL_DIR (hand-installed Firefox?)."
-            local backup
-            backup=$(backup_dir_nonempty "$INSTALL_DIR")
-            if [[ -n "$backup" ]]; then
-                success "Backup created: $backup"
-                state_set backup_dir "$backup"
-            fi
         fi
         log "Reinstalling Firefox cleanly..."
         find "$INSTALL_DIR" -mindepth 1 -delete 2>/dev/null || true
         fetch_tarball_version "$INSTALL_DIR" "$LANG_CODE" "$CHANNEL"
-    elif [[ -f "$INSTALL_DIR/application.ini" && -f "$INSTALL_DIR/.myfox-installed" ]]; then
+    elif [[ -f "$INSTALL_DIR/application.ini" ]] && is_myfox_dir "$INSTALL_DIR"; then
         log "Firefox already installed (myfox) at $INSTALL_DIR."
         FIREFOX_VERSION=$(firefox_local_version "$INSTALL_DIR")
     elif [[ -d "$INSTALL_DIR" && -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]]; then
-        warn "Something is already present in $INSTALL_DIR (hand-installed Firefox?)."
-        local backup
-        backup=$(backup_dir_nonempty "$INSTALL_DIR")
-        if [[ -n "$backup" ]]; then
-            success "Backup created: $backup"
-            state_set backup_dir "$backup"
+        if ! is_myfox_dir "$INSTALL_DIR"; then
+            warn "Something is already present in $INSTALL_DIR (hand-installed Firefox?)."
         fi
         log "Reinstalling Firefox cleanly..."
         find "$INSTALL_DIR" -mindepth 1 -delete 2>/dev/null || true
@@ -307,16 +299,12 @@ run_update() {
     : "${CHANNEL:=${MYFOX_CHANNEL:-stable}}"
     resolve_lang
 
-    if [[ -f "$INSTALL_DIR/application.ini" && -f "$INSTALL_DIR/.myfox-installed" ]]; then
+    if [[ -f "$INSTALL_DIR/application.ini" ]] && is_myfox_dir "$INSTALL_DIR"; then
         log "Firefox already installed at $INSTALL_DIR — refreshing state and desktop entry."
         FIREFOX_VERSION=$(firefox_local_version "$INSTALL_DIR")
     elif [[ -d "$INSTALL_DIR" && -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]]; then
-        warn "Something is already present in $INSTALL_DIR (hand-installed Firefox?)."
-        local backup
-        backup=$(backup_dir_nonempty "$INSTALL_DIR")
-        if [[ -n "$backup" ]]; then
-            success "Backup created: $backup"
-            state_set backup_dir "$backup"
+        if ! is_myfox_dir "$INSTALL_DIR"; then
+            warn "Something is already present in $INSTALL_DIR (hand-installed Firefox?)."
         fi
         find "$INSTALL_DIR" -mindepth 1 -delete 2>/dev/null || true
         fetch_tarball_version "$INSTALL_DIR" "$LANG_CODE" "$CHANNEL"
@@ -383,6 +371,9 @@ _wiz_yesno() {
 }
 
 # меню. Устанавливает глобальную WIZ_TAG (выбранный tag).
+# При WIZ_NO_TAGS=1 dialog не печатает колонку tag (item-строки таблицы уже
+# содержат все колонки), возвращается при этом сам tag. Для whiptail флаг
+# игнорируется (таблица рисуется как tag+item).
 # _wiz_menu <ok-label> <back:0|1> <default-tag> <text> tag label [tag label …]
 _wiz_menu() {
     local oklabel="$1" back="$2" deftag="$3" text="$4"
@@ -395,9 +386,11 @@ _wiz_menu() {
     WIZ_TAG=""
     local rc=0
     if command -v dialog >/dev/null 2>&1; then
-        local args=(dialog --stdout --clear --ok-label "$oklabel")
+        local args=(dialog --stdout --clear --ok-label "$oklabel" --cancel-label "Cancel")
         [[ -n "$deftag" ]] && args+=(--default-item "$deftag")
         [[ "$back" == "1" ]] && args+=(--extra-button --extra-label "Back")
+        # таблица профилей: скрыть колонку tag и не схлопывать пробелы в колонках.
+        [[ "${WIZ_NO_TAGS:-}" == "1" ]] && args+=(--no-tags --no-collapse)
         args+=(--menu "$text" 0 0 0 "${items[@]}")
         if WIZ_TAG=$("${args[@]}"); then
             rc=0
@@ -477,31 +470,41 @@ Continue?" || rc=$?
                 local prof_list="" prof_found=0
                 prof_list=$(profile_list_myfox || true)
                 if [[ -n "$prof_list" ]]; then
-                    local prof_items=("new" "Create a new MyFox profile (recommended)")
-                    local pp=""
-                    while IFS='|' read -r pp _unused; do
+                    local -a prof_paths=()
+                    local prof_i=0
+                    local prof_items=("$PROFILE_HEADER_TAG" "$(profile_table_heading_row)"
+                        "new" "$(printf '%-14s' 'New profile')")
+                    local pp="" pname=""
+                    while IFS='|' read -r pp pname; do
                         [[ -z "$pp" ]] && continue
                         prof_found=1
-                        prof_items+=("$pp" "Existing MyFox profile  ($(basename "$pp"))")
+                        prof_i=$((prof_i + 1))
+                        prof_paths[$prof_i]="$pp"
+                        prof_items+=("$prof_i" "$(profile_table_row "$pp" "$(basename "$pp")")")
                     done <<< "$prof_list"
-                    _wiz_menu "Continue" 1 "new" \
-"Select the Firefox profile to use (only MyFox profiles are listed):" \
-                        "${prof_items[@]}" || rc=$?
-                    if [[ "$rc" -eq 3 ]]; then
-                        step="lang"
-                    elif [[ "$rc" -ne 0 || -z "$WIZ_TAG" ]]; then
-                        wizard_cancel
+                    if [[ "$prof_found" == 0 ]]; then
+                        WIZ_PROFILE_NEW=1
+                        WIZ_PROFILE=""
+                        step="profilestyle"
                     else
-                        if [[ "$WIZ_TAG" == "new" ]]; then
+                        WIZ_NO_TAGS=1
+                        _wiz_menu "Continue" 1 "new" \
+"$(profile_pick_heading)" \
+                            "${prof_items[@]}" || rc=$?
+                        unset WIZ_NO_TAGS
+                        if [[ "$rc" -eq 3 ]]; then
+                            step="lang"
+                        elif [[ "$rc" -ne 0 || -z "$WIZ_TAG" ]]; then
+                            wizard_cancel
+                        elif [[ "$WIZ_TAG" == "$PROFILE_HEADER_TAG" ]]; then
+                            step="profile"
+                        elif [[ "$WIZ_TAG" == "new" ]]; then
                             WIZ_PROFILE_NEW=1
                             WIZ_PROFILE=""
-                        else
-                            WIZ_PROFILE_NEW=0
-                            WIZ_PROFILE="$WIZ_TAG"
-                        fi
-                        if [[ "$WIZ_PROFILE_NEW" == 1 ]]; then
                             step="profilestyle"
                         else
+                            WIZ_PROFILE_NEW=0
+                            WIZ_PROFILE="${prof_paths[$WIZ_TAG]}"
                             TWEAKED_PROFILE=true
                             step="bl"
                         fi
@@ -582,6 +585,7 @@ _wizard_finish() {
         tui_reset
         reset_ui_terminfo_noalt
     fi
+    gauge_log_flush
     print_summary
 }
 
@@ -596,6 +600,7 @@ _wizard_trap_cleanup() {
         tui_reset
         reset_ui_terminfo_noalt
     fi
+    gauge_log_flush
     return "$rc"
 }
 
@@ -822,9 +827,6 @@ print_summary() {
     echo "  Firefox:   ${INSTALL_DIR:-?} (${FIREFOX_VERSION:-latest}, lang ${LANG_CODE:-auto})"
     [[ -n "${PROFILE_DIR:-}" ]] && echo "  Profile:   $PROFILE_DIR"
     echo "  Desktop:   Firefox (myfox)"
-    local backup
-    backup=$(state_get backup_dir) || true
-    [[ -n "$backup" ]] && echo "  Backup:    $backup"
     echo ""
     echo "Run 'firefox (myfox)' from your app menu, or:"
     if [[ -n "${PROFILE_DIR:-}" ]]; then
@@ -845,7 +847,7 @@ print_summary() {
 # ─── Диспетчер режима ───────────────────────────────────────────────────────
 
 if [[ -z "$MODE" ]]; then
-    if [[ -f "$INSTALL_DIR/application.ini" && -f "$INSTALL_DIR/.myfox-installed" ]] \
+    if [[ -f "$INSTALL_DIR/application.ini" ]] && is_myfox_dir "$INSTALL_DIR" \
        && [[ -n "$(state_get install_dir)" && -n "$(state_get profile_dir)" ]]; then
         menu_select_mode
     else

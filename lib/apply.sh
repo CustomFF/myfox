@@ -3,34 +3,12 @@
 #   - autoconfig (autoconfig.js → defaults/pref/, firefox.cfg → install root)
 #   - chrome CSS (userChrome.css, agent_overrides.css → profile chrome/)
 #   - префы (уже вшиты в firefox.cfg — применяются самим Firefox при старте)
-#   - бэкап занятой директории (если по целевому пути стоит чужой Firefox)
 # Требуются common.sh.
-
-# ─── Бэкап занятой директории ───────────────────────────────────────────────
-#
-# backup_dir_nonempty <target_dir> → создаёт tar.gz бэкап рядом, возвращает путь бэкапа.
-# Если каталог пуст/не существует — бэкап не нужен (вернуть пустоту).
-backup_dir_nonempty() {
-    local target="$1"
-    if [[ ! -d "$target" || -z "$(ls -A "$target" 2>/dev/null)" ]]; then
-        return 0
-    fi
-    mkdir -p "$MYFOX_STATE_DIR/backups"
-    local stamp
-    stamp=$(date +%Y%m%d-%H%M%S)
-    local backup="$MYFOX_STATE_DIR/backups/install-${stamp}.tar.gz"
-    log "Backing up existing directory: $target"
-    if ! tar -czf "$backup" -C "$target" .; then
-        warn "Backup failed, proceeding without backup."
-        return 0
-    fi
-    echo "$backup"
-}
 
 # ─── Применение autoconfig ──────────────────────────────────────────────────
 
 apply_autoconfig() {
-    local install_dir="$1" backup_dir_var="$2"
+    local install_dir="$1"
     mkdir -p "$install_dir/defaults/pref"
 
     # Если у инсталляции уже есть autoconfig, но это НЕ наша копия (нет наших твиков) —
