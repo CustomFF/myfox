@@ -182,6 +182,7 @@ _lang_menu_dialog() {  # <list> <def> → stdout: tag (номер)
     # dialog просто рисует в него. Иначе — это standalone-вызов, нужна своя пара.
     local _fenced="${MYFOX_TUI_FENCED:-0}"
     if [[ "$_fenced" != "1" ]]; then
+        use_ui_terminfo_noalt || true
         tui_enter
     fi
     if command -v dialog >/dev/null 2>&1; then
@@ -194,6 +195,7 @@ _lang_menu_dialog() {  # <list> <def> → stdout: tag (номер)
     fi
     if [[ "$_fenced" != "1" ]]; then
         tui_reset
+        reset_ui_terminfo_noalt
     fi
 }
 

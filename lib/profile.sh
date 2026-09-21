@@ -108,6 +108,49 @@ profile_list_myfox() {
     done < <(profile_search_dirs)
 }
 
+# ─── Дата создания/изменения каталога профиля (YYYY-MM-DD) ──────────────────
+# Дата создания (birth time, stat %w) есть не на всех ФС — тогда «—». mtime — дата
+# изменения. Обе даты печатаются в диалоге выбора профиля «таблицей».
+profile_dir_created() {  # <dir> → YYYY-MM-DD | —
+    local c
+    c=$(stat -c %w "$1" 2>/dev/null || echo "—")
+    [[ "$c" == "-" || -z "$c" ]] && c="—"
+    printf '%s' "${c:0:10}"
+}
+
+profile_dir_modified() {  # <dir> → YYYY-MM-DD | —
+    local m
+    m=$(stat -c %y "$1" 2>/dev/null || echo "—")
+    [[ -z "$m" ]] && m="—"
+    printf '%s' "${m:0:10}"
+}
+
+# Одна строка таблицы для диалога выбора профиля:
+#   <name>  <path>  <created>  <modified>
+profile_table_row() {  # <path> [<name>]
+    local p="$1" n="${2:-$(basename "$1")}"
+    printf '%-14s %-38s %-18s %s' \
+        "$n" "$p" "$(profile_dir_created "$p")" "$(profile_dir_modified "$p")"
+}
+
+# Шапка колонок таблицы — рисуется ПУНКТОМ меню (первым), а не текстом над
+# списком: dialog рисует колонку тегов (даже скрытую --no-tags) шириной в самый
+# длинный тег и сдвигает item-текст — text-шапку не выровнять. Пункт-заголовок
+# имеет короткий тег-сигнатуру (не влияет на колонку) и при выборе
+# игнорируется (повтор запроса).
+PROFILE_HEADER_TAG="::"
+
+profile_table_heading_row() {
+    printf '%-14s %-38s %-18s %s' "Profile" "Path" "Created" "Modified"
+}
+
+# Пояснение над списком (управление), self-documented.
+profile_pick_heading() {
+    printf '%s\n%s\n' \
+        "MyFox profiles from previous installations were found" \
+        "you can use an existing one or create a new one"
+}
+
 # ─── Создание нового профиля ────────────────────────────────────────────────
 #
 # Создаёт профиль с именем myfox и уникальным путём (myfox-XXXX) в общем
@@ -596,11 +639,17 @@ profile_resolve() {
 # выбранного профиля, или пусто = «создать новый»; rc 1 — отмена пользователем.
 profile_pick_myfox() {  # <list path|name …>
     local list="$1"
-    local items=("new" "Create a new MyFox profile (recommended)")
-    local p n
+    local p n i=0
+    local -a paths=()
+    local items=(
+        "$PROFILE_HEADER_TAG" "$(profile_table_heading_row)"
+        "new" "$(printf '%-14s' 'New profile')"
+    )
     while IFS='|' read -r p n; do
         [[ -z "$p" ]] && continue
-        items+=("$p" "Existing MyFox profile  ($(basename "$p"))")
+        i=$((i + 1))
+        paths[$i]="$p"
+        items+=("$i" "$(profile_table_row "$p" "$(basename "$p")")")
     done <<< "$list"
     local _fenced="${MYFOX_TUI_FENCED:-0}"
     if [[ "$_fenced" != "1" ]]; then
@@ -608,20 +657,23 @@ profile_pick_myfox() {  # <list path|name …>
         tui_enter
     fi
     local tag rc=0
-    if command -v dialog >/dev/null 2>&1; then
-        tag=$(dialog --stdout --clear --ok-label "Continue" --default-item "new" \
-            --menu "Select the Firefox profile to use (only MyFox profiles are listed):" \
-            0 0 0 "${items[@]}") || rc=$?
-    else
-        tag=$(whiptail --clear --ok-button "Continue" --default-item "new" \
-            --menu "Select the Firefox profile to use (only MyFox profiles are listed):" \
-            0 0 0 "${items[@]}" 3>&1 1>&2 2>&3) || rc=$?
-    fi
+    while :; do
+        if command -v dialog >/dev/null 2>&1; then
+            tag=$(dialog --stdout --clear --no-tags --no-collapse --ok-label "Continue" --cancel-label "Cancel" --default-item "new" \
+                --menu "$(profile_pick_heading)" 0 0 0 "${items[@]}") || rc=$?
+        else
+            tag=$(whiptail --clear --ok-button "Continue" --cancel-button "Cancel" --default-item "new" \
+                --menu "$(profile_pick_heading)" 0 0 0 "${items[@]}" 3>&1 1>&2 2>&3) || rc=$?
+        fi
+        [[ "$rc" -ne 0 ]] && break
+        [[ "$tag" == "$PROFILE_HEADER_TAG" ]] && continue
+        break
+    done
     if [[ "$_fenced" != "1" ]]; then
         tui_reset
         reset_ui_terminfo_noalt
     fi
     [[ "$rc" -ne 0 ]] && return 1
     [[ "$tag" == "new" ]] && return 0
-    if [[ -n "$tag" ]]; then echo "$tag"; fi
+    if [[ -n "${paths[$tag]:-}" ]]; then echo "${paths[$tag]}"; fi
 }

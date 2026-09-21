@@ -92,11 +92,12 @@ echo $LANG; firefox_detect_lang         # соответствует LANG
 ```bash
 ./uninstall.sh                             # на tty
 ```
-- [ ] все подтверждения — dialog `--yesno` (дефолт «No»): «Remove MyFox tweaks?» /
-      «Delete the myfox profile completely?» / «Remove the entry from profiles.ini?» /
-      «Restore backup?» / «Remove the Firefox browser itself?»
-- [ ] «не удалять профиль» + «не удалять запись»: каталог myfox-*, `.myfox-created`,
-      `[ProfileN] Name=myfox` в profiles.ini сохраняются
+- [ ] мастер из двух экранов (dialog/whiptail), radio Yes/No выбор стрелками+Enter:
+      экран 1 «Remove the Firefox application?» (No = отмена всего),
+      экран 2 «Delete the MyFox profile completely?» (для existing-профиля —
+      «Remove MyFox tweaks from the profile?»)
+- [ ] «не удалять профиль»: каталог myfox-* и `.myfox-created` сохраняются,
+      запись `[ProfileN] Name=myfox` из profiles.ini удаляется
 
 ### 2.0c Reinstall видит сохранённый профиль
 ```bash
@@ -179,10 +180,10 @@ echo $LANG; firefox_detect_lang         # соответствует LANG
 - [ ] `distribution/` в инсталляции НЕ создаётся (никаких глобальных политик — всё профиль-локально)
 
 ### 2.8 Занятая директория (чужой Firefox)
-1. Положить в `/tmp/myfox-occ` произвольный файл (эмулируем вручную поставленный ff) без `.myfox-installed`.
+1. Положить в `/tmp/myfox-occ` произвольный файл (эмулируем вручную поставленный ff) без `.myfox-installed`/`.myfox-version`.
 2. `./install.sh -y --prefix /tmp/myfox-occ`
 - [ ] появилось предупреждение «Something is already present»
-- [ ] бэкап создан (в `install.json` есть `backup_dir`, файл существует)
+- [ ] бэкап НЕ создаётся (никаких tar.gz в `~/.local/state/myfox/`)
 - [ ] установка прошла начисто
 
 ### 2.9 uninstall: unpin + секция профиля
@@ -215,16 +216,13 @@ echo $LANG; firefox_detect_lang         # соответствует LANG
 - [ ] warning «Headless Firefox run failed…», установка продолжается и завершается успешно
 - [ ] `install_hash` в state пуст/отсутствует; uninstall не падает без него
 
-### 2.11 uninstall с восстановлением бэкапа
-После 2.8:
+### 2.11 uninstall: «оставить профиль»
+После установки 2.1 (профиль создан myfox, есть `.myfox-created`), интерактивно:
 ```bash
-./uninstall.sh -y
+./uninstall.sh
 ```
-- [ ] autoconfig-файлы удалены
-- [ ] chrome CSS удалены из профиля
-- [ ] бэкап восстановлен (содержимое `/tmp/myfox-occ` == исходное)
-- [ ] desktop entry удалён
-- [ ] `install.json` удалён
+- [ ] экран 2 → ответ «No» (оставить профиль): каталог профиля остаётся, запись из profiles.ini удаляется
+- [ ] приложение/autoconfig/chrome/desktop entry/`install.json` удалены
 
 ## 3. Ручные сценарии (нужен тестовый профиль)
 
@@ -298,7 +296,6 @@ MYFOX_DDBLM_LOCAL=/home/daydve/development/ddblm \
 
 ## 5. Где смотреть результаты
 - state: `~/.local/state/myfox/install.json`
-- бэкапы: `~/.local/state/myfox/backups/`
 - desktop: `~/.local/share/applications/firefox-myfox.desktop`
 - профили/пиннинг: `~/.mozilla/firefox/profiles.ini`, `~/.mozilla/firefox/installs.ini`
 - локальный ddblm: `/home/daydve/development/ddblm` (источник твиков для `MYFOX_DDBLM_LOCAL` при отладке локальных правок твиков; опубликованная версия — `DayDve/ddblm` на GitHub Pages)

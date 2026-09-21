@@ -55,9 +55,45 @@ NC=$'\033[0m'
 
 : "${MYFOX_VERBOSE:=0}"
 
-log()     { [[ "$MYFOX_VERBOSE" == "1" ]] && echo -e "${BLUE}[INF]${NC} $*" >&2 || true; }
-success() { [[ "$MYFOX_VERBOSE" == "1" ]] && echo -e "${GREEN}[OK]${NC}  $*" >&2 || true; }
-warn()    { echo -e "${YELLOW}[WRN]${NC} $*" >&2; }
+# ─── Буфер логов для gauge-фазы мастера ──────────────────────────────────────
+#
+# Во время установки мастер держит dialog-gauge (ncurses-кадр в /dev/tty),
+# а stderr процесса установщика ведёт на тот же терминал — прямое печатание
+# ложится ПОВЕРХ кадра (curl туда уже глушится через gauge_spin). Поэтому при
+# открытом gauge (MYFOX_GAUGE_FD не пуст) log/success/warn не печатаются,
+# а складываются в буфер; gauge_log_flush выводит их уже ПОСЛЕ gauge_close
+# (на обычном экране, до print_summary).
+
+MYFOX_GAUGE_LOG_BUF=()
+
+gauge_log_buf() {
+    [[ -n "$MYFOX_GAUGE_FD" ]] || return 1
+    MYFOX_GAUGE_LOG_BUF+=("$1")
+    return 0
+}
+
+gauge_log_flush() {
+    local line
+    for line in "${MYFOX_GAUGE_LOG_BUF[@]}"; do
+        echo -e "$line" >&2
+    done
+    MYFOX_GAUGE_LOG_BUF=()
+}
+
+log() {
+    [[ "$MYFOX_VERBOSE" == "1" ]] || return 0
+    gauge_log_buf "${BLUE}[INF]${NC} $*" \
+        || echo -e "${BLUE}[INF]${NC} $*" >&2
+}
+success() {
+    [[ "$MYFOX_VERBOSE" == "1" ]] || return 0
+    gauge_log_buf "${GREEN}[OK]${NC}  $*" \
+        || echo -e "${GREEN}[OK]${NC}  $*" >&2
+}
+warn() {
+    gauge_log_buf "${YELLOW}[WRN]${NC} $*" \
+        || echo -e "${YELLOW}[WRN]${NC} $*" >&2
+}
 error()   { echo -e "${RED}[ERR]${NC} $*" >&2; exit 1; }
 
 # Приглашение yes/no. Возвращает 0 если «да» (регистронезависимый y/yes/д/да).
@@ -79,6 +115,7 @@ confirm() {
     if [[ -t 0 && -z "${MYFOX_GAUGE_FD:-}" && "${MYFOX_TUI_FENCED:-}" != "1" ]]; then
         if command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; then
             local rc=0
+            use_ui_terminfo_noalt || true
             tui_enter
             if command -v dialog >/dev/null 2>&1; then
                 dialog --stdout --clear --yes-label "Yes" --no-label "No" \
@@ -88,6 +125,7 @@ confirm() {
                     $defno --yesno "$prompt" 0 0 || rc=$?
             fi
             tui_reset
+            reset_ui_terminfo_noalt
             [[ "$rc" -eq 0 ]] && return 0 || return 1
         fi
     fi
@@ -467,3 +505,12 @@ has_marker() {
 
 # Флаг-маркер внутри инсталляционного каталога (различает «нашу» vs «чужую» инсталляцию по пути).
 INSTALL_MARKER_NAME=".myfox-installed"
+
+# is_myfox_dir <dir> — true, если каталог принадлежит myfox-инсталляции:
+# маркер завершённой установки (.myfox-installed) или записанная версия (.myfox-version,
+# пишется сразу после распаковки тарбола). Нужно, чтобы не «бэкапить» собственные бинарники,
+# если uninstall снял маркер, но оставил каталог.
+is_myfox_dir() {
+    local dir="$1"
+    [[ -f "$dir/$INSTALL_MARKER_NAME" || -f "$dir/.myfox-version" ]]
+}
