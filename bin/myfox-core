@@ -1,0 +1,774 @@
+#!/usr/bin/env bash
+# myfox-core — диспетчер install/update/uninstall. Внутренний интерфейс:
+# вызывается только программно, из get.sh (bootstrap) или из установленного
+# ~/.local/bin/myfox (сам он — копия get.sh, см. bin/myfox-launcher). Наружу
+# как публичная команда не торчит.
+#
+# Usage: myfox-core <install|update|uninstall> [options]
+set -eo pipefail
+
+MYFOX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# ─── Сабкоманда + флаги ──────────────────────────────────────────────────────
+
+SUB="install"
+case "${1:-}" in
+    install|update|uninstall) SUB="$1"; shift ;;
+esac
+
+PREFIX="" PROFILE_ARG="" LANG_ARG="" LIST_LANGUAGES=""
+MODE="" NOBL=false NOADDONS=false PLASMA_FORCE=false NO_PLASMA=false FORCE=false SHOW_HELP=""
+PLASMA_PKG_HINT="" MYFOX_PATH_HINT=""
+MYFOX_NONINTERACTIVE="${MYFOX_NONINTERACTIVE:-}"
+MYFOX_VERBOSE="${MYFOX_VERBOSE:-0}"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --prefix)   PREFIX="$2"; shift 2 ;;
+        --reinstall|--browser-only)
+            [[ -n "$MODE" ]] && { echo "Modes --reinstall / --browser-only are mutually exclusive." >&2; exit 1; }
+            MODE="${1#--}"; shift ;;
+        --profile)  PROFILE_ARG="$2"; shift 2 ;;
+        --lang)     LANG_ARG="$2"; shift 2 ;;
+        --list-languages) LIST_LANGUAGES=1; shift ;;
+        --nobl)     NOBL=true; shift ;;
+        --noaddons) NOADDONS=true; shift ;;
+        --plasma-integration) PLASMA_FORCE=true; shift ;;
+        --noplasma) NO_PLASMA=true; shift ;;
+        --force)    FORCE=true; shift ;;
+        -y|--yes)   MYFOX_NONINTERACTIVE=1; shift ;;
+        -v|--verbose) MYFOX_VERBOSE=1; shift ;;
+        -h|--help)  SHOW_HELP=1; shift ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+    esac
+done
+
+# shellcheck source=lib/common.sh
+. "$MYFOX_ROOT/lib/common.sh"
+
+# ─── i18n: --lang → сохранённый opt_lang → $LANG окружения → en ────────────
+
+# shellcheck source=lib/i18n.sh
+. "$MYFOX_ROOT/lib/i18n.sh"
+i18n_load "${LANG_ARG:-$(state_get opt_lang)}"
+
+usage() {
+    cat <<EOF
+$(t usage_title)
+
+$(t usage_usage) $0 <install|update|uninstall> [options]
+
+$(t usage_options)
+  --prefix <path>    $(t usage_prefix)
+  --profile <path>   $(t usage_profile)
+  --lang <code>       $(t usage_lang)
+  --list-languages    $(t usage_list_languages)
+  --reinstall          $(t usage_reinstall)
+  --browser-only       $(t usage_browser_only)
+  --nobl               $(t usage_nobl)
+  --noaddons           $(t usage_noaddons)
+  --plasma-integration $(t usage_plasma_integration)
+  --noplasma           $(t usage_noplasma)
+  --force              $(t usage_force)
+  -y, --yes            $(t usage_yes)
+  -v, --verbose        $(t usage_verbose)
+  -h, --help           $(t usage_help)
+EOF
+}
+
+[[ -n "$SHOW_HELP" ]] && { usage; exit 0; }
+
+check_deps
+
+# shellcheck source=lib/tui.sh
+. "$MYFOX_ROOT/lib/tui.sh"
+# shellcheck source=lib/firefox.sh
+. "$MYFOX_ROOT/lib/firefox.sh"
+# shellcheck source=lib/profile.sh
+. "$MYFOX_ROOT/lib/profile.sh"
+# shellcheck source=lib/apply.sh
+. "$MYFOX_ROOT/lib/apply.sh"
+# shellcheck source=lib/addons.sh
+. "$MYFOX_ROOT/lib/addons.sh"
+
+if [[ -n "$LIST_LANGUAGES" ]]; then
+    firefox_list_languages
+    exit 0
+fi
+if [[ -n "$LANG_ARG" ]] && ! firefox_validate_lang "$LANG_ARG"; then
+    error "$(t err_unknown_lang "$LANG_ARG")"
+fi
+if [[ "$SUB" == "update" && ( -n "$LANG_ARG" || -n "$PROFILE_ARG" ) ]]; then
+    error "$(t err_update_incompatible_flags)"
+fi
+
+if [[ -n "$PREFIX" ]]; then
+    INSTALL_DIR="$PREFIX"
+elif saved=$(state_get install_dir); [[ -n "$saved" ]]; then
+    INSTALL_DIR="$saved"
+else
+    INSTALL_DIR="$MYFOX_DEFAULT_PREFIX"
+fi
+
+# ─── Общие шаги ──────────────────────────────────────────────────────────────
+
+resolve_lang() {
+    local saved
+    saved=$(opts_get lang)
+    if [[ -n "$LANG_ARG" ]]; then
+        LANG_CODE="$LANG_ARG"
+    elif [[ -n "$saved" || -n "$MYFOX_NONINTERACTIVE" ]]; then
+        LANG_CODE="${saved:-$(firefox_detect_lang)}"
+    else
+        LANG_CODE=$(firefox_interactive_lang) || { echo "$(t cancelled)" >&2; exit 0; }
+    fi
+}
+
+resolve_channel() {
+    local saved
+    saved=$(opts_get channel)
+    if [[ -n "$saved" ]]; then
+        CHANNEL="$saved"
+    elif [[ -n "$MYFOX_NONINTERACTIVE" || ! -t 0 ]]; then
+        CHANNEL=stable
+    else
+        CHANNEL=$(tui_choose_kv "$(t channel_pick_header)" "stable" 0 0 \
+            stable "$(t channel_stable)" beta "$(t channel_beta)") || CHANNEL=stable
+    fi
+}
+
+# Интерактивный мастер первой установки:
+#   приветствие → путь → канал (stable/beta) → язык → профиль (пропускается,
+#   если своих myfox-профилей нет) → твики или нет (твики=да включают и
+#   стили под букмарклеты — отдельно не спрашиваем) → конец (дальше
+#   run_install качает и ставит с прогрессом).
+# «Назад» — rc 3 от tui_choose_kv/tui_filter_kv, см. lib/tui.sh. Использует
+# firefox_interactive_lang/profile_pick_myfox напрямую (не resolve_lang/
+# profile_resolve — тем шаги друг о друге ничего не знают и назад вернуть
+# не могут). Результат в LANG_CODE, CHANNEL, TWEAKED_PROFILE, BL_ON,
+# WIZ_PROFILE(_NEW). rc 1 — отмена (Ctrl-C/Esc на любом шаге).
+install_wizard() {
+    local step="welcome" rc=0
+    LANG_CODE="" CHANNEL="" BL_ON=false TWEAKED_PROFILE=true
+    WIZ_PROFILE="" WIZ_PROFILE_NEW=0
+
+    while true; do
+        case "$step" in
+            welcome)
+                rc=0
+                local welcome_prompt welcome_h=""
+                if tui_logo_fits; then
+                    welcome_prompt="$(tui_print_logo)"$'\n\n'"$(t wizard_welcome_text)"
+                    # Лого статичное (assets/logo.txt); высота подобрана
+                    # визуально, не вычисляется (см. scratch/test-welcome.sh,
+                    # MYFOX_WELCOME_HEIGHT).
+                    welcome_h="${MYFOX_WELCOME_HEIGHT:-32}"
+                else
+                    welcome_prompt="$(t wizard_welcome_text)"
+                fi
+                tui_confirm "$welcome_prompt" yes 0 \
+                    "$(t wizard_continue_label)" "$(t opt_cancel)" "$welcome_h" || rc=$?
+                [[ "$rc" -eq 0 ]] && step="dir_choice" || return 1
+                ;;
+            dir_choice)
+                if [[ -n "$PREFIX" ]]; then
+                    step="channel"
+                    continue
+                fi
+                rc=0
+                local dchoice
+                dchoice=$(tui_choose_kv "$(t installdir_pick_header)" "default" 1 0 \
+                    default "$(t installdir_default_option "$MYFOX_DEFAULT_PREFIX")" \
+                    custom "$(t installdir_custom_option)") || rc=$?
+                if [[ "$rc" -eq 3 ]]; then
+                    step="welcome"
+                    continue
+                elif [[ "$rc" -ne 0 ]]; then
+                    return 1
+                fi
+                if [[ "$dchoice" == "custom" ]]; then
+                    local chosen_dir
+                    if chosen_dir=$(tui_pick_dir "$INSTALL_DIR"); then
+                        # dialog/whiptail сами ~ не раскрывают (не шелл).
+                        [[ "$chosen_dir" == "~"* ]] && chosen_dir="$HOME${chosen_dir#\~}"
+                        [[ -n "$chosen_dir" ]] && INSTALL_DIR="$chosen_dir"
+                    fi
+                else
+                    INSTALL_DIR="$MYFOX_DEFAULT_PREFIX"
+                fi
+                step="channel"
+                ;;
+            channel)
+                rc=0
+                local ans
+                ans=$(tui_choose_kv "$(t channel_pick_header)" "stable" 1 0 \
+                    stable "$(t channel_stable)" beta "$(t channel_beta)") || rc=$?
+                if [[ "$rc" -eq 3 ]]; then
+                    step="dir_choice"
+                elif [[ "$rc" -ne 0 ]]; then
+                    return 1
+                else
+                    CHANNEL="$ans"
+                    step="lang"
+                fi
+                ;;
+            lang)
+                if [[ -n "$LANG_ARG" ]]; then
+                    LANG_CODE="$LANG_ARG"
+                    step="profile"
+                    continue
+                fi
+                rc=0
+                LANG_CODE=$(firefox_interactive_lang) || rc=$?
+                [[ "$rc" -ne 0 ]] && return 1
+                step="profile"
+                ;;
+            profile)
+                if [[ -n "$PROFILE_ARG" ]]; then
+                    step="tweaks"
+                    continue
+                fi
+                local myfox_list
+                myfox_list=$(profile_list_myfox || true)
+                if [[ -z "$myfox_list" ]]; then
+                    WIZ_PROFILE_NEW=1; WIZ_PROFILE=""
+                    step="tweaks"
+                    continue
+                fi
+                rc=0
+                local chosen
+                chosen=$(profile_pick_myfox "$myfox_list" 1) || rc=$?
+                if [[ "$rc" -eq 3 ]]; then
+                    step="lang"
+                elif [[ "$rc" -ne 0 ]]; then
+                    return 1
+                elif [[ -z "$chosen" ]]; then
+                    WIZ_PROFILE_NEW=1; WIZ_PROFILE=""
+                    step="tweaks"
+                else
+                    WIZ_PROFILE_NEW=0; WIZ_PROFILE="$chosen"
+                    step="tweaks"
+                fi
+                ;;
+            tweaks)
+                rc=0
+                local ans
+                ans=$(tui_choose_kv "$(t confirm_tweaks)" "yes" 1 0 \
+                    yes "$(t opt_yes)" no "$(t opt_no)") || rc=$?
+                if [[ "$rc" -eq 3 ]]; then
+                    step="profile"
+                elif [[ "$rc" -ne 0 ]]; then
+                    return 1
+                elif [[ "$ans" == "yes" ]]; then
+                    # Твики включают и стили под букмарклеты — отдельно не спрашиваем.
+                    TWEAKED_PROFILE=true
+                    BL_ON=true
+                    step="summary"
+                else
+                    TWEAKED_PROFILE=false
+                    BL_ON=false
+                    step="summary"
+                fi
+                ;;
+            summary)
+                rc=0
+                tui_confirm "$(_wizard_summary_text)" yes 1 \
+                    "$(t summary_install_label)" "$(t opt_cancel)" || rc=$?
+                if [[ "$rc" -eq 3 ]]; then
+                    step="tweaks"
+                elif [[ "$rc" -ne 0 ]]; then
+                    return 1
+                else
+                    return 0
+                fi
+                ;;
+        esac
+    done
+}
+
+# Текст сводного экрана мастера: что именно будет установлено с учётом уже
+# сделанных выборов (путь/канал/язык/профиль/твики/букмарклеты/аддоны —
+# аддоны включаются молча вместе с твиками, поэтому тут единственное место,
+# где пользователь вообще о них узнаёт).
+_wizard_summary_text() {
+    local profile_desc channel_desc
+    if [[ "$WIZ_PROFILE_NEW" == "1" || -z "$WIZ_PROFILE" ]]; then
+        profile_desc="$(t profile_new_option)"
+    else
+        profile_desc="$(myfox_shorten_home "$WIZ_PROFILE")"
+    fi
+    if [[ "$CHANNEL" == "beta" ]]; then channel_desc="$(t channel_beta)"; else channel_desc="$(t channel_stable)"; fi
+
+    local -a lines=(
+        "$(t summary_header)"
+        ""
+        "$(t summary_row_path "$INSTALL_DIR")"
+        "$(t summary_row_channel "$channel_desc")"
+        "$(t summary_row_lang "$LANG_CODE")"
+        "$(t summary_row_profile "$profile_desc")"
+    )
+    if [[ "$TWEAKED_PROFILE" == "true" ]]; then
+        lines+=("$(t summary_row_tweaks_yes)" "$(t summary_row_bl)" "$(t summary_row_addons)")
+    else
+        lines+=("$(t summary_row_tweaks_no)")
+    fi
+    lines+=("" "$(t summary_confirm_prompt)")
+
+    local IFS=$'\n'
+    printf '%s' "${lines[*]}"
+}
+
+fetch_tarball_version() {
+    local rc=0
+    FIREFOX_VERSION=$(firefox_install_tarball "$INSTALL_DIR" "$LANG_CODE" "$CHANNEL") || rc=$?
+    if [[ "$rc" -eq 2 ]]; then
+        exit 0
+    elif [[ "$rc" -ne 0 ]]; then
+        exit "$rc"
+    fi
+}
+
+# Устанавливает/переиспользует браузер из тарбола. <first|reinstall>
+install_browser_tarball() {
+    local mode="$1"
+    FIREFOX_VERSION=""
+    local claim
+    claim=$(firefox_dir_claim_state "$INSTALL_DIR")
+
+    if [[ "$mode" != "reinstall" && "$claim" == "ours" ]]; then
+        log "$(t firefox_already_installed "$INSTALL_DIR")"
+        FIREFOX_VERSION=$(firefox_local_version "$INSTALL_DIR")
+    else
+        if [[ "$claim" == "foreign" || ( "$mode" == "reinstall" && "$claim" != "empty" ) ]]; then
+            [[ "$claim" == "foreign" ]] && warn "$(t warn_dir_occupied "$INSTALL_DIR")"
+            log "$(t reinstalling_cleanly)"
+            find "$INSTALL_DIR" -mindepth 1 -delete 2>/dev/null || true
+        fi
+        fetch_tarball_version
+    fi
+
+    touch "$INSTALL_DIR/.myfox-installed"
+    [[ -n "$FIREFOX_VERSION" ]] && state_set firefox_version "$FIREFOX_VERSION"
+}
+
+# Копирует лаунчер (~/.local/bin/myfox): из тарбола (bin/myfox-launcher) если
+# есть, иначе — сам get.sh из корня репозитория (git-clone / make install).
+install_launcher() {
+    mkdir -p "$MYFOX_BIN_DIR"
+    if [[ -f "$MYFOX_ROOT/bin/myfox-launcher" ]]; then
+        install -m 0755 "$MYFOX_ROOT/bin/myfox-launcher" "$MYFOX_LAUNCHER_PATH"
+    else
+        install -m 0755 "$MYFOX_ROOT/get.sh" "$MYFOX_LAUNCHER_PATH"
+    fi
+
+    # Постоянная копия core — myfox uninstall работает из неё офлайн, без
+    # повторного скачивания тарбола (только myfox update качает заново).
+    rm -rf "$MYFOX_CORE_DIR"
+    mkdir -p "$MYFOX_CORE_DIR/bin"
+    install -m 0755 "$MYFOX_ROOT/bin/myfox-core" "$MYFOX_CORE_DIR/bin/myfox-core"
+    cp -a "$MYFOX_ROOT/lib" "$MYFOX_CORE_DIR/lib"
+    cp -a "$MYFOX_ROOT/i18n" "$MYFOX_CORE_DIR/i18n"
+
+    success "$(t launcher_installed "$MYFOX_LAUNCHER_PATH")"
+    case ":$PATH:" in
+        *":$MYFOX_BIN_DIR:"*) ;;
+        *) MYFOX_PATH_HINT=1 ;;
+    esac
+}
+
+resolve_bookmarklets() {
+    if [[ "$NOBL" == true ]]; then
+        opts_set bl false
+        log "$(t bl_skipped_flag)"
+        return 0
+    fi
+    if [[ -n "$WIZARD_RAN" ]]; then
+        if [[ "$BL_ON" == true ]]; then
+            opts_set bl true
+        else
+            opts_set bl false
+            log "$(t bl_skipped)"
+            return 0
+        fi
+    elif opts_has bl; then
+        if [[ "$(opts_get bl)" != "true" ]]; then
+            opts_set bl false
+            log "$(t bl_skipped_saved)"
+            return 0
+        fi
+    elif ! tui_confirm "$(t confirm_bookmarklets)" yes; then
+        opts_set bl false
+        log "$(t bl_skipped)"
+        return 0
+    fi
+    opts_set bl true
+    local gallery
+    gallery=$(apply_bookmarklets "$PROFILE_DIR") || true
+    [[ -n "$gallery" ]] && log "$(t bookmarklet_gallery "$gallery")"
+}
+
+maybe_add_plasma() {  # <array-name>
+    local -n arr="$1"
+    arr+=("$MYFOX_ADDON_PLASMA")
+    if addons_pkg_installed; then
+        log "$(t plasma_pkg_present)"
+        return 0
+    fi
+    warn "$(t warn_plasma_pkg_missing)"
+    PLASMA_PKG_HINT=$(addons_pkg_suggest) || true
+    if [[ -z "$PLASMA_PKG_HINT" ]]; then
+        log "$(t plasma_pkg_manual)"
+    else
+        log "$(t plasma_pkg_hint "$PLASMA_PKG_HINT")"
+    fi
+}
+
+install_addons() {
+    local -a addons_list=()
+
+    if [[ "$NOADDONS" == true ]]; then
+        opts_set addons false
+        log "$(t addons_skipped_flag)"
+        return 0
+    fi
+    if [[ -n "$WIZARD_RAN" ]]; then
+        opts_set addons true
+    elif opts_has addons; then
+        if [[ "$(opts_get addons)" != "true" ]]; then
+            opts_set addons false
+            log "$(t addons_skipped_saved)"
+            return 0
+        fi
+    elif ! tui_confirm "$(t confirm_addons)" yes; then
+        opts_set addons false
+        log "$(t addons_skipped)"
+        return 0
+    fi
+    opts_set addons true
+    addons_list+=("$MYFOX_ADDON_UBLOCK" "$MYFOX_ADDON_THEME")
+
+    local plasma_opt
+    plasma_opt=$(opts_get plasma)
+    if [[ "$NO_PLASMA" == true ]]; then
+        opts_set plasma false
+        log "$(t plasma_skipped_flag)"
+    elif [[ "$PLASMA_FORCE" == true ]]; then
+        opts_set plasma true
+        maybe_add_plasma addons_list
+    elif [[ -n "$plasma_opt" ]]; then
+        if [[ "$plasma_opt" == "true" ]]; then
+            log "$(t plasma_enabled_saved)"
+            maybe_add_plasma addons_list
+        else
+            log "$(t plasma_skipped_saved)"
+        fi
+    elif addons_is_plasma; then
+        opts_set plasma true
+        log "$(t plasma_enabled_session)"
+        maybe_add_plasma addons_list
+    else
+        opts_set plasma false
+        log "$(t plasma_skipped_not_session)"
+    fi
+
+    [[ ${#addons_list[@]} -gt 0 ]] && addons_apply "$PROFILE_DIR" "${addons_list[@]}"
+    return 0
+}
+
+print_summary() {
+    echo ""
+    tui_style "$(t summary_title)"
+    echo "  $(t summary_firefox "${INSTALL_DIR:-?}" "${FIREFOX_VERSION:-latest}" "${LANG_CODE:-auto}")"
+    [[ -n "${PROFILE_DIR:-}" ]] && echo "  $(t summary_profile "$PROFILE_DIR")"
+    echo "  $(t summary_desktop)"
+    echo ""
+    echo "$(t summary_run_hint)"
+    echo "  myfox"
+    echo ""
+    echo "$(t summary_update_hint)"
+    echo "$(t summary_uninstall_hint)"
+    if [[ -n "$MYFOX_PATH_HINT" ]]; then
+        echo ""
+        warn "$(t warn_path_hint "$MYFOX_BIN_DIR")"
+    fi
+    if [[ -n "$PLASMA_PKG_HINT" ]]; then
+        echo ""
+        echo -e "${BOLD}$(t plasma_summary_title)${NC}"
+        echo "  ${PLASMA_PKG_HINT}"
+    fi
+}
+
+# ─── install ─────────────────────────────────────────────────────────────────
+
+run_browser_only() {
+    resolve_lang
+    resolve_channel
+    if [[ "$MODE" == "reinstall" ]]; then
+        install_browser_tarball reinstall
+    else
+        install_browser_tarball first
+    fi
+    state_set install_dir "$INSTALL_DIR"
+    state_set installed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    opts_set browser_only true
+    opts_set lang "$LANG_CODE"
+    firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKTOP_NAME"
+    install_launcher
+    success "$(t browser_only_installed)"
+    print_summary
+}
+
+run_install() {
+    if has_marker && [[ "$FORCE" != true ]]; then
+        if [[ -n "$MYFOX_NONINTERACTIVE" ]]; then
+            error "$(t err_already_installed_use_force)"
+        elif ! tui_confirm "$(t confirm_reinstall_over_existing "$(state_get install_dir)")" no; then
+            echo "$(t cancelled)" >&2
+            exit 0
+        fi
+    fi
+
+    tui_style "$(t welcome_banner "$INSTALL_DIR")"
+
+    if [[ "$MODE" == "browser-only" ]]; then
+        run_browser_only
+        return 0
+    fi
+
+    WIZARD_RAN=""
+    TWEAKED_PROFILE=true
+    if [[ -z "$MYFOX_NONINTERACTIVE" && -t 0 ]]; then
+        trap 'tui_session_end' EXIT
+        tui_session_begin
+        local wizard_rc=0
+        install_wizard || wizard_rc=$?
+        tui_session_end
+        trap - EXIT
+        [[ "$wizard_rc" -ne 0 ]] && { echo "$(t cancelled)" >&2; exit 0; }
+        WIZARD_RAN=1
+        # Мастер уже спросил "Продолжить?" на приветствии — второй раз перед
+        # скачиванием (внутри firefox_install_tarball) не спрашиваем.
+        MYFOX_SKIP_CONFIRM=1
+    else
+        resolve_lang
+        resolve_channel
+    fi
+
+    if [[ "$MODE" == "reinstall" ]]; then
+        install_browser_tarball reinstall
+    else
+        install_browser_tarball first
+    fi
+
+    state_set install_dir "$INSTALL_DIR"
+    state_set installed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    opts_set browser_only false
+    opts_set lang "$LANG_CODE"
+    opts_set channel "$CHANNEL"
+
+    if [[ "$WIZARD_RAN" == "1" && "$WIZ_PROFILE_NEW" == "1" ]]; then
+        PROFILE_DIR=$(MYFOX_PROFILE_FORCE_NEW=1 profile_resolve --explicit "$PROFILE_ARG")
+    elif [[ "$WIZARD_RAN" == "1" && -n "$WIZ_PROFILE" ]]; then
+        PROFILE_DIR=$(profile_resolve --explicit "$WIZ_PROFILE")
+        log "$(t profile_using_saved "$WIZ_PROFILE")"
+    else
+        PROFILE_DIR=$(profile_resolve --explicit "$PROFILE_ARG")
+    fi
+    state_set profile_dir "$PROFILE_DIR"
+    log "$(t using_profile "$PROFILE_DIR")"
+
+    if [[ "$TWEAKED_PROFILE" == "false" ]]; then
+        # Чистый профиль (выбор мастера "твики: нет") — твики/букмарклеты/
+        # аддоны/пиннинг не трогаем, только браузер + ярлык.
+        log "$(t clean_profile_skip)"
+        firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKTOP_NAME"
+        opts_set bl false
+        opts_set addons false
+        install_launcher
+        print_summary
+        return 0
+    fi
+
+    local pin_hash
+    pin_hash=$(profile_pin_install "$INSTALL_DIR" "$PROFILE_DIR") || true
+    [[ -n "$pin_hash" ]] && state_set install_hash "$pin_hash"
+
+    apply_autoconfig "$INSTALL_DIR"
+    apply_chrome "$PROFILE_DIR"
+    firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKTOP_NAME"
+
+    resolve_bookmarklets
+    install_addons
+    install_launcher
+
+    print_summary
+}
+
+# ─── update ──────────────────────────────────────────────────────────────────
+
+run_update() {
+    INSTALL_DIR=$(state_get install_dir)
+    PROFILE_DIR=$(state_get profile_dir)
+    [[ -z "$INSTALL_DIR" ]] && error "$(t err_no_saved_install)"
+    FIREFOX_VERSION=$(state_get firefox_version)
+    LANG_CODE=$(opts_get lang)
+
+    if [[ "$MODE" == "reinstall" ]]; then
+        resolve_lang
+        resolve_channel
+        install_browser_tarball reinstall
+    elif [[ ! -f "$INSTALL_DIR/application.ini" ]]; then
+        error "$(t err_firefox_missing_reinstall)"
+    fi
+
+    if [[ -n "$PROFILE_DIR" ]]; then
+        [[ -d "$PROFILE_DIR" ]] || error "$(t err_profile_not_found_state "$PROFILE_DIR")"
+        log "$(t updating_tweaks "$INSTALL_DIR" "$PROFILE_DIR")"
+        apply_autoconfig "$INSTALL_DIR"
+        apply_chrome "$PROFILE_DIR"
+        if [[ "$(opts_get bl)" == "true" ]]; then
+            local gallery
+            gallery=$(apply_bookmarklets "$PROFILE_DIR") || true
+            [[ -n "$gallery" ]] && log "$(t bookmarklet_gallery "$gallery")"
+        else
+            log "$(t bl_skipped_saved)"
+        fi
+    else
+        firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKTOP_NAME"
+    fi
+
+    install_launcher
+    success "$(t tweaks_updated)"
+    print_summary
+}
+
+# ─── uninstall ───────────────────────────────────────────────────────────────
+
+run_uninstall() {
+    if [[ ! -f "$MYFOX_STATE_FILE" ]]; then
+        warn "$(t warn_no_install_record "$MYFOX_STATE_FILE")"
+        warn "$(t warn_manual_removal_hint)"
+        exit 0
+    fi
+
+    INSTALL_DIR=$(state_get install_dir)
+    PROFILE_DIR=$(state_get profile_dir)
+
+    tui_style "$(t uninstaller_title)"
+    echo "  $(t uninstall_firefox_dir "$INSTALL_DIR")"
+    [[ -n "$PROFILE_DIR" ]] && echo "  $(t uninstall_profile_dir "$PROFILE_DIR")"
+
+    local profile_type=""
+    if [[ -n "$PROFILE_DIR" ]]; then
+        if [[ -f "$PROFILE_DIR/.myfox-created" ]]; then
+            profile_type=created
+        elif [[ -d "$PROFILE_DIR" ]]; then
+            profile_type=existing
+        fi
+    fi
+
+    local del_profile=yes
+    if [[ -z "$MYFOX_NONINTERACTIVE" ]]; then
+        trap 'tui_session_end' EXIT
+        tui_session_begin
+        if ! tui_confirm "$(t confirm_remove_app "$INSTALL_DIR")" yes; then
+            tui_session_end; trap - EXIT
+            echo "$(t uninstall_cancelled)" >&2
+            exit 0
+        fi
+        if [[ -n "$PROFILE_DIR" ]]; then
+            local q
+            [[ "$profile_type" == "existing" ]] && q="$(t confirm_remove_tweaks)" || q="$(t confirm_delete_profile)"
+            if tui_confirm "$q" no; then del_profile=yes; else del_profile=no; fi
+        fi
+        tui_session_end
+        trap - EXIT
+    fi
+
+    local install_hash
+    install_hash=$(state_get install_hash)
+    [[ -n "$install_hash" ]] && profile_unpin_install "$install_hash"
+
+    if [[ -d "$INSTALL_DIR" ]]; then
+        rm -f "$INSTALL_DIR/defaults/pref/autoconfig.js" "$INSTALL_DIR/firefox.cfg" \
+            "$INSTALL_DIR/.myfox-installed" 2>/dev/null || true
+        success "$(t autoconfig_removed "$INSTALL_DIR")"
+    fi
+
+    if [[ "$profile_type" == "created" ]]; then
+        if [[ "$del_profile" == "yes" ]]; then
+            rm -rf "$PROFILE_DIR"
+            profile_remove_myfox_section
+            success "$(t profile_deleted "$PROFILE_DIR")"
+        else
+            log "$(t profile_kept "$PROFILE_DIR")"
+            profile_remove_myfox_section
+        fi
+    elif [[ "$profile_type" == "existing" && "$del_profile" == "yes" && -d "$PROFILE_DIR/chrome" ]]; then
+        local f
+        for f in userChrome.css agent_overrides.css; do
+            if [[ -f "$PROFILE_DIR/chrome/$f.myfox-backup" ]]; then
+                rm -f "$PROFILE_DIR/chrome/$f"
+                mv -f "$PROFILE_DIR/chrome/$f.myfox-backup" "$PROFILE_DIR/chrome/$f"
+                success "$(t style_restored "$f")"
+            else
+                rm -f "$PROFILE_DIR/chrome/$f"
+            fi
+        done
+        rm -f "$PROFILE_DIR/chrome/blm_panel.css" 2>/dev/null || true
+        rm -rf "$PROFILE_DIR/chrome/panel-icons" 2>/dev/null || true
+        rm -f "$PROFILE_DIR/.myfox" 2>/dev/null || true
+        success "$(t chrome_removed "$PROFILE_DIR")"
+    fi
+
+    # Аддоны (uBlock/тема/plasma) удаляются только по фиксированным ID —
+    # остальные *.xpi в extensions/ могут быть пользовательскими (existing-профиль).
+    local -a addon_ids=(
+        "uBlock0@raymondhill.net"
+        "{9631ec37-35f2-4719-815e-2f84ff28b901}"
+        "plasma-browser-integration@kde.org"
+    )
+    if [[ "$profile_type" == "existing" && "$del_profile" == "yes" \
+        && -n "$PROFILE_DIR" && -d "$PROFILE_DIR/extensions" ]]; then
+        local id
+        for id in "${addon_ids[@]}"; do
+            rm -f "$PROFILE_DIR/extensions/$id.xpi" 2>/dev/null || true
+            rm -rf "$PROFILE_DIR/extensions/$id" 2>/dev/null || true
+        done
+        rmdir "$PROFILE_DIR/extensions" 2>/dev/null || true
+    fi
+
+    firefox_remove_desktop_entry
+
+    if [[ -d "$INSTALL_DIR" ]]; then
+        rm -rf "$INSTALL_DIR"
+        success "$(t dir_removed "$INSTALL_DIR")"
+    fi
+
+    state_clear
+    [[ -f "$MYFOX_LAUNCHER_PATH" ]] && rm -f "$MYFOX_LAUNCHER_PATH"
+
+    echo ""
+    if [[ "$del_profile" == "no" && -n "$PROFILE_DIR" ]]; then
+        echo -e "${GREEN}$(t app_removed)${NC}"
+        echo "  $(t profile_kept_summary "$PROFILE_DIR")"
+    else
+        success "$(t uninstalled)"
+    fi
+
+    # Последним шагом — постоянная копия core (bin/myfox-core+lib/+i18n/,
+    # см. install_launcher). Когда офлайн-uninstall запущен ИЗ неё самой
+    # (get.sh делегирует сюда напрямую, без сети) — это самоудаление
+    # собственного каталога; безопасно на Linux, т.к. bash к этому моменту
+    # уже прочитал весь скрипт целиком, дальнейших чтений с диска не будет.
+    rm -rf "$MYFOX_CORE_DIR"
+}
+
+# ─── Диспетчер ───────────────────────────────────────────────────────────────
+
+case "$SUB" in
+    install)   run_install ;;
+    update)    run_update ;;
+    uninstall) run_uninstall ;;
+    *)         error "Unknown subcommand: $SUB" ;;
+esac
