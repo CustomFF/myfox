@@ -1,96 +1,65 @@
 # shellcheck shell=bash
-# addons.sh — загрузка и установка дополнений (XPI) из AMO.
-#
-# Механика ПЕР-ПРОФИЛЬНАЯ: XPI кладутся в <profile_dir>/extensions/<addon-id>.xpi.
-# При старте Firefox (первый запуск профиля) устанавливает их тихо. Так чисто
-# только в профиле, куда их положил инсталлер: чужие/новые профили не получают
-# ни uBlock, ни темы, ни plasma — браузер там остаётся немодифицированным.
-#
-# (Раньше XPI ставились через distribution/extensions/ — это глобально для всей
-# инсталляции и попадало во все профили. Отказались.)
-#
-# ID для имени файла берём из AMO API (guid): у тем без gecko.id в манифесте
-# это единственный надёжный источник (GUID из сертификата подписи).
-#
-# Список дополнений по умолчанию:
-#   ublock-origin          — adblock
-#   google-chrome-dark     — тема Chrome Dark
-#   plasma-integration     — интеграция с KDE Plasma (ставится только по запросу,
-#                            причём только если сессия Plasma и стоит системный
-#                            пакет plasma-browser-integration)
-#
-# Требуются common.sh, curl, python3.
+# addons.sh — загрузка и установка дополнений (XPI) из AMO, пер-профильно
+# (<profile_dir>/extensions/<addon-id>.xpi — Firefox ставит их тихо при первом
+# старте профиля). Требует common.sh, i18n.sh. Только curl+awk, без python3.
 
-# ─── Список дополнений по умолчанию ─────────────────────────────────────────
-
-# uBlock Origin — ставится по умолчанию.
 MYFOX_ADDON_UBLOCK="ublock-origin"
-
-# Тема "Google Chrome Dark".
 MYFOX_ADDON_THEME="google-chrome-dark"
-
-# Интеграция с KDE Plasma (Native Messaging + Plasma Browser Integration).
 MYFOX_ADDON_PLASMA="plasma-integration"
 
-# ─── Детект KDE Plasma ───────────────────────────────────────────────────────
+# ─── Детект KDE Plasma ────────────────────────────────────────────────────────
 
-# Проверяет, работаем ли мы в сессии KDE Plasma.
-# Возвращает 0 если да, 1 если нет.
 addons_is_plasma() {
-    if [[ "${XDG_CURRENT_DESKTOP:-}" =~ (^|:)KDE(;|:|$)|(^|:)Plasma(;|:|$) ]]; then
-        return 0
-    fi
-    if [[ "${KDE_FULL_SESSION:-}" =~ true|1 ]]; then
-        return 0
-    fi
+    [[ "${XDG_CURRENT_DESKTOP:-}" =~ (^|:)KDE(\;|:|$)|(^|:)Plasma(\;|:|$) ]] && return 0
+    [[ "${KDE_FULL_SESSION:-}" =~ true|1 ]] && return 0
     return 1
 }
 
-# ─── Скачивание XPI ──────────────────────────────────────────────────────────
+# ─── AMO ─────────────────────────────────────────────────────────────────────
 
-# addon_fetch <slug> <out-file> — скачивает latest XPI с AMO. Возвращает 0 при успехе.
+# addon_fetch <slug> <out-file> — тянет latest XPI. XPI — это zip: проверяем "PK".
 addon_fetch() {
     local slug="$1" out="$2"
     local url="https://addons.mozilla.org/firefox/downloads/latest/${slug}/addon-latest.xpi"
-    log "Fetching add-on: ${slug}"
+    log "$(t fetching_addon "$slug")"
     curl -L --fail --silent --show-error -o "$out" "$url" || return 1
-    # XPI — это zip: заголовок должен начинаться с PK.
-    if [[ $(head -c 2 "$out") != "PK" ]]; then
-        warn "Downloaded file for '${slug}' is not a valid XPI — skipping."
+    if [[ "$(head -c 2 "$out")" != "PK" ]]; then
+        warn "$(t warn_addon_invalid "$slug")"
         rm -f "$out"
         return 1
     fi
     return 0
 }
 
-# addon_guid <slug> — печатает guid (ID аддона) из AMO API. Пусто при ошибке.
+# addon_guid <slug> → guid (ID аддона) из AMO API v5. Плоский JSON — один awk.
 addon_guid() {
     local slug="$1"
     curl -L --fail --silent --show-error \
-        "https://addons.mozilla.org/api/v5/addons/addon/${slug}/" \
-        | python3 -c 'import json,sys; print(json.load(sys.stdin).get("guid") or "")' 2>/dev/null || true
+        "https://addons.mozilla.org/api/v5/addons/addon/${slug}/" 2>/dev/null \
+        | awk '
+            match($0, /"guid"[[:space:]]*:[[:space:]]*"[^"]*"/) {
+                s = substr($0, RSTART, RLENGTH)
+                sub(/^"guid"[[:space:]]*:[[:space:]]*"/, "", s)
+                sub(/"$/, "", s)
+                print s
+                exit
+            }
+        '
 }
 
-# ─── Системный пакет plasma-browser-integration ──────────────────────────────
+# ─── Системный пакет plasma-browser-integration (native-messaging host) ─────
 
-# addons_pkg_installed — проверяет, установлен ли системный пакет
-# plasma-browser-integration (native-messaging host). Возвращает 0 если есть.
 addons_pkg_installed() {
-    # Пакет ставит host-манифест в общий каталог.
+    local host
     for host in \
         /usr/lib/mozilla/native-messaging-hosts/org.kde.plasma.browser_integration.json \
         /usr/lib64/mozilla/native-messaging-hosts/org.kde.plasma.browser_integration.json \
         /usr/local/lib/mozilla/native-messaging-hosts/org.kde.plasma.browser_integration.json; do
-        if [[ -f "$host" ]]; then
-            return 0
-        fi
+        [[ -f "$host" ]] && return 0
     done
     return 1
 }
 
-# addons_pkg_suggest — печатает команду установки системного пакета для
-# обнаруженного пакетного менеджера (для заметки в конце установки). Пусто,
-# если менеджер не распознан (тогда пользователь ставит пакет вручную).
 addons_pkg_suggest() {
     if command -v apt-get >/dev/null 2>&1; then
         echo "sudo apt install plasma-browser-integration"
@@ -103,13 +72,9 @@ addons_pkg_suggest() {
     fi
 }
 
-# ─── Применение дополнений ───────────────────────────────────────────────────
+# ─── Применение ───────────────────────────────────────────────────────────────
 
-# addons_apply <profile_dir> <slug>... — скачивает XPI с AMO и кладёт
-# в <profile_dir>/extensions/ (пер-профильная тихая установка на первом старте).
-# ВАЖНО: Firefox должен быть остановлен; файлы лягут, а при следующем старте
-# профиля аддоны поставятся.
-addons_apply() {
+addons_apply() {  # <profile_dir> <slug>...
     local profile_dir="$1"; shift
     local addon_dir="$profile_dir/extensions"
     mkdir -p "$addon_dir"
@@ -118,7 +83,7 @@ addons_apply() {
     for slug in "$@"; do
         id=$(addon_guid "$slug")
         if [[ -z "$id" ]]; then
-            warn "Could not resolve add-on ID for '${slug}' — skipping."
+            warn "$(t warn_addon_guid_unresolved "$slug")"
             continue
         fi
         out=$(mktemp --suffix=.xpi)
@@ -128,11 +93,9 @@ addons_apply() {
         fi
         install -m 0644 "$out" "$addon_dir/$id.xpi"
         rm -f "$out"
-        success "Installed ${slug} → profile/extensions/${id}.xpi"
+        success "$(t addon_installed "$slug" "$id")"
     done
 
-    if [[ -z "$(ls -A "$addon_dir" 2>/dev/null)" ]]; then
-        rmdir "$addon_dir" 2>/dev/null || true
-    fi
+    [[ -z "$(ls -A "$addon_dir" 2>/dev/null)" ]] && rmdir "$addon_dir" 2>/dev/null
     return 0
 }

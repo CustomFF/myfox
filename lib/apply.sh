@@ -1,130 +1,100 @@
 # shellcheck shell=bash
-# apply.sh — применение твиков myfox:
-#   - autoconfig (autoconfig.js → defaults/pref/, firefox.cfg → install root)
-#   - chrome CSS (userChrome.css, agent_overrides.css → profile chrome/)
-#   - префы (уже вшиты в firefox.cfg — применяются самим Firefox при старте)
-# Требуются common.sh.
+# apply.sh — применение твиков myfox: autoconfig, chrome CSS, букмарклеты (ddblm).
+# Требует common.sh, i18n.sh.
 
-# ─── Применение autoconfig ──────────────────────────────────────────────────
+# ─── Autoconfig ──────────────────────────────────────────────────────────────
 
 apply_autoconfig() {
     local install_dir="$1"
     mkdir -p "$install_dir/defaults/pref"
-
-    # Если у инсталляции уже есть autoconfig, но это НЕ наша копия (нет наших твиков) —
-    # просто перезаписываем (безопасно: инсталляция всё равно целиком наша после установки).
-    log "Installing autoconfig files..."
+    log "$(t applying_autoconfig)"
     install -m 0644 "$MYFOX_AUTOCONFIG_DIR/autoconfig.js" "$install_dir/defaults/pref/autoconfig.js"
     install -m 0644 "$MYFOX_AUTOCONFIG_DIR/firefox.cfg" "$install_dir/firefox.cfg"
-    success "Autoconfig installed."
-
-    # Никаких глобальных политик: distribution/policies.json не ставим.
-    # Всё твики — строго профиль-локальные (firefox.cfg + chrome/ профиля).
-    # Удалил профиль → кристально чистый ванильный Firefox.
+    success "$(t autoconfig_installed)"
+    # Никаких глобальных политик (distribution/policies.json) — всё профиль-локально.
 }
 
-# ─── Применение chrome CSS ──────────────────────────────────────────────────
+# ─── Chrome CSS ──────────────────────────────────────────────────────────────
 
 apply_chrome() {
     local profile_dir="$1"
     mkdir -p "$profile_dir/chrome"
 
-    # Защитное сохранение чужих стилей профиля (если выбран существующий профиль,
-    # в котором уже были свои userChrome/agent_overrides до нас).
-    local c_dir="$profile_dir/chrome"
-    local stamp
-    stamp=$(date +%Y%m%d-%H%M%S)
+    local c_dir="$profile_dir/chrome" f
     for f in userChrome.css agent_overrides.css; do
         if [[ -f "$c_dir/$f" && ! -f "$c_dir/$f.myfox-backup" ]]; then
             cp "$c_dir/$f" "$c_dir/$f.myfox-backup"
-            warn "Saved your existing $f as $f.myfox-backup"
+            warn "$(t warn_backed_up_style "$f")"
         fi
     done
 
-    log "Installing chrome styles..."
+    log "$(t applying_chrome)"
     install -m 0644 "$MYFOX_CHROME_DIR/userChrome.css" "$profile_dir/chrome/userChrome.css"
     install -m 0644 "$MYFOX_CHROME_DIR/agent_overrides.css" "$profile_dir/chrome/agent_overrides.css"
 
-    # Маркер «нашего» профиля: firefox.cfg проверяет его в начале и применяет твики
-    # ТОЛЬКО к профилю с этим файлом. Новые чистые профили без маркера остаются
-    # немодифицированным Firefox (никаких твиков/префов/CSS).
+    # Маркер профиля: firefox.cfg проверяет его в начале и применяет твики ТОЛЬКО
+    # к профилю с этим файлом. Профили без маркера остаются чистым Firefox.
     touch "$profile_dir/.myfox"
 
-    success "Chrome styles installed."
+    success "$(t chrome_installed)"
 }
 
-# ─── Букмарклеты (твики из отдельного проекта ddblm) ────────────────────────
+# ─── Букмарклеты (ddblm) ──────────────────────────────────────────────────────
 #
-# Применяет твики букмарклетов из отдельного проекта DayDve/ddblm:
-#   - docs/blm_panel.css  → chrome/blm_panel.css
-#   - ВСЕ icons/*.svg     → chrome/panel-icons/  (не только те, что упомянуты
-#     в css: иконки могут понадобиться galler-букмарклетам, добавленным позже).
-#
-# Источник файлов:
-#   - если доступна локальная копия ddblm (MYFOX_DDBLM_LOCAL) — копируем её
-#     (используется при тестировании твиков);
-#   - иначе тянем из raw.githubusercontent.com (опубликованный репозиторий).
-# Ссылка на галерею на панель закладок добавляется отдельно (firefox.cfg).
+# docs/blm_panel.css → chrome/blm_panel.css, ВСЕ icons/*.svg → chrome/panel-icons/.
+# Источник: локальная копия (MYFOX_DDBLM_LOCAL) при отладке, иначе raw github.
 
-# Копирует/скачивает один файл ddblm. <rel> — путь без ведущего слэша
-# (напр. "docs/blm_panel.css" или "icons/foo.svg"). Источник выбирается
-# автоматически: локальный каталог → raw github.
-# Второй аргумент — целевой путь в chrome/ профиля.
-ddblm_file() {
+ddblm_file() {  # <rel> <out>
     local rel="$1" out="$2"
     if [[ -n "$MYFOX_DDBLM_LOCAL" && -f "$MYFOX_DDBLM_LOCAL/$rel" ]]; then
         install -m 0644 "$MYFOX_DDBLM_LOCAL/$rel" "$out"
         return 0
     fi
     local url="${MYFOX_DDBLM_RAW}/${rel}"
-    log "Fetching ${url}"
+    log "$(t fetching_url "$url")"
     curl -L --fail --silent --show-error -o "$out" "$url"
 }
 
 apply_bookmarklets() {
     local profile_dir="$1"
     local c_dir="$profile_dir/chrome"
+    mkdir -p "$c_dir"
 
-    [[ -d "$c_dir" ]] || mkdir -p "$c_dir"
-
-    local src_dir rel f
-
-    # Источник: локальная копия ddblm (для теста твиков) или raw github.
-    src_dir=""
+    local src_dir=""
     if [[ -n "$MYFOX_DDBLM_LOCAL" && -d "$MYFOX_DDBLM_LOCAL/icons" ]]; then
         src_dir="$MYFOX_DDBLM_LOCAL"
-        log "Using local ddblm copy: $src_dir"
+        log "$(t using_local_ddblm "$src_dir")"
     fi
 
-    # 1) Готовый blm_panel.css (иконки + скрытие текста букмарклетов).
     if ! ddblm_file "docs/blm_panel.css" "$c_dir/blm_panel.css"; then
-        warn "Could not fetch blm_panel.css from ddblm — skipping bookmarklet tweaks."
+        warn "$(t warn_ddblm_unreachable)"
         return 1
     fi
 
-    # 2) ВСЕ иконки (panel-icons/<имя>.svg). Локально — копируем папку целиком.
     mkdir -p "$c_dir/panel-icons"
     if [[ -n "$src_dir" ]]; then
+        local f
         for f in "$src_dir"/icons/*.svg; do
             [[ -f "$f" ]] || continue
             install -m 0644 "$f" "$c_dir/panel-icons/$(basename "$f")"
         done
     else
-        # На удалённом источнике список имён берём из css (panel-icons/<base>.svg).
-        # Глобально не знаем полного каталога raw-репо; тут он совпадает с icons/.
-        local names
-        names=$(grep -o 'url("panel-icons/[^"]*")' "$c_dir/blm_panel.css" "$c_dir/userChrome.css" \
-            | sed 's/.*url("panel-icons\///;s/")//;s/\.svg$//' | sort -u || true)
-        # Кнопка «Добавить букмарклеты» в userChrome.css опирается на неё.
+        local names rel
+        names=$(awk '
+            { while (match($0, /url\("panel-icons\/[^"]*"\)/)) {
+                  s = substr($0, RSTART, RLENGTH)
+                  gsub(/url\("panel-icons\//, "", s); gsub(/\.svg"\)/, "", s)
+                  print s
+                  $0 = substr($0, RSTART + RLENGTH)
+              } }
+        ' "$c_dir/blm_panel.css" "$c_dir/userChrome.css" | sort -u)
         names+=" import-bookmarklets"
         for rel in $names; do
             ddblm_file "icons/${rel}.svg" "$c_dir/panel-icons/${rel}.svg" \
-                || warn "Icon not available in ddblm repo: $rel"
+                || warn "$(t warn_icon_missing "$rel")"
         done
-        # Иконки, которые могут понадобиться позже (если всё же известны в css).
-        # IMG
     fi
 
-    success "Bookmarklet tweaks applied (from ddblm)."
+    success "$(t bookmarklets_applied)"
     echo "$MYFOX_DDBLM_GALLERY"
 }

@@ -1,42 +1,39 @@
 # shellcheck shell=bash
-# common.sh — общие функции: логирование, цвета, работа с маркером (state), helpers.
-# Подключается из install.sh / uninstall.sh и других lib-скриптов.
-#
-# Требования: bash 4+, Linux.
+# common.sh — пути, логирование, state (плоский key=value), детект архитектуры.
+# Требует: MYFOX_ROOT выставлен вызывающим (bin/myfox-core). Без внешних
+# зависимостей (никакого jq/python3) — только bash + awk.
 
 set -eo pipefail
 
+: "${MYFOX_ROOT:?MYFOX_ROOT must be set before sourcing common.sh}"
+
 # ─── Пути и константы ───────────────────────────────────────────────────────
 
-MYFOX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MYFOX_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/myfox"
-MYFOX_STATE_FILE="$MYFOX_STATE_DIR/install.json"
+MYFOX_STATE_FILE="$MYFOX_STATE_DIR/state"
 
-# Каталоги с артефактами твиков (внутри репо)
 MYFOX_AUTOCONFIG_DIR="$MYFOX_ROOT/autoconfig"
 MYFOX_CHROME_DIR="$MYFOX_ROOT/chrome"
 
-# Прямые (raw) ссылки на твики букмарклетов из отдельного проекта DayDve/ddblm.
-# myfox копирует готовый blm_panel.css и ВСЕ иконки оттуда, не требуя
-# локальной установки ddbml (см. lib/apply.sh → apply_bookmarklets).
+# Твики букмарклетов — отдельный проект DayDve/ddblm, копируем готовые файлы.
 MYFOX_DDBLM_REPO="DayDve/ddblm"
 MYFOX_DDBLM_BRANCH="master"
 MYFOX_DDBLM_RAW="https://raw.githubusercontent.com/${MYFOX_DDBLM_REPO}/${MYFOX_DDBLM_BRANCH}"
 MYFOX_DDBLM_GALLERY="https://daydve.github.io/ddblm/"
-
-# Локальная копия ddblm (для разработки/отладки твиков). Если задана и содержит
-# нужные файлы — используется вместо raw-ссылок на опубликованный репозиторий.
-# Пустой (по умолчанию) — файлы берутся из raw github. Во время тестирования
-# твиков задаём через переменную окружения, напр.
-#   MYFOX_DDBLM_LOCAL=/home/daydve/development/ddblm ./install.sh ...
 MYFOX_DDBLM_LOCAL="${MYFOX_DDBLM_LOCAL:-}"
 
-# Целевой путь инсталляции по умолчанию
 MYFOX_DEFAULT_PREFIX="$HOME/.local/share/firefox"
+MYFOX_BIN_DIR="${MYFOX_BIN_DIR:-$HOME/.local/bin}"
+MYFOX_LAUNCHER_PATH="$MYFOX_BIN_DIR/myfox"
+# Постоянная локальная копия bin/myfox-core+lib/+i18n/ — чтобы `myfox
+# uninstall` работал полностью офлайн (без повторного скачивания тарбола),
+# даже если сервер/домен когда-нибудь пропадёт. `myfox update` её обновляет.
+MYFOX_CORE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/myfox/core"
 
-# Имя desktop-файла и человеко-читаемое имя ярлыка
 MYFOX_DESKTOP_NAME="firefox-myfox.desktop"
 MYFOX_DESKTOP_TITLE="Firefox (myfox)"
+
+INSTALL_MARKER_NAME=".myfox-installed"
 
 # ─── Цвета ──────────────────────────────────────────────────────────────────
 
@@ -49,468 +46,126 @@ NC=$'\033[0m'
 
 # ─── Логирование ────────────────────────────────────────────────────────────
 #
-# По умолчанию — тихий режим: печатаются только warnings, ошибки, прогрессбар
-# и итоговая сводка. Детальные [INF]/[OK] — при --verbose
-# (MYFOX_VERBOSE=1; установка по env до запуска тоже работает).
+# Тихий режим по умолчанию: log/success молчат без --verbose (MYFOX_VERBOSE=1).
+# warn/error печатаются всегда. Сообщения приходят уже переведёнными (через
+# t(), см. lib/i18n.sh) — common.sh только печатает.
 
 : "${MYFOX_VERBOSE:=0}"
 
-# ─── Буфер логов для gauge-фазы мастера ──────────────────────────────────────
-#
-# Во время установки мастер держит dialog-gauge (ncurses-кадр в /dev/tty),
-# а stderr процесса установщика ведёт на тот же терминал — прямое печатание
-# ложится ПОВЕРХ кадра (curl туда уже глушится через gauge_spin). Поэтому при
-# открытом gauge (MYFOX_GAUGE_FD не пуст) log/success/warn не печатаются,
-# а складываются в буфер; gauge_log_flush выводит их уже ПОСЛЕ gauge_close
-# (на обычном экране, до print_summary).
-
-MYFOX_GAUGE_LOG_BUF=()
-
-gauge_log_buf() {
-    [[ -n "$MYFOX_GAUGE_FD" ]] || return 1
-    MYFOX_GAUGE_LOG_BUF+=("$1")
-    return 0
-}
-
-gauge_log_flush() {
-    local line
-    for line in "${MYFOX_GAUGE_LOG_BUF[@]}"; do
-        echo -e "$line" >&2
-    done
-    MYFOX_GAUGE_LOG_BUF=()
-}
-
-log() {
-    [[ "$MYFOX_VERBOSE" == "1" ]] || return 0
-    gauge_log_buf "${BLUE}[INF]${NC} $*" \
-        || echo -e "${BLUE}[INF]${NC} $*" >&2
-}
-success() {
-    [[ "$MYFOX_VERBOSE" == "1" ]] || return 0
-    gauge_log_buf "${GREEN}[OK]${NC}  $*" \
-        || echo -e "${GREEN}[OK]${NC}  $*" >&2
-}
-warn() {
-    gauge_log_buf "${YELLOW}[WRN]${NC} $*" \
-        || echo -e "${YELLOW}[WRN]${NC} $*" >&2
-}
+log()     { [[ "$MYFOX_VERBOSE" == "1" ]] && echo -e "${BLUE}[INF]${NC} $*" >&2; return 0; }
+success() { [[ "$MYFOX_VERBOSE" == "1" ]] && echo -e "${GREEN}[OK]${NC}  $*" >&2; return 0; }
+warn()    { echo -e "${YELLOW}[WRN]${NC} $*" >&2; }
 error()   { echo -e "${RED}[ERR]${NC} $*" >&2; exit 1; }
 
-# Приглашение yes/no. Возвращает 0 если «да» (регистронезависимый y/yes/д/да).
-# Второй аргумент — ответ по умолчанию ("y"/"n").
-#   default=y → приглашение «[Y/n]», пустой Enter = да
-#   default=n → приглашение «[y/N]», пустой Enter = нет
-# В неинтерактивном режиме (-y) всегда возвращает 0 (да), сохраняя прежнюю
-# семантику «-y = согласиться на всё».
-# Когда интерактив, stdin — tty, GUI доступен и мы НЕ внутри gauge/fence —
-# рисует dialog/whiptail --yesno вместо plain [y/N]. Каждый вызов владеет
-# своей парой tui_enter/tui_reset (в мастере fenced GUI рисует в уже
-# открытом alt-экране и tui_enter не нужен).
-confirm() {
-    local prompt="${1:-Continue?}" default="${2:-n}"
-    [[ -n $MYFOX_NONINTERACTIVE ]] && return 0
-    local defno=""
-    [[ "${default,,}" == "n" ]] && defno="--defaultno"
-    # TUI yesno: только когда stdin/tty, нет gauge/fence, GUI доступен
-    if [[ -t 0 && -z "${MYFOX_GAUGE_FD:-}" && "${MYFOX_TUI_FENCED:-}" != "1" ]]; then
-        if command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; then
-            local rc=0
-            use_ui_terminfo_noalt || true
-            tui_enter
-            if command -v dialog >/dev/null 2>&1; then
-                dialog --stdout --clear --yes-label "Yes" --no-label "No" \
-                    $defno --yesno "$prompt" 0 0 || rc=$?
-            else
-                whiptail --clear --yes-button "Yes" --no-button "No" \
-                    $defno --yesno "$prompt" 0 0 || rc=$?
-            fi
-            tui_reset
-            reset_ui_terminfo_noalt
-            [[ "$rc" -eq 0 ]] && return 0 || return 1
-        fi
-    fi
-    # Fallback: plain [y/N] / [Y/n] prompt
-    local marker
-    case "${default,,}" in
-        y|yes|true) default="y"; marker="[Y/n]" ;;
-        *) default="n"; marker="[y/N]" ;;
-    esac
-    read -rp "$prompt $marker " ans
-    ans="${ans,,}"
-    case "$ans" in
-        y|yes|д|да) return 0 ;;
-        "") [[ "$default" == "y" ]] && return 0 || return 1 ;;
-        *) return 1 ;;
-    esac
-}
-
-# ─── TUI: альтернативный экран dialog/whiptail ────────────────────────────────
-#
-# dialog при запуске входит в альтернативный экран (ncurses), при выходе —
-# выходит из него. На части терминалов (screen/tmux, консоль KDE, xterm без
-# 1049) собственный smcup ломается: экран остаётся «синим». Решение: явно
-# входим в альт-экран (tui_enter) ПЕРЕД диалогом и явно выходим (tui_reset)
-# ПОСЛЕ. Если tput не даёт капсов (пустой smcup/rmcup) — fallback на прямые
-# ESC-последовательности хterm (1049h/1049l), их понимает почти всё.
-# Пишем в /dev/tty — dialog рисует туда; через pipe/capture stderr может уйти
-# в /dev/null, а /dev/tty всегда ведёт на реальный терминал.
-tui_enter() {
-    [[ -n "$TERM" && "$TERM" != "dumb" ]] || return 0
-    local s
-    s=$(tput smcup 2>/dev/null) && [[ -n "$s" ]] || s=$'\033[?1049h'
-    printf '%s' "$s" >/dev/tty 2>/dev/null || true
-}
-
-tui_reset() {
-    [[ -n "$TERM" && "$TERM" != "dumb" ]] || return 0
-    local s
-    s=$(tput rmcup 2>/dev/null) && [[ -n "$s" ]] || s=$'\033[?1049l'
-    printf '%s' "$s" >/dev/tty 2>/dev/null || true
-    tput sgr0 2>/dev/null >/dev/tty || true
-}
-
-# dialog на КАЖДЫЙ вызов переключает альтернативный экран (ncurses берёт
-# smcup/rmcup из terminfo), а при выходе выкидывает на главный экран — на миг
-# видно шелл/промпт, отсюда мигание между диалогами. Опция --keep-tite этого не
-# лечит. Гасим надёжно: собираем копию текущего terminfo БЕЗ smcup/rmcup (все
-# прочие возможности, включая цвета, сохраняются) и подсовываем dialog'у через
-# TERMINFO. Каталог кэшируется. Возврат: каталог TERMINFO или пусто.
-myfox_terminfo_noalt() {
-    local base="${TERM:-}" dir stamp src
-    [[ -n "$base" && "$base" != "dumb" ]] || return 1
-    command -v infocmp >/dev/null 2>&1 && command -v tic >/dev/null 2>&1 || return 1
-    dir="${XDG_CACHE_HOME:-$HOME/.cache}/myfox/terminfo"
-    stamp="$dir/.noalt-$base"
-    if [[ ! -f "$stamp" ]]; then
-        mkdir -p "$dir" || return 1
-        src=$(mktemp) || return 1
-        if ! infocmp -1 -x "$base" 2>/dev/null | grep -v -E '^[[:space:]]*(smcup|rmcup)=' > "$src" \
-            || [[ ! -s "$src" ]] || ! tic -x -o "$dir" "$src" >/dev/null 2>&1; then
-            rm -f "$src"
-            return 1
-        fi
-        rm -f "$src"
-        : > "$stamp"
-    fi
-    printf '%s\n' "$dir"
-}
-
-# Установить TERMINFO без alt-экрана (для dialog). Идемпотентно; возврат 0 если
-# удалось (или уже установлено), 1 — нечем (тогда dialog будет мигать как раньше).
-use_ui_terminfo_noalt() {
-    local ti
-    [[ -n "$MYFOX_TERMINFO_NOALT" ]] && return 0
-    ti=$(myfox_terminfo_noalt) || return 1
-    [[ -n "$ti" ]] || return 1
-    MYFOX_TERMINFO_NOALT="$ti"
-    export TERMINFO="$ti"
-}
-
-# Снять подмену TERMINFO (после мастера, чтобы дальше шёл обычный terminfo).
-reset_ui_terminfo_noalt() {
-    [[ -n "$MYFOX_TERMINFO_NOALT" ]] || return 0
-    unset TERMINFO MYFOX_TERMINFO_NOALT
-}
-
-# ─── TUI: gauge прогресс-бар установки ───────────────────────────────────────
-#
-# Один dialog --gauge на время установки (в мастере, внутри alt-экрана).
-# dialog читает из FIFO; write-FD держим открытым весь gauge (иначе EOF закроет
-# dialog после первого обновления). Смена процента/текста —
-# "XXX\n<pct>\n<text>\nXXX"; whiptail понимает только голое число.
-#
-# gauge_open "title" [height]   — открыть gauge
-# gauge_set <pct> [text]        — обновить процент (0..100) и текст
-# gauge_close                    — закрыть, убрать FIFO
-MYFOX_GAUGE_PID=""
-MYFOX_GAUGE_FIFO=""
-MYFOX_GAUGE_FD=""
-MYFOX_GAUGE_DIALOG=""
-
-gauge_open() {
-    [[ -z "$MYFOX_GAUGE_OFF" ]] || return 0
-    command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1 || return 1
-    local title="$1" h="${2:-8}"
-    local fifo
-    fifo=$(mktemp -u "${TMPDIR:-/tmp}/myfox-gauge-XXXXXX") || return 1
-    mkfifo "$fifo" 2>/dev/null || return 1
-    MYFOX_GAUGE_FIFO="$fifo"
-    # Открываем fifo в РЕЖИМЕ read-write (O_RDWR на FIFO не блокируется): это
-    # держит канал открытым — dialog не получает EOF после каждого обновления и
-    # нам не нужно ждать, пока читатель откроется. Закрытие FD в gauge_close
-    # убирает последнего писателя, поэтому dialog выходит сам (с kill-фолбэком).
-    if ! exec {MYFOX_GAUGE_FD}<>"$fifo"; then
-        rm -f "$fifo"; MYFOX_GAUGE_FIFO=""; return 1
-    fi
-    # ВАЖНО: dialog/whiptail рисуют в stdout, поэтому его нельзя глушить —
-    # направляем вывод прямо на терминал (/dev/tty), независимо от redirect'ов
-    # вызывающего кода (напр. внутри $(...)). stderr — туда же.
-    if command -v dialog >/dev/null 2>&1; then
-        MYFOX_GAUGE_DIALOG=dialog
-        dialog --title "$title" --gauge "" "$h" 0 0 <"$fifo" >/dev/tty 2>&1 &
-    else
-        MYFOX_GAUGE_DIALOG=whiptail
-        whiptail --title "$title" --gauge "$title" "$((h - 1))" 0 0 <"$fifo" >/dev/tty 2>&1 &
-    fi
-    MYFOX_GAUGE_PID=$!
-    gauge_set 0
-    return 0
-}
-
-gauge_set() {
-    local pct="${1:-0}" text="${2:-}"
-    (( pct < 0 )) && pct=0
-    (( pct > 100 )) && pct=100
-    [[ -n "$MYFOX_GAUGE_FD" ]] || return 0
-    # Протокол GNU dialog --gauge: "XXX" → строка с процентом → строки промпта
-    # → "XXX". whiptail понимает только голое число (текст не меняется).
-    if [[ "$MYFOX_GAUGE_DIALOG" == "dialog" && -n "$text" ]]; then
-        printf 'XXX\n%d\n%s\nXXX\n' "$pct" "$text" >&"$MYFOX_GAUGE_FD"
-    else
-        printf '%d\n' "$pct" >&"$MYFOX_GAUGE_FD"
-    fi
-}
-
-gauge_close() {
-    [[ -n "$MYFOX_GAUGE_FD" ]] || { MYFOX_GAUGE_PID=""; return 0; }
-    # Закрываем FD (убираем последнего писателя) и снимаем dialog: kill
-    # гарантирует выход даже если EOF не дошёл (напр. whiptail/иной терминал).
-    eval "exec ${MYFOX_GAUGE_FD}>&-"
-    MYFOX_GAUGE_FD=""
-    if [[ -n "$MYFOX_GAUGE_PID" ]]; then
-        kill "$MYFOX_GAUGE_PID" 2>/dev/null || true
-        wait "$MYFOX_GAUGE_PID" 2>/dev/null || true
-    fi
-    rm -f "$MYFOX_GAUGE_FIFO"
-    MYFOX_GAUGE_FIFO=""
-    MYFOX_GAUGE_PID=""
-    MYFOX_GAUGE_DIALOG=""
-}
-
-# gauge_spin <start> <end> <cmd...> — команда в фоне; проценты плавно ползут
-# от start к end, пока она бежит. Возвращает код команды.
-gauge_spin() {
-    local start="${1:-0}" end="${2:-100}"
-    shift 2
-    local pid step pct t=0
-    "$@" >/dev/null 2>&1 &
-    pid=$!
-    step=$(( (end - start) / 60 ))
-    (( step < 1 )) && step=1
-    pct=$start
-    while kill -0 "$pid" 2>/dev/null; do
-        gauge_set "$pct"
-        sleep 0.1
-        t=$((t + 1))
-        if (( t % 10 == 0 )) && (( pct + step <= end )); then
-            pct=$((pct + step))
-        fi
-    done
-    wait "$pid"
-    local rc=$?
-    gauge_set "$end"
-    return $rc
-}
+# ─── Зависимости и архитектура ──────────────────────────────────────────────
 
 check_deps() {
-    local deps=("curl" "tar" "grep" "awk")
-    for dep in "${deps[@]}"; do
-        if ! command -v "$dep" >/dev/null 2>&1; then
-            error "Dependency '$dep' not found. Please install it."
-        fi
+    local dep
+    for dep in curl tar awk; do
+        command -v "$dep" >/dev/null 2>&1 || error "$(t err_dep_missing "$dep")"
     done
 }
 
-# ─── Маркер установки (state) ───────────────────────────────────────────────
+# amd64 | arm64, иначе ошибка (32-бит и экзотические архитектуры не поддерживаем).
+myfox_arch() {
+    case "$(uname -m)" in
+        x86_64)  echo amd64 ;;
+        aarch64) echo arm64 ;;
+        *)       return 1 ;;
+    esac
+}
 
-# Простой JSON без зависимостей. Значения экранируются минимально (нет слэшей/кавычек в путях,
-# которые мы пишем). Используем jq если доступен, иначе python3.
+# myfox_pad <string> <width> — right-pad до <width> СИМВОЛОВ (не байт).
+# printf '%-Ns' считает байты — с кириллицей (2 байта/символ в UTF-8) это
+# ломает выравнивание таблиц с переведёнными заголовками. ${#s} в bash под
+# UTF-8-локалью считает символы правильно.
+myfox_pad() {
+    local s="$1" w="$2" len
+    len=${#s}
+    if (( len >= w )); then
+        printf '%s' "$s"
+    else
+        printf '%s%*s' "$s" "$((w - len))" ""
+    fi
+}
+
+# myfox_shorten_home <path> — заменяет $HOME-префикс на ~ (только для показа;
+# для файловых операций использовать исходный абсолютный путь).
+myfox_shorten_home() {
+    local p="$1"
+    if [[ "$p" == "$HOME"/* || "$p" == "$HOME" ]]; then
+        printf '~%s' "${p#"$HOME"}"
+    else
+        printf '%s' "$p"
+    fi
+}
+
+# ─── State: плоский key=value ($MYFOX_STATE_FILE) ───────────────────────────
+#
+# Один awk-проход на операцию, без jq/python3. Значения — только безопасные
+# скаляры (пути, булевы, хэши, даты), которые пишет исключительно сам
+# инсталлятор, поэтому конфликтов с '=' в значении не бывает.
+
 state_get() {
     local key="$1"
-    if [[ ! -f "$MYFOX_STATE_FILE" ]]; then
-        return 0
-    fi
-    if command -v jq >/dev/null 2>&1; then
-        jq -r --arg k "$key" '.[$k] // empty' "$MYFOX_STATE_FILE" 2>/dev/null || true
-    elif command -v python3 >/dev/null 2>&1; then
-        python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get(sys.argv[2], ""))' \
-            "$MYFOX_STATE_FILE" "$key" 2>/dev/null || true
-    else
-        # Падение: jq/python3 нет — пытаемся парсить grep-ом (однострочный JSON).
-        grep -o "\"$key\": *\"[^\"]*\"" "$MYFOX_STATE_FILE" 2>/dev/null | head -1 | cut -d'"' -f4 || true
-    fi
-    return 0
+    [[ -f "$MYFOX_STATE_FILE" ]] || return 0
+    awk -F'=' -v k="$key" '$1==k { sub(/^[^=]*=/, ""); print; exit }' "$MYFOX_STATE_FILE"
 }
 
 state_set() {
     local key="$1" value="$2"
     mkdir -p "$MYFOX_STATE_DIR"
-    if [[ -f "$MYFOX_STATE_FILE" ]]; then
-        if command -v jq >/dev/null 2>&1; then
-            tmp="${MYFOX_STATE_FILE}.tmp"
-            jq --arg k "$key" --arg v "$value" '.[$k] = $v' "$MYFOX_STATE_FILE" > "$tmp"
-            mv "$tmp" "$MYFOX_STATE_FILE"
-        elif command -v python3 >/dev/null 2>&1; then
-            python3 -c 'import json,sys; f,p=sys.argv[1],sys.argv[2:]
-d=json.load(open(f)); d[p[0]]=p[1]; open(f,"w").write(json.dumps(d,indent=2,ensure_ascii=False))' \
-                "$MYFOX_STATE_FILE" "$key" "$value"
-        else
-            error "Cannot update state: jq or python3 required."
-        fi
-    else
-        printf '{\n  "%s": "%s"\n}\n' "$key" "$value" > "$MYFOX_STATE_FILE"
-    fi
+    touch "$MYFOX_STATE_FILE"
+    awk -F'=' -v k="$key" -v v="$value" '
+        $1 == k { print k "=" v; done = 1; next }
+        { print }
+        END { if (!done) print k "=" v }
+    ' "$MYFOX_STATE_FILE" > "$MYFOX_STATE_FILE.tmp" && mv "$MYFOX_STATE_FILE.tmp" "$MYFOX_STATE_FILE"
 }
 
 state_remove() {
     local key="$1"
     [[ -f "$MYFOX_STATE_FILE" ]] || return 0
-    if command -v jq >/dev/null 2>&1; then
-        tmp="${MYFOX_STATE_FILE}.tmp"
-        jq "del(.$key)" "$MYFOX_STATE_FILE" > "$tmp" 2>/dev/null || return 0
-        mv "$tmp" "$MYFOX_STATE_FILE"
-    else
-        error "Cannot update state: jq required."
-    fi
+    awk -F'=' -v k="$key" '$1 != k' "$MYFOX_STATE_FILE" > "$MYFOX_STATE_FILE.tmp" \
+        && mv "$MYFOX_STATE_FILE.tmp" "$MYFOX_STATE_FILE"
 }
 
-# Чтение JSON-значения ключа (объект/массив/число) — компактно, без кавычек на верхнем уровне.
-# Пустой файл/отсутствующий ключ → пусто.
-state_get_json() {
-    local key="$1"
-    [[ -f "$MYFOX_STATE_FILE" ]] || return 0
-    if command -v jq >/dev/null 2>&1; then
-        jq -c --arg k "$key" '.[$k] // empty' "$MYFOX_STATE_FILE" 2>/dev/null || true
-    elif command -v python3 >/dev/null 2>&1; then
-        python3 -c '
-import json, sys
-d = json.load(open(sys.argv[1]))
-v = d.get(sys.argv[2])
-print(json.dumps(v, ensure_ascii=False), end="") if v is not None else print("", end="")
-' "$MYFOX_STATE_FILE" "$key" 2>/dev/null || true
-    else
-        return 0
-    fi
-    return 0
+state_clear() { rm -f "$MYFOX_STATE_FILE"; }
+
+has_marker() { [[ -n "$(state_get install_dir)" ]]; }
+
+# is_myfox_dir <dir> — true, если каталог принадлежит myfox-инсталляции.
+is_myfox_dir() {
+    local dir="$1"
+    [[ -f "$dir/$INSTALL_MARKER_NAME" || -f "$dir/.myfox-version" ]]
 }
 
-# Запись JSON-значения в ключ (значение — валидный JSON, напр. объект opts).
-state_set_json() {
-    local key="$1" value="$2"
-    mkdir -p "$MYFOX_STATE_DIR"
-    if [[ -f "$MYFOX_STATE_FILE" ]]; then
-        if command -v jq >/dev/null 2>&1; then
-            tmp="${MYFOX_STATE_FILE}.tmp"
-            jq --arg k "$key" --argjson v "$value" '.[$k] = $v' "$MYFOX_STATE_FILE" > "$tmp"
-            mv "$tmp" "$MYFOX_STATE_FILE"
-        elif command -v python3 >/dev/null 2>&1; then
-            python3 -c '
-import json, sys
-f, k = sys.argv[1], sys.argv[2]
-d = json.load(open(f))
-d[k] = json.loads(sys.argv[3])
-json.dump(d, open(f, "w"), indent=2, ensure_ascii=False)
-' "$MYFOX_STATE_FILE" "$key" "$value"
-        else
-            error "Cannot update state: jq or python3 required."
-        fi
-    else
-        printf '{\n  "%s": %s\n}\n' "$key" "$value" > "$MYFOX_STATE_FILE"
-    fi
-}
-
-# ─── Опции установки (объект opts в маркере) ─────────────────────────────────
+# ─── Опции установки (opt_* поля в state) ────────────────────────────────────
 #
-# opts = { browser_only, lang, bl, addons, plasma } — дефолты для повторного
-# запуска и для --update. На старых маркерах (без opts) работает неявный маппинг
-# на дефолты ниже, поэтому фича обратно совместима.
+# Раньше — вложенный JSON-объект opts; теперь — обычные ключи state с
+# префиксом opt_. opts_get/opts_set/opts_has сохраняют прежний интерфейс
+# вызова, так что весь остальной код (install/update-логика) не меняется.
 
 opts_default() {
     case "$1" in
         browser_only) echo false ;;
-        lang)         echo "" ;;
         bl)           echo true ;;
         addons)       echo true ;;
-        plasma)       echo "" ;;
+        channel)      echo stable ;;
         *)            echo "" ;;
     esac
 }
 
 opts_get() {
-    local key="$1" opts
-    opts=$(state_get_json opts)
-    if [[ -z "$opts" || "$opts" == "null" ]]; then
-        opts_default "$key"
-        return 0
-    fi
-    local def
-    def=$(opts_default "$key")
-    if command -v jq >/dev/null 2>&1; then
-        jq -r --arg k "$key" --arg d "$def" 'if has($k) then .[$k] else $d end' <<< "$opts" 2>/dev/null || opts_default "$key"
-    elif command -v python3 >/dev/null 2>&1; then
-        python3 -c '
-import json, sys
-d = json.loads(sys.argv[1])
-print(d.get(sys.argv[2], sys.argv[3]))
-' "$opts" "$key" "$def" 2>/dev/null || opts_default "$key"
+    local key="$1" val
+    val=$(state_get "opt_${key}")
+    if [[ -n "$val" ]]; then
+        printf '%s' "$val"
     else
         opts_default "$key"
     fi
 }
 
-# Есть ли в opts явно сохранённый выбор по ключу (в отличие от значения по умолчанию).
-opts_has() {
-    local key="$1" opts
-    opts=$(state_get_json opts)
-    [[ -z "$opts" || "$opts" == "null" ]] && return 1
-    if command -v jq >/dev/null 2>&1; then
-        jq -r --arg k "$key" 'has($k)' <<< "$opts" 2>/dev/null | grep -q true || return 1
-    elif command -v python3 >/dev/null 2>&1; then
-        python3 -c 'import json,sys; print("true" if sys.argv[2] in json.loads(sys.argv[1]) else "false")' \
-            "$opts" "$key" 2>/dev/null | grep -q true || return 1
-    else
-        return 1
-    fi
-}
+opts_has() { [[ -n "$(state_get "opt_${key:=$1}")" ]]; }
 
-opts_set() {
-    local key="$1" value="$2"
-    local opts new
-    opts=$(state_get_json opts)
-    [[ -z "$opts" || "$opts" == "null" ]] && opts='{}'
-    if command -v jq >/dev/null 2>&1; then
-        new=$(jq -c --arg k "$key" --arg v "$value" '.[$k] = $v' <<< "$opts") || true
-    elif command -v python3 >/dev/null 2>&1; then
-        new=$(python3 -c '
-import json, sys
-d = json.loads(sys.argv[1]); d[sys.argv[2]] = sys.argv[3]
-print(json.dumps(d, ensure_ascii=False))
-' "$opts" "$key" "$value") || true
-    else
-        error "Cannot update state: jq or python3 required."
-    fi
-    [[ -n "$new" ]] || error "Cannot update state options."
-    state_set_json opts "$new"
-}
-
-state_clear() {
-    rm -f "$MYFOX_STATE_FILE"
-}
-
-has_marker() {
-    # Маркер НАШЕЙ инсталляции лежит в install_dir (marker: .myfox-installed).
-    # Если install.json есть и в нём install_dir — установка наша.
-    state_get install_dir >/dev/null 2>&1
-}
-
-# Флаг-маркер внутри инсталляционного каталога (различает «нашу» vs «чужую» инсталляцию по пути).
-INSTALL_MARKER_NAME=".myfox-installed"
-
-# is_myfox_dir <dir> — true, если каталог принадлежит myfox-инсталляции:
-# маркер завершённой установки (.myfox-installed) или записанная версия (.myfox-version,
-# пишется сразу после распаковки тарбола). Нужно, чтобы не «бэкапить» собственные бинарники,
-# если uninstall снял маркер, но оставил каталог.
-is_myfox_dir() {
-    local dir="$1"
-    [[ -f "$dir/$INSTALL_MARKER_NAME" || -f "$dir/.myfox-version" ]]
-}
+opts_set() { state_set "opt_${1}" "$2"; }
