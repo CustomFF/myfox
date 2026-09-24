@@ -473,18 +473,25 @@ panel[type="arrow"] {
 
 /* Address-bar dropdown. Nova opens it as a floating, rounded, glowing card
    that grows past the bar on every side (overhang) and swallows the input.
-   Zero the growth/overhang/outset/glow tokens so the results simply hang off
-   the bar at exactly its width, like a classic autocomplete list. */
+   Zero the growth/overhang/outset tokens so the results simply hang off the
+   bar at exactly its width, like a classic autocomplete list, and swap the
+   purple glow for the same soft offset shadow the tab previews use. */
 #urlbar {
     --urlbar-background-overhang-open: 0px !important;
     --urlbarView-joint-background-outset-inline: 0px !important;
     --urlbarView-joint-background-outset-block: 0px !important;
-    --urlbar-background-box-shadow-open: none !important;
+    --urlbar-background-box-shadow-open: 4px 9px 10px rgba(0, 0, 0, 0.45) !important;
     --urlbar-background-border-top-radius-open: var(--myfox-radius) !important;
     --urlbarView-margin-inline: 0px !important;
     --urlbarview-row-padding-block: 0.2rem !important;
     --urlbarview-row-min-height: 26px !important;
 }
+/* A touch of transparency for the open list (both halves of the joint
+   background read this one token, so the bar and the list stay one surface). */
+#urlbar[popover-open] {
+    --urlbar-background-color-focus: rgba(60, 64, 67, 0.93) !important;
+}
+
 /* Keep the bar's top corners at the normal --myfox-radius while the list is
    open (Nova rounds the input container to 13px then, which the focus
    outline follows). */
@@ -722,7 +729,12 @@ moz-visual-picker-item {
 #tab-preview-panel,
 #tab-note-preview-panel,
 #tabgroup-preview-panel {
-    --panel-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+    --panel-box-shadow: 4px 9px 10px rgba(0, 0, 0, 0.45) !important;
+    /* The popup window is only as big as the panel plus this margin (4px by
+       default), so a wide blur was clipped to a hard-edged gray rectangle.
+       Reserve room for the whole shadow (9px offset + 10px blur = 19px at
+       the bottom, 14px at the right, less elsewhere). */
+    --panel-box-shadow-margin: 20px !important;
 }
 
 /* Identity/permissions popup ("Firefox на страже", trustpanel-popup) — the
