@@ -327,7 +327,7 @@ tui_choose_kv() {
 tui_filter_kv() {
     local header="$1" default="$2" back="$3"; shift 3
     if [[ -n "$(tui_backend)" ]]; then
-        tui_choose_kv "$header" "$default" "$back" 0 "$@"
+        tui_choose_kv "$header" "$default" "$back" 1 "$@"
         return $?
     fi
     local -a values=() labels=()
@@ -346,7 +346,27 @@ tui_filter_kv() {
     done
     [[ ${#flabels[@]} -eq 0 ]] && return 1
     for i in "${!flabels[@]}"; do kv+=("${fvalues[$i]}" "${flabels[$i]}"); done
-    tui_choose_kv "$header" "$default" "$back" 0 "${kv[@]}"
+    tui_choose_kv "$header" "$default" "$back" 1 "${kv[@]}"
+}
+
+# tui_msgbox <text> — простое сообщение с кнопкой OK (ошибки ввода и т.п.).
+tui_msgbox() {
+    local text="$1" backend
+    backend=$(tui_backend)
+    if [[ -n "$backend" ]]; then
+        local fenced_here=0
+        _tui_fence_begin && fenced_here=1
+        if [[ "$backend" == "dialog" ]]; then
+            dialog --clear --no-collapse --ok-label "$(t opt_ok)" \
+                --msgbox "$text" "$(_tui_box_height "$text")" "$(_tui_box_width)" || true
+        else
+            whiptail --clear --ok-button "$(t opt_ok)" \
+                --msgbox "$text" "$(_tui_box_height "$text")" "$(_tui_box_width)" || true
+        fi
+        [[ "$fenced_here" == 1 ]] && _tui_fence_end
+        return 0
+    fi
+    echo -e "${RED}${text}${NC}" >&2
 }
 
 # tui_pick_dir <initial-path> → stdout: путь. rc 1 = отмена.
@@ -378,14 +398,49 @@ tui_pick_dir() {
     printf '%s' "${ans:-$initial}"
 }
 
-# tui_spin <title> -- <cmd...> — печатает заголовок и просто выполняет
-# команду (curl/tar) с их собственным нормальным выводом (у curl это его
-# родной --progress-bar) — никакой отдельной анимации/гейджа не рисуем.
+# tui_spin <title> [--] <cmd...> — единая индикация для любого долгого шага
+# (скачивание, распаковка, headless-пиннинг профиля и т.д.): крутящийся
+# брайль-спиннер "Название [⠿]" на месте (без новой строки), который по
+# завершении команды заменяется на статус-глиф — "[✔]" или "[✗]" — прямо на
+# той же строке. Никакого процентного прогресс-бара: для tar/curl это
+# избавляет от ручного почанкового чтения ради процентов (см.
+# firefox_install_tarball) — спиннер не обязан знать, сколько именно
+# осталось, только что процесс ещё жив.
 tui_spin() {
     local title="$1"; shift
     [[ "${1:-}" == "--" ]] && shift
-    echo -e "${BLUE}[..]${NC} $title" >&2
+
+    # Не-tty (лог в файл, CI, перенаправление) — анимация только мусорит
+    # вывод пустыми \r; печатаем заголовок один раз и просто ждём команду.
+    if [[ ! -t 2 ]]; then
+        echo "$title" >&2
+        "$@"
+        return $?
+    fi
+
+    local frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏' i=0 pid
+    (
+        while true; do
+            printf '\r%s [%s] ' "$title" "${frames:$((i % 10)):1}" >&2
+            i=$((i + 1))
+            sleep 0.1
+        done
+    ) &
+    pid=$!
+    disown "$pid" 2>/dev/null || true
+
     "$@"
+    local rc=$?
+
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+
+    if [[ "$rc" -eq 0 ]]; then
+        printf '\r%s [%s%s%s] \n' "$title" "$GREEN" "✔" "$NC" >&2
+    else
+        printf '\r%s [%s%s%s] \n' "$title" "$RED" "✗" "$NC" >&2
+    fi
+    return "$rc"
 }
 
 # tui_style <text...> — обычный жирный баннер (stderr, как log/warn/success).
