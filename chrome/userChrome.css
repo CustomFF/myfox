@@ -74,8 +74,8 @@ menupopup:not(.in-menulist)>menu {
 /* Adjust tab corner shape, optionally remove space below tabs */
 
 #tabbrowser-tabs {
-    --user-tab-rounding: 16px;
-    --user-tab-ear-rounding: 16px;
+    --user-tab-rounding: calc(var(--myfox-radius, 5px) * 2);
+    --user-tab-ear-rounding: calc(var(--myfox-radius, 5px) * 2);
 }
 
 .tab-background {
@@ -403,7 +403,7 @@ menupopup:not(.in-menulist)>menu {
     content: "" !important;
     display: block !important;
     position: absolute !important;
-    bottom: 0 !important;
+    bottom: -1px !important;
     width: var(--user-tab-ear-rounding) !important;
     height: var(--user-tab-ear-rounding) !important;
     z-index: 2 !important;
@@ -411,26 +411,38 @@ menupopup:not(.in-menulist)>menu {
     background: inherit !important;
 }
 
+/* The ear cutout used to be a `mask: radial-gradient(circle at corner,
+   transparent R, black R+0.5px)` — a distance-based approximation of a
+   circle, not a real arc. At the exact tangent point where that circle
+   meets the box's flat edge, the gradient's anti-aliasing left a visible
+   stray notch (worse at smaller radii / fractional display scaling). An
+   inline SVG mask draws a true vector arc instead, which doesn't have
+   that approximation error. */
 #navigator-toolbox .tab-background:is([selected], [multiselected])::before,
 #navigator-toolbox .tabbrowser-tab:hover .tab-background::before {
     left: calc(0px - var(--user-tab-ear-rounding)) !important;
-    mask: radial-gradient(circle at top left,
-            transparent var(--user-tab-ear-rounding),
-            black calc(var(--user-tab-ear-rounding) + 0.5px)) !important;
-    -webkit-mask: radial-gradient(circle at top left,
-            transparent var(--user-tab-ear-rounding),
-            black calc(var(--user-tab-ear-rounding) + 0.5px)) !important;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3Cmask id='m'%3E%3Crect width='1' height='1' fill='white'/%3E%3Ccircle cx='0' cy='0' r='1' fill='black'/%3E%3C/mask%3E%3Crect width='1' height='1' fill='white' mask='url(%23m)'/%3E%3C/svg%3E") center/100% 100% no-repeat !important;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3Cmask id='m'%3E%3Crect width='1' height='1' fill='white'/%3E%3Ccircle cx='0' cy='0' r='1' fill='black'/%3E%3C/mask%3E%3Crect width='1' height='1' fill='white' mask='url(%23m)'/%3E%3C/svg%3E") center/100% 100% no-repeat !important;
 }
 
 #navigator-toolbox .tab-background:is([selected], [multiselected])::after,
 #navigator-toolbox .tabbrowser-tab:hover .tab-background::after {
     right: calc(0px - var(--user-tab-ear-rounding)) !important;
-    mask: radial-gradient(circle at top right,
-            transparent var(--user-tab-ear-rounding),
-            black calc(var(--user-tab-ear-rounding) + 0.5px)) !important;
-    -webkit-mask: radial-gradient(circle at top right,
-            transparent var(--user-tab-ear-rounding),
-            black calc(var(--user-tab-ear-rounding) + 0.5px)) !important;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3Cmask id='m'%3E%3Crect width='1' height='1' fill='white'/%3E%3Ccircle cx='1' cy='0' r='1' fill='black'/%3E%3C/mask%3E%3Crect width='1' height='1' fill='white' mask='url(%23m)'/%3E%3C/svg%3E") center/100% 100% no-repeat !important;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3Cmask id='m'%3E%3Crect width='1' height='1' fill='white'/%3E%3Ccircle cx='1' cy='0' r='1' fill='black'/%3E%3C/mask%3E%3Crect width='1' height='1' fill='white' mask='url(%23m)'/%3E%3C/svg%3E") center/100% 100% no-repeat !important;
+}
+
+/* Firefox's own default tab hover fill is a translucent overlay
+   (~17% alpha), not a solid color. The ear pseudo-elements use
+   `background: inherit` to pick up whatever color the tab body has, so a
+   hovered tab's semi-transparent fill and its ear's semi-transparent fill
+   compound wherever they visually overlap at the seam, appearing as a
+   visible dark patch right at the curve. A solid color (same visual shade
+   as the translucent one, composited against the toolbar background)
+   sidesteps the alpha-stacking entirely instead of trying to
+   position/mask around it. */
+.tabbrowser-tab:hover:not([selected]):not([multiselected]) .tab-background {
+    background-color: rgb(74, 78, 81) !important;
 }
 
 /* The first tab sits at the left edge of the window, with no tab to its left.
