@@ -1,6 +1,11 @@
 /* Custom styles for sidebar panel headers and padding reduction */
 .sidebar-panel {
     padding: 4px !important; /* reduce padding from 12px */
+    border-radius: var(--myfox-radius) !important;
+}
+
+.selectedTab {
+    border-radius: var(--myfox-radius) !important;
 }
 
 /* Align Bookmarks Toolbar and Main Toolbar icons with the sidebar launcher */
@@ -121,7 +126,7 @@ sidebar-panel-header .menu-button {
     padding: 0 !important;
     margin: 0 !important;
     cursor: pointer !important;
-    border-radius: 4px !important;
+    border-radius: var(--myfox-radius) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -163,7 +168,7 @@ richlistitem.download {
     padding: 2px 0 !important;
     margin: 0 !important;
     outline: none !important;
-    border-radius: 4px !important;
+    border-radius: var(--myfox-radius) !important;
 }
 
 /* Neutral hover state: subtle grey background */
@@ -292,7 +297,7 @@ richlistitem.download:focus-visible {
 #downloads-sidebar-search {
     width: 100% !important;
     height: 26px !important;
-    border-radius: 99px !important;
+    border-radius: var(--myfox-radius) !important;
     border: 1px solid color-mix(in srgb, currentColor 45%, transparent) !important;
     background-color: var(--input-text-background-color, Field) !important;
     background-image: url("chrome://global/skin/icons/search-textbox.svg") !important;
@@ -315,7 +320,7 @@ richlistitem.download:focus-visible {
 
 /* Style search inputs in Bookmarks and History sidebars to match the address bar */
 moz-input-search {
-    --input-text-border-radius: 99px !important;
+    --input-text-border-radius: var(--myfox-radius) !important;
     --input-text-min-height: 26px !important;
     --focus-outline: none !important;
     --focus-outline-color: transparent !important;
@@ -333,7 +338,7 @@ moz-input-search:focus-within {
    Rules in userChrome.css (user sheet) are lower-priority and get overridden. */
 #nav-bar {
     --toolbarbutton-padding-outer: 0px;
-    --toolbarbutton-border-radius: 4px;
+    --toolbarbutton-border-radius: var(--myfox-radius, 5px);
 }
 
 #nav-bar .toolbarbutton-1 {
@@ -368,6 +373,20 @@ moz-input-search:focus-within {
     min-height: 24px !important;
 }
 
+/* The downloads button has no .toolbarbutton-icon: its glyph is
+   #downloads-indicator-icon, which stretches to fill the (now 24px) badge
+   stack and so drew at 24px instead of the 16px the other buttons' glyphs get
+   from their 4px icon padding — the "giant" download icon that appears once a
+   first download exists. Pin the anchor (and the glyph in it) to 16px,
+   centered, like stock. */
+#nav-bar #downloads-indicator-anchor {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    min-height: 16px !important;
+    place-self: center !important;
+}
+
 #nav-bar toolbarbutton {
     overflow: visible !important;
 }
@@ -392,7 +411,7 @@ moz-input-search:focus-within {
     border: 1px solid rgba(255, 255, 255, 0.15) !important;
     color: currentColor !important;
     padding: 6px 12px !important;
-    border-radius: 4px !important;
+    border-radius: var(--myfox-radius) !important;
     cursor: pointer !important;
     font-size: 11px !important;
     font-weight: 500 !important;
@@ -407,4 +426,278 @@ moz-input-search:focus-within {
 /* Hide Clear Downloads footer when there are no download items */
 #contentAreaDownloadsView:not(:has(richlistitem.download)) #downloads-sidebar-footer {
     display: none !important;
+}
+
+/* ── Rein in Firefox's own "Nova" redesign (browser.nova.enabled) ──────────
+   Nova pushes almost every corner-radius token up to 16-24px (pill buttons,
+   pill panels, pill cards, pill search boxes) via
+   `@media -moz-pref("browser.nova.enabled")` blocks in the shipped design-
+   system CSS. We override the CSS custom properties directly (not the pref
+   itself) so this survives Mozilla renaming/removing the experiment, and we
+   route every one of them through a single --myfox-radius variable so the
+   whole UI (panels, buttons, cards, inputs, the address bar) uses one
+   consistent corner radius instead of a dozen different pill shapes. */
+:root {
+    --myfox-radius: 5px;
+
+    --button-border-radius: var(--myfox-radius) !important;
+    --button-padding-inline: 10px !important;
+    --button-padding-inline-small: 8px !important;
+    --button-min-height: 24px !important;
+    --button-padding-block: 2px !important;
+
+    --urlbar-border-radius: var(--myfox-radius) !important;
+    --card-border-radius: var(--myfox-radius) !important;
+    --input-search-border-radius: var(--myfox-radius) !important;
+    --input-text-border-radius: var(--myfox-radius) !important;
+}
+
+/* --panel-border-radius only reads the token above when the panel wrapper
+   is type="arrow" (hamburger menu, extensions panel, downloads panel, etc.);
+   plain context menus already have a normal small radius and are untouched.
+   --panel-menuitem-border-radius/--menuitem-border-radius (the hover
+   highlight on each row) is set to 0, not --myfox-radius — that one was
+   asked to be removed entirely, not just shrunk. */
+panel[type="arrow"] {
+    --panel-border-radius: var(--myfox-radius) !important;
+    --panel-menuitem-border-radius: 0px !important;
+    --menuitem-border-radius: 0px !important;
+}
+
+/* The address bar's own visual pill isn't driven purely by --urlbar-border-
+   radius (its actual background element computes something else at
+   runtime), so it needs a direct, targeted override too. */
+.urlbar-background {
+    border-radius: var(--myfox-radius) !important;
+}
+
+/* Address-bar dropdown. Nova opens it as a floating, rounded, glowing card
+   that grows past the bar on every side (overhang) and swallows the input.
+   Zero the growth/overhang/outset/glow tokens so the results simply hang off
+   the bar at exactly its width, like a classic autocomplete list. */
+#urlbar {
+    --urlbar-background-overhang-open: 0px !important;
+    --urlbarView-joint-background-outset-inline: 0px !important;
+    --urlbarView-joint-background-outset-block: 0px !important;
+    --urlbar-background-box-shadow-open: none !important;
+    --urlbar-background-border-top-radius-open: var(--myfox-radius) !important;
+    --urlbarView-margin-inline: 0px !important;
+    --urlbarview-row-padding-block: 0.2rem !important;
+    --urlbarview-row-min-height: 26px !important;
+}
+/* Keep the bar's top corners at the normal --myfox-radius while the list is
+   open (Nova rounds the input container to 13px then, which the focus
+   outline follows). */
+#urlbar[popover-open] > .urlbar-input-container {
+    border-start-start-radius: var(--myfox-radius) !important;
+    border-start-end-radius: var(--myfox-radius) !important;
+}
+
+/* The "Firefox" identity badge shown on the left of the address bar for
+   internal about:/chrome: pages had square corners inside the now-rounded
+   urlbar pill, clipping awkwardly against the curve. */
+#identity-icon-box,
+#identity-permission-box {
+    border-radius: var(--myfox-radius) !important;
+    margin-inline-start: var(--myfox-radius) !important;
+}
+
+/* Search-engine mode switcher ("G ⌄" before the typed text) — a moz-button
+   whose --button-border-radius gets locally redefined to 99px by the urlbar
+   itself, so the global :root override above doesn't reach it. */
+moz-button.searchmode-switcher {
+    --button-border-radius: var(--myfox-radius) !important;
+}
+
+/* The engine-picker dropdown itself (and any other <panel-list>: the urlbar
+   search-mode switcher, extension/context lists) is a panel-list whose
+   surface radius comes from --panel-list-border-radius, and whose row
+   hover highlight comes from --panel-item-button-border-radius (16px under
+   Nova). Both are plain (non-!important) declarations in the components'
+   own :host token rules, so a light-DOM rule on the host elements wins. */
+panel-list {
+    --panel-list-border-radius: var(--myfox-radius) !important;
+}
+panel-list,
+panel-item {
+    --panel-item-button-border-radius: 0px !important;
+}
+
+/* The engine picker's XUL <panel> wrapper (not type="arrow", so the
+   panel[type="arrow"] rule above doesn't cover it) paints the outer
+   surface and its corners. */
+panel.searchmode-switcher-panel {
+    --panel-border-radius: var(--myfox-radius) !important;
+}
+panel.searchmode-switcher-panel::part(content) {
+    border-radius: var(--myfox-radius) !important;
+}
+
+/* about:preferences base font. The page sets a 15px root and sizes almost
+   everything in rem (text, headings, paddings, gaps) or straight from the
+   --font-size-root token (buttons, selects), so shrinking both scales the
+   page down to the context menu's 12px density. The left nav keeps its own
+   explicit 13px (see below). Keyed on
+   the <moz-page-nav> only that page has, so no other document is touched. */
+:root:has(moz-page-nav) {
+    --font-size-root: 12px !important;
+    font-size: 12px !important;
+}
+/* Icon-only buttons (pencil / trash / "+" in the settings lists — some are
+   type="icon"; the pencil, trash and "+" are type="default" buttons in an
+   actions slot that just have no label)
+   draw an accent-blue outline around each glyph via the composed
+   --button-border token (overriding just --button-border-color isn't enough);
+   the glyph alone is enough. */
+moz-button[type~="icon"],
+moz-button[slot^="actions"]:not([label]) {
+    --button-border: none !important;
+}
+
+/* Toggle switches: the track (and the knob, which reuses the same token)
+   is a full circle by default. */
+moz-toggle {
+    --toggle-border-radius: var(--myfox-radius) !important;
+}
+
+/* Search-engine list rows: 12px of padding above and below each two-line
+   row made them tall and airy. */
+moz-box-item[id^="engineList-"],
+moz-box-item[id^="searchmode-"] {
+    --box-padding: 5px 12px !important;
+}
+
+/* Vertical gap between the settings cards (1.5rem by default). */
+:root:has(moz-page-nav) section:has(> setting-group) {
+    gap: 8px !important;
+}
+/* Dropdown lists (moz-select) render their value semi-bold via a token. */
+moz-select {
+    --select-font-weight: 400 !important;
+}
+
+/* about:preferences left navigation. Its buttons/links draw the highlight
+   pill and spacing from component tokens declared on the (light-DOM) host
+   elements, so plain host rules override them — no script needed. Square
+   highlight, tighter rows and gaps, and a smaller font (matching the context
+   menu's density) instead of Nova's 9999px pills and roomy 15px rows. */
+moz-page-nav {
+    --page-nav-gap: 2px !important;
+}
+moz-page-nav-button {
+    --page-nav-button-border-radius: 0px !important;
+    --page-nav-button-padding: 6px 10px !important;
+    font-size: 13px !important;
+}
+
+/* about:preferences cards/boxes/promos/message bars/pickers. Their corner
+   radii come from tokens declared on the (light-DOM) host elements, so host
+   rules override them — the same Nova pill treatment as everywhere else,
+   pulled onto --myfox-radius without any script. */
+moz-card,
+moz-box-group,
+moz-box-item,
+moz-box-link,
+moz-box-button {
+    border-radius: var(--myfox-radius) !important;
+    --box-border-radius: var(--myfox-radius) !important;
+    --box-border-radius-inner: var(--myfox-radius) !important;
+}
+moz-message-bar {
+    --message-bar-border-radius: var(--myfox-radius) !important;
+}
+moz-promo {
+    --promo-border-radius: var(--myfox-radius) !important;
+}
+moz-visual-picker-item {
+    --visual-picker-item-border-radius: var(--myfox-radius) !important;
+}
+
+/* ── Rein in Nova's violet/purple accent palette ────────────────────────
+   Nova's dark-mode accent (buttons, links, focus outline, selected settings
+   nav item, address bar text, etc.) resolves to --color-violet-* /
+   --color-violet-desaturated-* — visually a light-purple (#b89cff-family),
+   which for years has meant "private browsing" in Firefox. We swap the
+   whole violet scale for a blue scale at matching lightness/saturation
+   (same hue as our own accent below) so every consumer of these tokens
+   picks up blue instead, not just the ones we've spotted so far. */
+:root {
+    --color-violet-0: #ecf5ff !important;
+    --color-violet-10: #ddecff !important;
+    --color-violet-20: #c1ddff !important;
+    --color-violet-30: #9cc9ff !important;
+    --color-violet-40: #71b1ff !important;
+    --color-violet-50: #4e8edd !important;
+    --color-violet-60: #396ba8 !important;
+    --color-violet-70: #294c76 !important;
+    --color-violet-80: #1c3048 !important;
+    --color-violet-90: #141b23 !important;
+    --color-violet-desaturated-0: #f0f4f8 !important;
+    --color-violet-desaturated-10: #e1ebf8 !important;
+    --color-violet-desaturated-20: #c8d8ec !important;
+    --color-violet-desaturated-30: #aabfd9 !important;
+    --color-violet-desaturated-40: #87a1c0 !important;
+    --color-violet-desaturated-50: #66809f !important;
+    --color-violet-desaturated-60: #4a617d !important;
+    --color-violet-desaturated-70: #31465f !important;
+    --color-violet-desaturated-80: #1d2f44 !important;
+    --color-violet-desaturated-90: #0e1d30 !important;
+
+    --color-accent-primary: light-dark(#0a84ff, #4dabff) !important;
+    --color-accent-primary-hover: light-dark(#0074e8, #7cc4ff) !important;
+    --color-accent-primary-active: light-dark(#0060c7, #a8d9ff) !important;
+    --color-accent-primary-selected: light-dark(#0a84ff, #4dabff) !important;
+}
+
+/* ── Tab hover-preview thumbnail (tab-preview-panel etc.) ───────────────
+   The thumbnail image itself shouldn't be rounded (it's a flat rectangular
+   screenshot), the surrounding card had way too much internal padding, and
+   the drop shadow was too weak to separate the panel from the page behind
+   it. */
+#tab-preview-panel canvas,
+#tab-note-preview-panel canvas,
+#tabgroup-preview-panel canvas {
+    border-radius: 0 !important;
+}
+
+#tab-preview-panel .tab-preview-content-main,
+#tab-note-preview-panel .tab-preview-content-main,
+#tabgroup-preview-panel .tab-preview-content-main {
+    padding: 2px !important;
+    gap: 2px !important;
+}
+
+#tab-preview-panel,
+#tab-note-preview-panel,
+#tabgroup-preview-panel {
+    --panel-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Identity/permissions popup ("Firefox на страже", trustpanel-popup) — the
+   panel itself already follows --myfox-radius via panel[type="arrow"], but
+   the graphic info card inside it has its own hardcoded radius. */
+#trustpanel-graphic-section {
+    border-radius: var(--myfox-radius) !important;
+}
+
+/* Sidebar search inputs (bookmarks/history/synced-tabs, moz-input-search)
+   would otherwise get the UA's `outline: auto` focus ring (painted by the
+   native GTK theme) on top of our own custom focus border. An agent-sheet
+   rule *does* reach inside the component's shadow tree (unlike author/user
+   sheets), so this kills the ring permanently from the first frame — no
+   script needed. Wrapped in @-moz-document so it only ever applies to
+   chrome:// documents (browser UI, sidebar panels), never to web pages'
+   own search fields; note a longer url-prefix (e.g. .../sidebar/) is NOT
+   honored in an agent sheet, only the bare scheme is. */
+@-moz-document url-prefix("chrome://") {
+    input[type="search"] {
+        outline: none !important;
+    }
+}
+
+/* The scrollable content wrapper around the synced-tabs empty-state card
+   had 3px of its own padding stacked on top of our 4px .sidebar-panel
+   padding, so that card sat 3px narrower than the search box above it. */
+.sidebar-panel-scrollable-content {
+    padding: 0 !important;
 }
