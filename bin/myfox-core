@@ -132,7 +132,7 @@ resolve_channel() {
     elif [[ -n "$MYFOX_NONINTERACTIVE" || ! -t 0 ]]; then
         CHANNEL=stable
     else
-        CHANNEL=$(tui_choose_kv "$(t channel_pick_header)" "stable" 0 0 \
+        CHANNEL=$(tui_choose_kv "$(t channel_pick_header)" "stable" 0 1 \
             stable "$(t channel_stable)" beta "$(t channel_beta)") || CHANNEL=stable
     fi
 }
@@ -151,6 +151,14 @@ install_wizard() {
     local step="welcome" rc=0
     LANG_CODE="" CHANNEL="" BL_ON=false TWEAKED_PROFILE=true
     WIZ_PROFILE="" WIZ_PROFILE_NEW=0
+    # Some steps are a no-op passthrough under certain conditions (e.g. "no
+    # myfox profiles yet" on the profile step) and jump straight to the next
+    # step without showing a dialog. That's correct when arriving from
+    # further back in the wizard, but wrong when arriving via "Back" from
+    # further ahead — it would just bounce right back forward, making the
+    # Back button look broken. GOING_BACK lets those passthroughs jump
+    # backward instead when that's the direction we're actually navigating.
+    local GOING_BACK=0
 
     while true; do
         case "$step" in
@@ -176,32 +184,39 @@ install_wizard() {
                     continue
                 fi
                 rc=0
-                local dchoice
-                dchoice=$(tui_choose_kv "$(t installdir_pick_header)" "default" 1 0 \
-                    default "$(t installdir_default_option "$MYFOX_DEFAULT_PREFIX")" \
-                    custom "$(t installdir_custom_option)") || rc=$?
-                if [[ "$rc" -eq 3 ]]; then
-                    step="welcome"
-                    continue
-                elif [[ "$rc" -ne 0 ]]; then
-                    return 1
-                fi
-                if [[ "$dchoice" == "custom" ]]; then
-                    local chosen_dir
-                    if chosen_dir=$(tui_pick_dir "$INSTALL_DIR"); then
-                        # dialog/whiptail сами ~ не раскрывают (не шелл).
-                        [[ "$chosen_dir" == "~"* ]] && chosen_dir="$HOME${chosen_dir#\~}"
-                        [[ -n "$chosen_dir" ]] && INSTALL_DIR="$chosen_dir"
-                    fi
+                local dchoice keep_label
+                if [[ "$INSTALL_DIR" == "$MYFOX_DEFAULT_PREFIX" ]]; then
+                    keep_label="$(t installdir_default_option "$MYFOX_DEFAULT_PREFIX")"
                 else
-                    INSTALL_DIR="$MYFOX_DEFAULT_PREFIX"
+                    keep_label="$INSTALL_DIR"
                 fi
-                step="channel"
+                dchoice=$(tui_choose_kv "$(t installdir_pick_header)" "keep" 0 1 \
+                    keep "$keep_label" \
+                    custom "$(t installdir_custom_option)") || rc=$?
+                [[ "$rc" -ne 0 ]] && return 1
+                if [[ "$dchoice" == "custom" ]]; then
+                    # Ввод пути с проверкой: при ошибке — сообщение и снова
+                    # ввод; отмена/успех — назад на этот же экран (он покажет
+                    # актуальный путь), а не молча дальше.
+                    local typed="$INSTALL_DIR" verdict
+                    while typed=$(tui_pick_dir "$typed"); do
+                        if verdict=$(install_dir_validate "$typed"); then
+                            INSTALL_DIR="$verdict"
+                            break
+                        fi
+                        tui_msgbox "$verdict"
+                    done
+                else
+                    step="channel"
+                fi
                 ;;
             channel)
                 rc=0
                 local ans
-                ans=$(tui_choose_kv "$(t channel_pick_header)" "stable" 1 0 \
+                # «Назад» — только если экран выбора пути вообще показывался.
+                local channel_back=1
+                [[ -n "$PREFIX" ]] && channel_back=0
+                ans=$(tui_choose_kv "$(t channel_pick_header)" "stable" "$channel_back" 1 \
                     stable "$(t channel_stable)" beta "$(t channel_beta)") || rc=$?
                 if [[ "$rc" -eq 3 ]]; then
                     step="dir_choice"
@@ -218,10 +233,35 @@ install_wizard() {
                     step="profile"
                     continue
                 fi
+                # Fetched (and cached in MYFOX_LANG_LIST) only once, right
+                # here — after the user has actually confirmed through
+                # welcome/dir/channel, not before they've even said
+                # "Continue", and inside the wizard's own already-open
+                # alt-screen fence (tui_session_begin already ran), so a
+                # plain --infobox is enough: it draws straight into the
+                # same fenced screen, no separate fence of its own needed,
+                # and stays up for as long as the curl call blocks instead
+                # of leaving a blank screen.
+                if [[ ! -s "${MYFOX_LANG_LIST:-}" ]]; then
+                    local lang_fetch_backend
+                    lang_fetch_backend=$(tui_backend)
+                    if [[ "$lang_fetch_backend" == "dialog" ]]; then
+                        dialog --infobox "$(t fetching_lang_list)" 5 "$(_tui_box_width)"
+                    elif [[ "$lang_fetch_backend" == "whiptail" ]]; then
+                        whiptail --infobox "$(t fetching_lang_list)" 5 "$(_tui_box_width)"
+                    fi
+                    firefox_prepare_lang_list || true
+                fi
                 rc=0
-                LANG_CODE=$(firefox_interactive_lang) || rc=$?
-                [[ "$rc" -ne 0 ]] && return 1
-                step="profile"
+                LANG_CODE=$(firefox_interactive_lang 1) || rc=$?
+                if [[ "$rc" -eq 3 ]]; then
+                    step="channel"
+                elif [[ "$rc" -ne 0 ]]; then
+                    return 1
+                else
+                    GOING_BACK=0
+                    step="profile"
+                fi
                 ;;
             profile)
                 if [[ -n "$PROFILE_ARG" ]]; then
@@ -232,7 +272,11 @@ install_wizard() {
                 myfox_list=$(profile_list_myfox || true)
                 if [[ -z "$myfox_list" ]]; then
                     WIZ_PROFILE_NEW=1; WIZ_PROFILE=""
-                    step="tweaks"
+                    if [[ "$GOING_BACK" == 1 ]]; then
+                        step="lang"
+                    else
+                        step="tweaks"
+                    fi
                     continue
                 fi
                 rc=0
@@ -253,9 +297,10 @@ install_wizard() {
             tweaks)
                 rc=0
                 local ans
-                ans=$(tui_choose_kv "$(t confirm_tweaks)" "yes" 1 0 \
+                ans=$(tui_choose_kv "$(t confirm_tweaks)" "yes" 1 1 \
                     yes "$(t opt_yes)" no "$(t opt_no)") || rc=$?
                 if [[ "$rc" -eq 3 ]]; then
+                    GOING_BACK=1
                     step="profile"
                 elif [[ "$rc" -ne 0 ]]; then
                     return 1
@@ -376,7 +421,13 @@ install_launcher() {
     esac
 }
 
+# resolve_bookmarklets — только вопрос/решение (устанавливает глобальный
+# BL_APPLY). Сама установка файлов выполняется позже, вместе с пиннингом
+# профиля и аддонами, под одним общим спиннером "Настройка профиля" —
+# отдельная строка с внутренним термином "букмарклеты" конечному
+# пользователю ничего не даёт.
 resolve_bookmarklets() {
+    BL_APPLY=0
     if [[ "$NOBL" == true ]]; then
         opts_set bl false
         log "$(t bl_skipped_flag)"
@@ -402,9 +453,7 @@ resolve_bookmarklets() {
         return 0
     fi
     opts_set bl true
-    local gallery
-    gallery=$(apply_bookmarklets "$PROFILE_DIR") || true
-    [[ -n "$gallery" ]] && log "$(t bookmarklet_gallery "$gallery")"
+    BL_APPLY=1
 }
 
 maybe_add_plasma() {  # <array-name>
@@ -423,8 +472,12 @@ maybe_add_plasma() {  # <array-name>
     fi
 }
 
-install_addons() {
-    local -a addons_list=()
+# resolve_addons — интерактивные вопросы (confirm, детект Plasma) и наполнение
+# глобального ADDONS_LIST. Без tui_spin: сама загрузка аддонов выполняется
+# позже, вместе с пиннингом профиля, под одним общим спиннером — пользователю
+# всё равно, что это технически два разных шага.
+resolve_addons() {
+    ADDONS_LIST=()
 
     if [[ "$NOADDONS" == true ]]; then
         opts_set addons false
@@ -445,7 +498,7 @@ install_addons() {
         return 0
     fi
     opts_set addons true
-    addons_list+=("$MYFOX_ADDON_UBLOCK" "$MYFOX_ADDON_THEME")
+    ADDONS_LIST+=("$MYFOX_ADDON_UBLOCK" "$MYFOX_ADDON_THEME")
 
     local plasma_opt
     plasma_opt=$(opts_get plasma)
@@ -454,24 +507,45 @@ install_addons() {
         log "$(t plasma_skipped_flag)"
     elif [[ "$PLASMA_FORCE" == true ]]; then
         opts_set plasma true
-        maybe_add_plasma addons_list
+        maybe_add_plasma ADDONS_LIST
     elif [[ -n "$plasma_opt" ]]; then
         if [[ "$plasma_opt" == "true" ]]; then
             log "$(t plasma_enabled_saved)"
-            maybe_add_plasma addons_list
+            maybe_add_plasma ADDONS_LIST
         else
             log "$(t plasma_skipped_saved)"
         fi
     elif addons_is_plasma; then
         opts_set plasma true
         log "$(t plasma_enabled_session)"
-        maybe_add_plasma addons_list
+        maybe_add_plasma ADDONS_LIST
     else
         opts_set plasma false
         log "$(t plasma_skipped_not_session)"
     fi
+    return 0
+}
 
-    [[ ${#addons_list[@]} -gt 0 ]] && addons_apply "$PROFILE_DIR" "${addons_list[@]}"
+# _setup_profile — тело общего спиннера "Настройка профиля": headless-пиннинг
+# инсталла, autoconfig/chrome, аддоны и букмарклеты — всё, что технически
+# отдельные шаги, но для пользователя один этап установки.
+_setup_profile() {  # <install_dir> <profile_dir> [addon-slug...]
+    local install_dir="$1" profile_dir="$2"; shift 2
+    profile_pin_install "$install_dir" "$profile_dir"
+    local rc=$?
+    apply_autoconfig "$install_dir"
+    apply_chrome "$profile_dir"
+    [[ $# -gt 0 ]] && addons_apply "$profile_dir" "$@"
+    [[ "$BL_APPLY" == 1 ]] && apply_bookmarklets "$profile_dir" >/dev/null
+    return "$rc"
+}
+
+# _update_tweaks — тело общего спиннера "Настройка профиля" в `myfox update`.
+_update_tweaks() {  # <install_dir> <profile_dir> <bl_apply:0|1>
+    local install_dir="$1" profile_dir="$2" bl_apply="$3"
+    apply_autoconfig "$install_dir"
+    apply_chrome "$profile_dir"
+    [[ "$bl_apply" == 1 ]] && apply_bookmarklets "$profile_dir" >/dev/null
     return 0
 }
 
@@ -483,7 +557,6 @@ print_summary() {
     echo "  $(t summary_desktop)"
     echo ""
     echo "$(t summary_run_hint)"
-    echo "  myfox"
     echo ""
     echo "$(t summary_update_hint)"
     echo "$(t summary_uninstall_hint)"
@@ -589,16 +662,16 @@ run_install() {
         return 0
     fi
 
+    local -a ADDONS_LIST=()
+    local BL_APPLY=0
+    resolve_addons
+    resolve_bookmarklets
+
     local pin_hash
-    pin_hash=$(profile_pin_install "$INSTALL_DIR" "$PROFILE_DIR") || true
+    pin_hash=$(tui_spin "$(t pinning_profile)" -- _setup_profile "$INSTALL_DIR" "$PROFILE_DIR" "${ADDONS_LIST[@]}") || true
     [[ -n "$pin_hash" ]] && state_set install_hash "$pin_hash"
 
-    apply_autoconfig "$INSTALL_DIR"
-    apply_chrome "$PROFILE_DIR"
     firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKTOP_NAME"
-
-    resolve_bookmarklets
-    install_addons
     install_launcher
 
     print_summary
@@ -623,16 +696,9 @@ run_update() {
 
     if [[ -n "$PROFILE_DIR" ]]; then
         [[ -d "$PROFILE_DIR" ]] || error "$(t err_profile_not_found_state "$PROFILE_DIR")"
-        log "$(t updating_tweaks "$INSTALL_DIR" "$PROFILE_DIR")"
-        apply_autoconfig "$INSTALL_DIR"
-        apply_chrome "$PROFILE_DIR"
-        if [[ "$(opts_get bl)" == "true" ]]; then
-            local gallery
-            gallery=$(apply_bookmarklets "$PROFILE_DIR") || true
-            [[ -n "$gallery" ]] && log "$(t bookmarklet_gallery "$gallery")"
-        else
-            log "$(t bl_skipped_saved)"
-        fi
+        local bl_apply=0
+        [[ "$(opts_get bl)" == "true" ]] && bl_apply=1
+        tui_spin "$(t pinning_profile)" -- _update_tweaks "$INSTALL_DIR" "$PROFILE_DIR" "$bl_apply"
     else
         firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKTOP_NAME"
     fi
@@ -644,7 +710,130 @@ run_update() {
 
 # ─── uninstall ───────────────────────────────────────────────────────────────
 
+# Prints PIDs of the *parent* firefox process(es) running from install_dir
+# (never the -contentproc children — killing those directly instead of the
+# parent just makes Firefox respawn them).
+_uninstall_running_pids() {  # <install_dir>
+    local install_dir="$1" bin
+    for bin in "$install_dir/firefox-bin" "$install_dir/firefox"; do
+        [[ -x "$bin" ]] || continue
+        local pid cmd
+        for pid in $(pgrep -f "$bin" 2>/dev/null || true); do
+            cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null) || continue
+            [[ "$cmd" == "$bin "* || "$cmd" == "$bin" ]] || continue
+            [[ "$cmd" == *-contentproc* ]] && continue
+            echo "$pid"
+        done
+        return 0
+    done
+}
+
+# Removing profile/chrome files or unpinning the install while our own
+# Firefox is still running is unsafe: it holds prefs.js/sessionstore open
+# and can write them back after we've already deleted things underneath it.
+# Ask to close it (graceful SIGTERM, escalating to SIGKILL only if it
+# ignores that for 10s) before touching anything.
+_uninstall_stop_running() {  # <install_dir>
+    local install_dir="$1"
+    local pids
+    pids=$(_uninstall_running_pids "$install_dir")
+    [[ -z "$pids" ]] && return 0
+
+    if [[ -z "$MYFOX_NONINTERACTIVE" ]]; then
+        tui_session_begin
+        local proceed=yes
+        tui_confirm "$(t confirm_close_running)" yes || proceed=no
+        tui_session_end
+        if [[ "$proceed" == "no" ]]; then
+            warn "$(t warn_still_running)"
+            return 1
+        fi
+    else
+        warn "$(t closing_running_ff)"
+    fi
+
+    local pid
+    for pid in $pids; do kill "$pid" 2>/dev/null || true; done
+
+    local waited=0
+    while [[ $waited -lt 10 ]]; do
+        pids=$(_uninstall_running_pids "$install_dir")
+        [[ -z "$pids" ]] && return 0
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    warn "$(t warn_force_kill)"
+    for pid in $pids; do kill -9 "$pid" 2>/dev/null || true; done
+    sleep 1
+    return 0
+}
+
+# Мастер деинсталляции: удалить Firefox? → (если есть профиль) удалить
+# профиль? → сводка, где принимается окончательное решение. «Нет» на первом
+# вопросе — сразу конец. Результат — UNINST_DEL_PROFILE (yes|no); rc 1 — отмена.
+_uninstall_wizard() {  # <profile_type: created|existing|"">
+    local profile_type="$1" step="app" rc
+    UNINST_DEL_PROFILE=yes
+    while true; do
+        case "$step" in
+            app)
+                tui_confirm "$(t confirm_remove_app "$INSTALL_DIR")" yes || return 1
+                if [[ -n "$PROFILE_DIR" ]]; then step="profile"; else step="summary"; fi
+                ;;
+            profile)
+                local q
+                [[ "$profile_type" == "existing" ]] && q="$(t confirm_remove_tweaks)" || q="$(t confirm_delete_profile)"
+                rc=0
+                tui_confirm "$q" no 1 || rc=$?
+                case "$rc" in
+                    0) UNINST_DEL_PROFILE=yes; step="summary" ;;
+                    3) step="app" ;;
+                    *) UNINST_DEL_PROFILE=no; step="summary" ;;
+                esac
+                ;;
+            summary)
+                rc=0
+                tui_confirm "$(_uninstall_summary_text "$profile_type")" yes 1 \
+                    "$(t uninstall_summary_label)" "$(t opt_cancel)" || rc=$?
+                case "$rc" in
+                    0) return 0 ;;
+                    3) if [[ -n "$PROFILE_DIR" ]]; then step="profile"; else step="app"; fi ;;
+                    *) return 1 ;;
+                esac
+                ;;
+        esac
+    done
+}
+
+_uninstall_summary_text() {  # <profile_type>
+    local profile_type="$1"
+    local -a lines=(
+        "$(t uninstall_summary_header)"
+        ""
+        "$(t uninstall_row_app "$(myfox_shorten_home "$INSTALL_DIR")")"
+    )
+    if [[ -n "$PROFILE_DIR" ]]; then
+        local pd; pd="$(myfox_shorten_home "$PROFILE_DIR")"
+        if [[ "$UNINST_DEL_PROFILE" != "yes" ]]; then
+            lines+=("$(t uninstall_row_profile_keep "$pd")")
+        elif [[ "$profile_type" == "existing" ]]; then
+            lines+=("$(t uninstall_row_profile_tweaks "$pd")")
+        else
+            lines+=("$(t uninstall_row_profile_delete "$pd")")
+        fi
+    fi
+    lines+=("" "$(t uninstall_summary_confirm)")
+    local IFS=$'\n'
+    printf '%s' "${lines[*]}"
+}
+
 run_uninstall() {
+    # set -e aborts silently on the first failing command otherwise — a
+    # clean status line either way (success/cancelled were already covered
+    # below; this is specifically the "something broke partway through" case).
+    trap 'echo -e "${RED}$(t err_uninstall_failed)${NC}" >&2' ERR
+
     if [[ ! -f "$MYFOX_STATE_FILE" ]]; then
         warn "$(t warn_no_install_record "$MYFOX_STATE_FILE")"
         warn "$(t warn_manual_removal_hint)"
@@ -653,10 +842,6 @@ run_uninstall() {
 
     INSTALL_DIR=$(state_get install_dir)
     PROFILE_DIR=$(state_get profile_dir)
-
-    tui_style "$(t uninstaller_title)"
-    echo "  $(t uninstall_firefox_dir "$INSTALL_DIR")"
-    [[ -n "$PROFILE_DIR" ]] && echo "  $(t uninstall_profile_dir "$PROFILE_DIR")"
 
     local profile_type=""
     if [[ -n "$PROFILE_DIR" ]]; then
@@ -671,18 +856,22 @@ run_uninstall() {
     if [[ -z "$MYFOX_NONINTERACTIVE" ]]; then
         trap 'tui_session_end' EXIT
         tui_session_begin
-        if ! tui_confirm "$(t confirm_remove_app "$INSTALL_DIR")" yes; then
-            tui_session_end; trap - EXIT
+        local uw_rc=0
+        _uninstall_wizard "$profile_type" || uw_rc=$?
+        tui_session_end
+        trap - EXIT
+        if [[ "$uw_rc" -ne 0 ]]; then
             echo "$(t uninstall_cancelled)" >&2
             exit 0
         fi
-        if [[ -n "$PROFILE_DIR" ]]; then
-            local q
-            [[ "$profile_type" == "existing" ]] && q="$(t confirm_remove_tweaks)" || q="$(t confirm_delete_profile)"
-            if tui_confirm "$q" no; then del_profile=yes; else del_profile=no; fi
-        fi
-        tui_session_end
-        trap - EXIT
+        del_profile="$UNINST_DEL_PROFILE"
+    fi
+
+    if [[ -n "$INSTALL_DIR" ]]; then
+        _uninstall_stop_running "$INSTALL_DIR" || {
+            echo "$(t uninstall_cancelled)" >&2
+            exit 1
+        }
     fi
 
     local install_hash
@@ -698,11 +887,11 @@ run_uninstall() {
     if [[ "$profile_type" == "created" ]]; then
         if [[ "$del_profile" == "yes" ]]; then
             rm -rf "$PROFILE_DIR"
-            profile_remove_myfox_section
+            profile_remove_myfox_section "$PROFILE_DIR"
             success "$(t profile_deleted "$PROFILE_DIR")"
         else
             log "$(t profile_kept "$PROFILE_DIR")"
-            profile_remove_myfox_section
+            profile_remove_myfox_section "$PROFILE_DIR"
         fi
     elif [[ "$profile_type" == "existing" && "$del_profile" == "yes" && -d "$PROFILE_DIR/chrome" ]]; then
         local f

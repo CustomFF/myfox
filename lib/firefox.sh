@@ -72,6 +72,34 @@ firefox_local_version() {
 }
 
 # Состояние целевого каталога установки: ours|foreign|empty.
+# install_dir_validate <path> → rc 0: stdout = нормализованный абсолютный путь;
+# rc 1: stdout = текст ошибки для пользователя. Ничего не создаёт.
+install_dir_validate() {
+    local p="$1"
+    p="${p#"${p%%[![:space:]]*}"}"
+    p="${p%"${p##*[![:space:]]}"}"
+    if [[ -z "$p" ]]; then t err_installdir_empty; return 1; fi
+    [[ "$p" == "~" || "$p" == "~/"* ]] && p="$HOME${p#\~}"
+    if [[ "$p" != /* ]]; then t err_installdir_relative "$p"; return 1; fi
+    while [[ "$p" == */ && "$p" != "/" ]]; do p="${p%/}"; done
+    if [[ "$p" == "/" ]]; then t err_installdir_root; return 1; fi
+    if [[ -e "$p" ]]; then
+        if [[ ! -d "$p" ]]; then t err_installdir_not_dir "$p"; return 1; fi
+        if [[ ! -w "$p" || ! -x "$p" ]]; then t err_installdir_not_writable "$p"; return 1; fi
+    else
+        local parent="$p"
+        while [[ ! -e "$parent" ]]; do
+            parent="${parent%/*}"
+            [[ -z "$parent" ]] && parent="/"
+        done
+        if [[ ! -d "$parent" || ! -w "$parent" || ! -x "$parent" ]]; then
+            t err_installdir_cannot_create "$parent"
+            return 1
+        fi
+    fi
+    printf '%s' "$p"
+}
+
 firefox_dir_claim_state() {
     local dir="$1"
     if [[ -f "$dir/application.ini" ]] && is_myfox_dir "$dir"; then
@@ -120,7 +148,7 @@ firefox_lang_catalog_awk() {
 firefox_list_languages() {
     local cache
     cache=$(firefox_fetch_lang_json) || { error "$(t err_lang_fetch)"; return 1; }
-    firefox_lang_catalog_awk "$cache" | sort | awk -F'\t' '{ printf "%s  %s\n", $1, $2 }' >&2
+    firefox_lang_catalog_awk "$cache" | LC_ALL=C sort | awk -F'\t' '{ printf "%s  %s\n", $1, $2 }' >&2
 }
 
 firefox_validate_lang() {
@@ -137,7 +165,13 @@ firefox_prepare_lang_list() {
     local cache
     cache=$(firefox_fetch_lang_json) || return 1
     MYFOX_LANG_LIST=$(mktemp --suffix=.myfox-langlist)
-    firefox_lang_catalog_awk "$cache" | sort -k2 > "$MYFOX_LANG_LIST"
+    # LC_ALL=C: a locale-aware collation (e.g. the user's own ru_RU.UTF-8)
+    # reorders plain-ASCII English names in ways that look scrambled to
+    # someone expecting plain alphabetical order — force byte-order sort
+    # regardless of the installer's own runtime locale. -t explicit: names
+    # can contain spaces ("Chinese (Simplified)"), only the tab is a field
+    # boundary.
+    firefox_lang_catalog_awk "$cache" | LC_ALL=C sort -t $'\t' -k2 > "$MYFOX_LANG_LIST"
     if [[ ! -s "$MYFOX_LANG_LIST" ]]; then
         rm -f "$MYFOX_LANG_LIST"
         MYFOX_LANG_LIST=""
@@ -148,7 +182,8 @@ firefox_prepare_lang_list() {
 MYFOX_LANG_LIST="${MYFOX_LANG_LIST:-}"
 
 # Интерактивный выбор языка Firefox (первая установка). stdout: код. rc 1 = отмена.
-firefox_interactive_lang() {
+firefox_interactive_lang() {  # [back:0|1]
+    local back="${1:-0}"
     local default_lang list code
     default_lang=$(firefox_detect_lang)
 
@@ -166,64 +201,55 @@ firefox_interactive_lang() {
         return 1
     fi
 
+    # dialog/whiptail's single-keypress jump-to-item matches against what's
+    # actually visible — with --no-tags that's the label text, which used
+    # to start with the ISO code ("rw       Kinyarwanda"). Sorted by
+    # English name, pressing 'r' would jump to any *code* starting with
+    # 'r', landing somewhere with a totally different first letter than
+    # what's on screen (reported: 'r' jumped to "rw" Kinyarwanda, sorted
+    # among the K's, nowhere near "Russian"). Put the name first in the
+    # label so the visible text and the jump target agree. The tag (the
+    # actual return value, never shown) is the name too, so it also comes
+    # back in a form we can use directly — except for the handful of codes
+    # that share an English name (several Serbian script variants etc.),
+    # disambiguated with a NUL-separated code suffix so tags stay unique
+    # without changing what's typed to jump to them.
     local -a kv=()
+    local -A name_count=()
     local c n
     while IFS=$'\t' read -r c n; do
         [[ -z "$c" ]] && continue
-        kv+=("$c" "$(printf '%-8s %s' "$c" "$n")")
+        name_count["$n"]=$(( ${name_count["$n"]:-0} + 1 ))
     done < "$list"
 
-    if code=$(tui_filter_kv "$(t lang_pick_header)" "$default_lang" 0 "${kv[@]}"); then
-        [[ "$list" != "$MYFOX_LANG_LIST" ]] && rm -f "$list"
-        echo "$code"
-        return 0
+    local default_tag=""
+    while IFS=$'\t' read -r c n; do
+        [[ -z "$c" ]] && continue
+        local tag="$n"
+        [[ "${name_count[$n]}" -gt 1 ]] && tag="$n"$'\x01'"$c"
+        [[ "$c" == "$default_lang" ]] && default_tag="$tag"
+        kv+=("$tag" "$(printf '%-30s %s' "$n" "$c")")
+    done < "$list"
+
+    local rc=0 selected
+    selected=$(tui_filter_kv "$(t lang_pick_header)" "$default_tag" "$back" "${kv[@]}") || rc=$?
+    if [[ "$rc" -eq 0 ]]; then
+        if [[ "$selected" == *$'\x01'* ]]; then
+            code="${selected##*$'\x01'}"
+        else
+            code=$(awk -F'\t' -v n="$selected" '$2 == n { print $1; exit }' "$list")
+        fi
     fi
     [[ "$list" != "$MYFOX_LANG_LIST" ]] && rm -f "$list"
-    return 1
+    [[ "$rc" -eq 0 ]] && { echo "$code"; return 0; }
+    return "$rc"
 }
 
-# Свой прогресс-бар в стиле curl --progress-bar (одна строка "#####", без
-# внешних тулз вроде pv — только dd, coreutils, есть почти везде). dd тут
-# используется просто как почанковый читатель (bs=1M), не для его
-# собственного status=progress (у того другой формат вывода) — бар рисуем
-# сами, через _extract_progress_render.
-_extract_progress_render() {  # <pct 0-100>
-    local pct="$1" cols width filled bar
-    read -r _ cols < <(stty size </dev/tty 2>/dev/null) || true
-    cols="${cols:-80}"
-    width=$(( cols - 8 ))
-    (( width < 10 )) && width=10
-    filled=$(( pct * width / 100 ))
-    (( filled > width )) && filled=$width
-    bar=$(printf '%*s' "$filled" '' | tr ' ' '#')
-    printf '\r%s%*s %3d%%' "$bar" "$((width - filled))" '' "$pct" >&2
-}
-
-# Без -v (на тарболе Firefox — тысячи имён файлов, шум, не прогресс) и без
-# pv/dd status=progress (не наш формат бара, плюс pv — внешняя зависимость).
-# Читаем архив кусками по 1 МиБ через dd, каждый кусок сразу в tar по пайпу,
-# между кусками обновляем свой бар. Без tty/dd/stat — тихий tar без прогресса.
+# Без -v (на тарболе Firefox — тысячи имён файлов, шум, не прогресс).
+# Никакого процентного прогресса тут больше не нужно — вызывающий код
+# оборачивает это в tui_spin, который сам показывает, что работа идёт.
 _extract_tarball() {  # <archive> <install_dir>
     local archive="$1" install_dir="$2"
-    local size chunk=$((1024 * 1024))
-    size=$(stat -c%s "$archive" 2>/dev/null) || size=0
-    if [[ "$size" -gt 0 && -t 2 ]] && command -v dd >/dev/null 2>&1; then
-        local total=$(( (size + chunk - 1) / chunk ))
-        (( total < 1 )) && total=1
-        local rc
-        {
-            local i=0 pct
-            while (( i < total )); do
-                dd if="$archive" bs="$chunk" skip="$i" count=1 status=none 2>/dev/null
-                i=$((i + 1))
-                pct=$(( i * 100 / total ))
-                _extract_progress_render "$pct"
-            done
-        } | tar -xJf - -C "$install_dir" --strip-components=1
-        rc=$?
-        echo >&2
-        return $rc
-    fi
     tar -xJf "$archive" -C "$install_dir" --strip-components=1
 }
 
@@ -267,10 +293,10 @@ firefox_install_tarball() {
     dl_archive=$(mktemp "${TMPDIR:-/tmp}/moz_dl_XXXXXX.tar.xz")
     trap 'rm -f "$dl_archive"' INT
 
-    local curl_progress="--silent --show-error"
-    [[ -t 2 ]] && curl_progress="--progress-bar"
+    # --silent: curl's own progress bar would fight tui_spin's spinner for
+    # the same terminal line — one indicator per step, always the spinner.
     if ! tui_spin "$(t downloading_firefox)" -- \
-        curl -L --fail $curl_progress --retry 1 -o "$dl_archive" "$effective_url"; then
+        curl -L --fail --silent --show-error --retry 1 -o "$dl_archive" "$effective_url"; then
         rm -f "$dl_archive"; trap - INT
         error "$(t err_download_failed)"
     fi

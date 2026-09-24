@@ -7,11 +7,12 @@
 apply_autoconfig() {
     local install_dir="$1"
     mkdir -p "$install_dir/defaults/pref"
-    log "$(t applying_autoconfig)"
     install -m 0644 "$MYFOX_AUTOCONFIG_DIR/autoconfig.js" "$install_dir/defaults/pref/autoconfig.js"
     install -m 0644 "$MYFOX_AUTOCONFIG_DIR/firefox.cfg" "$install_dir/firefox.cfg"
-    success "$(t autoconfig_installed)"
     # Никаких глобальных политик (distribution/policies.json) — всё профиль-локально.
+    # No log()/success() here on purpose — both call sites wrap this in the
+    # single "Настройка профиля" tui_spin; a line here would break its
+    # one-line redraw.
 }
 
 # ─── Chrome CSS ──────────────────────────────────────────────────────────────
@@ -28,15 +29,13 @@ apply_chrome() {
         fi
     done
 
-    log "$(t applying_chrome)"
     install -m 0644 "$MYFOX_CHROME_DIR/userChrome.css" "$profile_dir/chrome/userChrome.css"
     install -m 0644 "$MYFOX_CHROME_DIR/agent_overrides.css" "$profile_dir/chrome/agent_overrides.css"
 
     # Маркер профиля: firefox.cfg проверяет его в начале и применяет твики ТОЛЬКО
     # к профилю с этим файлом. Профили без маркера остаются чистым Firefox.
     touch "$profile_dir/.myfox"
-
-    success "$(t chrome_installed)"
+    # No log()/success() here — see apply_autoconfig comment above.
 }
 
 # ─── Букмарклеты (ddblm) ──────────────────────────────────────────────────────
@@ -50,8 +49,12 @@ ddblm_file() {  # <rel> <out>
         install -m 0644 "$MYFOX_DDBLM_LOCAL/$rel" "$out"
         return 0
     fi
+    # No per-file log line here on purpose: this fetches a dozen-odd small
+    # SVGs one at a time, and the caller (apply_bookmarklets) is wrapped in
+    # a single tui_spin — per-file log() lines would each print with a
+    # newline mid-animation, breaking the spinner's one-line redraw into a
+    # scroll of half-finished frames instead of a clean "stage [✔]".
     local url="${MYFOX_DDBLM_RAW}/${rel}"
-    log "$(t fetching_url "$url")"
     curl -L --fail --silent --show-error -o "$out" "$url"
 }
 
@@ -63,7 +66,6 @@ apply_bookmarklets() {
     local src_dir=""
     if [[ -n "$MYFOX_DDBLM_LOCAL" && -d "$MYFOX_DDBLM_LOCAL/icons" ]]; then
         src_dir="$MYFOX_DDBLM_LOCAL"
-        log "$(t using_local_ddblm "$src_dir")"
     fi
 
     if ! ddblm_file "docs/blm_panel.css" "$c_dir/blm_panel.css"; then
@@ -95,6 +97,5 @@ apply_bookmarklets() {
         done
     fi
 
-    success "$(t bookmarklets_applied)"
     echo "$MYFOX_DDBLM_GALLERY"
 }

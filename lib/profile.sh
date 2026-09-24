@@ -72,6 +72,7 @@ profile_list_myfox() {
             name="${rest%%|*}"
             isrel="${rest##*|}"
             abs=$(profile_resolve_dir "$ini_dir" "$isrel" "$path")
+            [[ -v "seen[$abs]" ]] && continue
             if [[ "$(basename "$abs")" == myfox-* && -d "$abs" ]]; then
                 seen["$abs"]=1
                 echo "$abs|$name"
@@ -181,7 +182,7 @@ _ini_remove_section() {
 }
 
 _profile_entry_path_for() {
-    local ini="$1" target_dir="$2"
+    local ini="$1" target_dir="${2%/}"
     local ini_dir line path isrel abs rest
     ini_dir=$(dirname "$ini")
     while IFS= read -r line; do
@@ -208,8 +209,20 @@ _profile_store_profile_dirs() {
 
 profile_register_entry() {
     local ini="$1" profile_abs="$2"
+    profile_abs="${profile_abs%/}"
     local ini_dir rel isrel
     ini_dir=$(dirname "$ini")
+
+    # Idempotent: reinstalling repeatedly against the same profile directory
+    # must reuse its existing [ProfileN] entry, not pile up a duplicate one
+    # every time (observed: 6+ duplicate [ProfileN] Name=myfox Path=myfox-1
+    # sections after repeated --reinstall runs during a single test session).
+    local existing
+    existing=$(_profile_entry_path_for "$ini" "$profile_abs") && {
+        echo "$existing"
+        return 0
+    }
+
     if [[ "$profile_abs" == "$ini_dir/"* ]]; then
         rel="${profile_abs#"$ini_dir/"}"
         isrel=1
@@ -348,7 +361,7 @@ profile_install_hash_fresh() {
 }
 
 profile_pin_install() {
-    local install_dir="$1" profile_abs="$2"
+    local install_dir="$1" profile_abs="${2%/}"
     local ini hash section profile_path
 
     ini=$(profile_find_ini) || { warn "$(t warn_no_profiles_ini)"; return 1; }
@@ -423,18 +436,20 @@ profile_unpin_install() {
     fi
 }
 
-profile_remove_myfox_section() {
-    local ini target
+profile_remove_myfox_section() {  # <profile_dir>
+    # Scoped to the exact profile directory being uninstalled — NOT "remove
+    # any [ProfileN] with Name=myfox", which would also rip out entries for
+    # other, unrelated myfox installs/profiles still on the machine. (The
+    # previous implementation additionally mis-handled multiple matches: it
+    # collected every matching section into one multi-line awk result and
+    # then blindly stripped one leading/trailing char off the whole blob,
+    # producing a garbled section name whenever more than one existed.)
+    local profile_dir="${1%/}"
+    local ini
     ini=$(profile_find_ini) || return 0
-    target=$(awk '
-        function flush(cur) { if (cur != "" && name == "myfox") print cur }
-        /^\[Profile[0-9]+\]/ { flush(cur); cur=$0; name=""; next }
-        cur != "" && /^Name=/ { name=substr($0, 6) }
-        END { flush(cur) }
-    ' "$ini") || true
-    [[ -z "$target" ]] && { log "$(t profile_no_myfox_section)"; return 0; }
     local name
-    name="${target:1:-1}"
+    name=$(_profile_section_for_dir "$ini" "$profile_dir") || true
+    [[ -z "$name" ]] && { log "$(t profile_no_myfox_section)"; return 0; }
     _ini_remove_section "$ini" "$name" "${ini}.myfox.tmp" && mv "${ini}.myfox.tmp" "$ini"
     success "$(t profile_section_removed "[${name}]" "$ini")"
 }

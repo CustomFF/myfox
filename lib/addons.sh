@@ -21,7 +21,9 @@ addons_is_plasma() {
 addon_fetch() {
     local slug="$1" out="$2"
     local url="https://addons.mozilla.org/firefox/downloads/latest/${slug}/addon-latest.xpi"
-    log "$(t fetching_addon "$slug")"
+    # No log() here on purpose — addons_apply's caller wraps the whole
+    # batch in one tui_spin; a log() line per addon would each print with
+    # a newline mid-animation, breaking the spinner's one-line redraw.
     curl -L --fail --silent --show-error -o "$out" "$url" || return 1
     if [[ "$(head -c 2 "$out")" != "PK" ]]; then
         warn "$(t warn_addon_invalid "$slug")"
@@ -93,7 +95,6 @@ addons_apply() {  # <profile_dir> <slug>...
         fi
         install -m 0644 "$out" "$addon_dir/$id.xpi"
         rm -f "$out"
-        success "$(t addon_installed "$slug" "$id")"
     done
 
     [[ -z "$(ls -A "$addon_dir" 2>/dev/null)" ]] && rmdir "$addon_dir" 2>/dev/null
