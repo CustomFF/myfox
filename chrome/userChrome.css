@@ -442,7 +442,32 @@ menupopup:not(.in-menulist)>menu {
    sidesteps the alpha-stacking entirely instead of trying to
    position/mask around it. */
 .tabbrowser-tab:hover:not([selected]):not([multiselected]) .tab-background {
-    background-color: rgb(74, 78, 81) !important;
+    /* Same 17% tab-text-color overlay Firefox uses, but pre-mixed over the
+       selected-tab/toolbar color so it is opaque and follows the theme
+       (a fixed rgb here looked wrong on light themes). */
+    background-color: color-mix(in srgb, currentColor 17%, var(--tab-background-color-selected)) !important;
+}
+
+/* The built-in light theme paints the selected tab with a blue-to-orange
+   gradient that shows through its transparent border as a rainbow outline
+   (and the ears, which inherit the background, carry it too). Keep the
+   solid tab color only. */
+.tabbrowser-tab .tab-background:is([selected], [multiselected]),
+.tabbrowser-tab .tab-background:is([selected], [multiselected])::before,
+.tabbrowser-tab .tab-background:is([selected], [multiselected])::after {
+    background-image: none !important;
+}
+
+/* Light themes: the selected tab is white on a near-white strip and all but
+   disappears. A soft shadow around its top and sides (the bottom is clipped
+   away, since the tab joins the toolbar there) sets it apart; dark themes
+   already have contrast, so nothing (shadow or clip) is applied there. */
+@media (prefers-color-scheme: light) {
+    .tabbrowser-tab[selected] .tab-background,
+    .tabbrowser-tab[multiselected] .tab-background {
+        box-shadow: 0 0 8px 0 rgba(0, 0, 0, 0.5) !important;
+        clip-path: inset(-12px -16px -2px -16px);
+    }
 }
 
 /* The first tab sits at the left edge of the window, with no tab to its left.
