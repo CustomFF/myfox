@@ -521,6 +521,12 @@ panel-list {
 panel-list,
 panel-item {
     --panel-item-button-border-radius: 0px !important;
+    --panel-item-button-padding: 4px 8px !important;
+}
+/* Same text size and row density as the context menu (about:addons' gear
+   menu otherwise inherits the page's 14px and roomy 8px row padding). */
+panel-list {
+    font-size: 12px !important;
 }
 
 /* The engine picker's XUL <panel> wrapper (not type="arrow", so the
@@ -550,8 +556,20 @@ panel.searchmode-switcher-panel::part(content) {
    --button-border token (overriding just --button-border-color isn't enough);
    the glyph alone is enough. */
 moz-button[type~="icon"],
-moz-button[slot^="actions"]:not([label]) {
+moz-button[slot^="actions"]:not([label]),
+moz-button.more-options-button {
     --button-border: none !important;
+}
+
+/* Hamburger (app) menu: the "sign in to sync" promo card is a hardcoded 12px
+   card, and the separator under the profile entry (.proton-zap) is painted
+   with a rainbow gradient border-image instead of the plain separator line
+   every other divider in the menu uses. */
+#appMenu-fxa-sign-in-promo {
+    border-radius: var(--myfox-radius) !important;
+}
+toolbarseparator.proton-zap::before {
+    border-image: none !important;
 }
 
 /* Toggle switches: the track (and the knob, which reuses the same token)
@@ -565,6 +583,40 @@ moz-toggle {
 moz-box-item[id^="engineList-"],
 moz-box-item[id^="searchmode-"] {
     --box-padding: 5px 12px !important;
+}
+
+/* about:addons list: each add-on is a .card with 16px of bottom margin and
+   11px of padding all round, and recommended ones stack a further 7px above
+   the description. Tighten the gaps between cards and the air inside them. */
+:is(addon-card, recommended-addon-card) > .card {
+    margin-block-end: 4px !important;
+    padding-block: 6px !important;
+}
+recommended-addon-card .addon-description {
+    margin-block-start: 3px !important;
+}
+/* Its text sizes are hard-coded px (16px names, 14px descriptions and
+   buttons) — bring them down to the density of the rest of the UI. */
+:is(addon-card, recommended-addon-card) .addon-name {
+    font-size: 13px !important;
+    line-height: 18px !important;
+}
+:is(addon-card, recommended-addon-card) .addon-description {
+    font-size: 12px !important;
+    line-height: 16px !important;
+}
+.disco-cta-button {
+    font-size: 12px !important;
+}
+/* Rating stars in the recommended list (16px by default). The component
+   derives its star size from --icon-size on an inner element, so that is the
+   token to override (--rating-star-size on the host is shadowed). */
+moz-five-star {
+    --icon-size: 11px !important;
+}
+:root:has(addon-list) {
+    --font-size-xlarge: 15px !important;
+    --font-size-large: 12px !important;
 }
 
 /* Vertical gap between the settings cards (1.5rem by default). */
