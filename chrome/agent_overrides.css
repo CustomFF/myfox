@@ -486,10 +486,13 @@ panel[type="arrow"] {
     --urlbarview-row-padding-block: 0.2rem !important;
     --urlbarview-row-min-height: 26px !important;
 }
-/* A touch of transparency for the open list (both halves of the joint
-   background read this one token, so the bar and the list stay one surface). */
-#urlbar[popover-open] {
-    --urlbar-background-color-focus: rgba(60, 64, 67, 0.93) !important;
+/* A touch of transparency for the open list, applied to the theme's own
+   color (a fixed rgb here looked wrong on light themes). Both halves of the
+   joint background get the same treatment so the bar and list stay one
+   surface. */
+#urlbar[popover-open] > .urlbar-background,
+#urlbar[popover-open] > .urlbarView > .urlbarView-background {
+    background-color: color-mix(in srgb, var(--urlbar-background-color-focus) 93%, transparent) !important;
 }
 
 /* Keep the bar's top corners at the normal --myfox-radius while the list is
@@ -507,6 +510,9 @@ panel[type="arrow"] {
 #identity-permission-box {
     border-radius: var(--myfox-radius) !important;
     margin-inline-start: var(--myfox-radius) !important;
+    /* Inset from the bar's top/bottom border so it sits inside the field
+       instead of running over the edge (obvious on a light theme). */
+    margin-block: 2px !important;
 }
 
 /* Search-engine mode switcher ("G ⌄" before the typed text) — a moz-button
@@ -577,6 +583,12 @@ moz-button.more-options-button {
 }
 toolbarseparator.proton-zap::before {
     border-image: none !important;
+}
+
+/* In-window modal dialogs (e.g. "Make Firefox your default browser?") sit in
+   a .dialogBox with a hardcoded 12px radius. */
+.dialogBox {
+    border-radius: var(--myfox-radius) !important;
 }
 
 /* Toggle switches: the track (and the knob, which reuses the same token)
