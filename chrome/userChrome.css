@@ -532,6 +532,16 @@ body:has(#sidebar-box:not([hidden])) #sidebar-button:hover .toolbarbutton-badge-
     margin-inline: 4px !important;
 }
 
+/* Tighter spacing between the tab cards: Firefox pads each vertical tab
+   3px above / 2px below and our card adds a 1px top margin, leaving a 6px
+   gutter; keep just 2px. */
+#tabbrowser-tabs[orient="vertical"] .tabbrowser-tab {
+    padding-block: 1px !important;
+}
+#tabbrowser-tabs[orient="vertical"] .tab-background {
+    margin-block: 0 !important;
+}
+
 /* Hide tab close button by default and show it only when hovering over the tab */
 .tabbrowser-tab .tab-close-button {
     opacity: 0 !important;
