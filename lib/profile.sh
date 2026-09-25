@@ -1,14 +1,29 @@
 # shellcheck shell=bash
 # profile.sh — детекция и управление профилями Firefox.
 #
-# Профильный store — ОБЩИЙ с обычным Firefox: ~/.mozilla/firefox (или flatpak/snap).
+# Профильный store — ОБЩИЙ с обычным Firefox: ~/.mozilla/firefox (легаси-путь) или,
+# начиная с Firefox 147, $XDG_CONFIG_HOME/mozilla/firefox (обычно ~/.config/mozilla/
+# firefox) — Firefox сам выбирает между ними по правилу profile_native_dir() ниже.
+# Плюс flatpak/snap — свои изолированные копии этого же дерева.
 # Правим ТОЛЬКО секции под нашу установку ([Install<HASH>] и [ProfileN] Name=myfox),
 # чужие не трогаем. Требует common.sh, i18n.sh, tui.sh.
 
 # ─── Поиск profiles.ini ─────────────────────────────────────────────────────
 
+# Нативный (не flatpak/snap) каталог профилей — то же правило, что использует
+# сам Firefox: легаси-путь, если каталог `~/.mozilla/firefox` уже существует
+# (проверено live: наличие именно .../firefox, не просто ~/.mozilla), иначе —
+# XDG-путь.
+profile_native_dir() {
+    if [[ -d "$HOME/.mozilla/firefox" ]]; then
+        echo "$HOME/.mozilla/firefox"
+    else
+        echo "${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox"
+    fi
+}
+
 profile_search_dirs() {
-    echo "$HOME/.mozilla/firefox"
+    profile_native_dir
     [[ -d "$HOME/.var/app/org.mozilla.firefox" ]] && echo "$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox"
     [[ -d "$HOME/snap/firefox" ]] && echo "$HOME/snap/firefox/common/.mozilla/firefox"
 }
@@ -121,7 +136,7 @@ profile_create_new() {
     local ini ini_dir ppath
     ini=$(profile_find_ini) || true
     if [[ -z "$ini" ]]; then
-        ini_dir="$HOME/.mozilla/firefox"
+        ini_dir=$(profile_native_dir)
         mkdir -p "$ini_dir"
         ini="$ini_dir/profiles.ini"
     else
