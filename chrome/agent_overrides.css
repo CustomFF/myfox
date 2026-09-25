@@ -775,6 +775,22 @@ moz-select {
     }
 }
 
+/* Sidebar panel headers (history, bookmarks, synced tabs): the "..." menu
+   button is a square-cornered fill that stops 4px short of the panel's right
+   edge, so it lines up with neither the panel content nor the empty-state
+   card below it. Round it and let it reach the edge. */
+moz-button.menu-button {
+    border-radius: var(--myfox-radius) !important;
+    margin-inline-end: 0 !important;
+}
+
+/* Synced-tabs sidebar: its empty-state card starts right under the search
+   box; the history panel's card sits 9px lower. Match the two. */
+fxview-empty-state.synced-tabs {
+    display: block !important;
+    margin-block-start: 9px !important;
+}
+
 /* about:processes: non-bold process names, tighter rows. */
 @-moz-document url-prefix("about:"), url-prefix("chrome://") {
     tr.process > td.type > span {
