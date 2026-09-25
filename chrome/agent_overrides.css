@@ -591,6 +591,130 @@ toolbarseparator.proton-zap::before {
     border-radius: var(--myfox-radius) !important;
 }
 
+/* First-run welcome / terms-of-use spotlight and about:welcome (one shared
+   onboarding bundle): a 24px card holding 12px list rows, all drawn from
+   the design-system radius scale. Point the scale at --myfox-radius for
+   these pages only (keyed on the onboarding body class). */
+:root:has(> body.onboardingContainer) {
+    --border-radius-small: var(--myfox-radius) !important;
+    --border-radius-medium: var(--myfox-radius) !important;
+    --border-radius-large: var(--myfox-radius) !important;
+    --border-radius-xlarge: var(--myfox-radius) !important;
+    --panel-border-radius: var(--myfox-radius) !important;
+}
+
+/* ── Password manager ──────────────────────────────────────────────────
+   Sidebar (megalist): base font down to 12px and the row hover highlight
+   (Nova's 10px pill) back to --myfox-radius. The card/row *heights* are left
+   alone on purpose: the virtual list sizes off-screen chunks from hardcoded
+   per-card heights in script, so changing them makes long lists jump. */
+:root:has(megalist-alpha) {
+    --font-size-root: 12px !important;
+    font-size: 12px !important;
+}
+login-line {
+    --outer-border-radius: var(--myfox-radius) !important;
+    --inner-border-radius: var(--myfox-radius) !important;
+    padding: 1px !important;
+}
+login-line[linetype="origin"] {
+    --line-container-height: 32px !important;
+}
+login-line[linetype="username"],
+login-line[linetype="password"],
+concealed-login-line {
+    --line-container-height: 28px !important;
+}
+password-card {
+    margin-block: 3px !important;
+}
+@-moz-document url-prefix("chrome://") {
+    .line-item[linetype="origin"] {
+        margin-block-start: 2px !important;
+    }
+    .edit-line-container {
+        height: 30px !important;
+    }
+    .edit-line-container > .edit-button {
+        margin: 3px 6px !important;
+    }
+    /* Eye button: nudge left so its right edge lines up with the copy
+       button of the username row above. */
+    .reveal-button-container {
+        padding: 1px 5px 1px 3px !important;
+    }
+    /* No outline on any button in the password manager; instead a fill a
+       shade off the background (lighter on dark themes, darker on light). */
+    moz-button.edit-button {
+        --button-border: none !important;
+        --button-background-color: color-mix(in srgb, currentColor 10%, transparent) !important;
+        --button-background-color-hover: color-mix(in srgb, currentColor 18%, transparent) !important;
+    }
+}
+
+/* about:logins page: same 12px base, no outline on the icon-only "+" and
+   "..." buttons, and much tighter spacing (rows, header, detail pane). The
+   generic class names are scoped to internal documents (an agent sheet only
+   honors bare-scheme url-prefix: "about:" is what matches in the content
+   process where about:logins lives, "chrome://" elsewhere). */
+:root:has(login-list) {
+    --font-size-root: 12px !important;
+    font-size: 12px !important;
+}
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+    .ghost-button,
+    .text-button,
+    .icon-button,
+    .menu-button,
+    .fxaccounts-enable-button {
+        border-color: transparent !important;
+        background-color: color-mix(in srgb, currentColor 10%, transparent) !important;
+    }
+    .ghost-button:hover,
+    .text-button:hover,
+    .icon-button:hover,
+    .menu-button:hover,
+    .fxaccounts-enable-button:hover {
+        background-color: color-mix(in srgb, currentColor 18%, transparent) !important;
+    }
+    .listHeader {
+        padding: 8px 12px !important;
+    }
+    .meta {
+        padding: 0 12px 8px !important;
+    }
+    li.list-item {
+        padding: 3px 12px !important;
+    }
+    .labels {
+        min-height: 0 !important;
+    }
+    .container > .column form > .header {
+        margin-block: 0 16px !important;
+    }
+    .detail-row {
+        margin-bottom: 16px !important;
+    }
+    .detail-grid {
+        row-gap: 16px !important;
+    }
+    .detail-grid > .detail-row {
+        margin-bottom: 0 !important;
+    }
+    .field-label {
+        margin-bottom: 4px !important;
+    }
+    .detail-grid {
+        margin-bottom: 16px !important;
+    }
+    .container:has(> .column form) {
+        padding-inline: 24px !important;
+    }
+    input.filter {
+        border-radius: var(--myfox-radius) !important;
+    }
+}
+
 /* Toggle switches: the track (and the knob, which reuses the same token)
    is a full circle by default. */
 moz-toggle {
