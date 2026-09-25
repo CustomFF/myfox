@@ -71,6 +71,15 @@ sidebar-panel-header moz-button,
     --button-min-height: 28px !important;
     --space-small: 0px !important;
 }
+/* Round ✕: a tighter circle around the glyph (same 24px as the downloads one). */
+#sidebar-panel-close {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    --button-size-icon: 24px !important;
+    --button-min-height: 24px !important;
+}
 sidebar-panel-header .menu-button {
     margin-inline-start: 6px !important;
     margin-inline-end: 4px !important;
@@ -119,14 +128,14 @@ sidebar-panel-header .menu-button {
     appearance: none !important;
     border: none !important;
     background: transparent !important;
-    width: 28px !important;                 /* Matches standard close button width */
-    height: 28px !important;                /* Matches standard close button height */
-    min-width: 28px !important;
-    min-height: 28px !important;
+    width: 24px !important;                 /* Round like every other close button */
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
     padding: 0 !important;
     margin: 0 !important;
     cursor: pointer !important;
-    border-radius: var(--myfox-radius) !important;
+    border-radius: 50% !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -620,6 +629,14 @@ concealed-login-line {
 password-card {
     margin-block: 3px !important;
 }
+/* The passwords sidebar paints its own near-black page background (and a
+   dark body overlay) instead of the sidebar colour every other panel shows. */
+@-moz-document url-prefix("chrome://") {
+    html:has(> body > megalist-alpha),
+    body:has(> megalist-alpha) {
+        background: transparent !important;
+    }
+}
 @-moz-document url-prefix("chrome://") {
     .line-item[linetype="origin"] {
         margin-block-start: 2px !important;
@@ -789,6 +806,28 @@ moz-button.menu-button {
 fxview-empty-state.synced-tabs {
     display: block !important;
     margin-block-start: 9px !important;
+}
+
+/* Every "x" close button is round: tab close, sidebar close, urlbar search
+   mode chip, message-bar/notification closes, icon buttons using the close
+   glyph. Generic class names, so scoped to internal documents. */
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+    .close-icon,
+    .tab-close-button,
+    .close-button,
+    .searchmode-switcher-close {
+        border-radius: 50% !important;
+    }
+    /* Less air around the glyph inside the circle. */
+    .close-icon {
+        padding: 1px !important;
+    }
+    .tab-close-button {
+        padding: 3px !important;
+    }
+    moz-button[iconsrc*="close"] {
+        --button-border-radius: 50% !important;
+    }
 }
 
 /* about:processes: non-bold process names, tighter rows. */
