@@ -558,10 +558,6 @@ panel.searchmode-switcher-panel::part(content) {
    page down to the context menu's 12px density. The left nav keeps its own
    explicit 13px (see below). Keyed on
    the <moz-page-nav> only that page has, so no other document is touched. */
-:root:has(moz-page-nav) {
-    --font-size-root: 12px !important;
-    font-size: 12px !important;
-}
 /* Icon-only buttons (pencil / trash / "+" in the settings lists — some are
    type="icon"; the pencil, trash and "+" are type="default" buttons in an
    actions slot that just have no label)
@@ -608,10 +604,6 @@ toolbarseparator.proton-zap::before {
    (Nova's 10px pill) back to --myfox-radius. The card/row *heights* are left
    alone on purpose: the virtual list sizes off-screen chunks from hardcoded
    per-card heights in script, so changing them makes long lists jump. */
-:root:has(megalist-alpha) {
-    --font-size-root: 12px !important;
-    font-size: 12px !important;
-}
 login-line {
     --outer-border-radius: var(--myfox-radius) !important;
     --inner-border-radius: var(--myfox-radius) !important;
@@ -657,10 +649,6 @@ password-card {
    generic class names are scoped to internal documents (an agent sheet only
    honors bare-scheme url-prefix: "about:" is what matches in the content
    process where about:logins lives, "chrome://" elsewhere). */
-:root:has(login-list) {
-    --font-size-root: 12px !important;
-    font-size: 12px !important;
-}
 @-moz-document url-prefix("about:"), url-prefix("chrome://") {
     .ghost-button,
     .text-button,
@@ -769,6 +757,32 @@ moz-five-star {
 /* Dropdown lists (moz-select) render their value semi-bold via a token. */
 moz-select {
     --select-font-weight: 400 !important;
+}
+
+/* ── One base font size for every internal page ───────────────────────────
+   Nova gives internal pages (about:*, sidebars, dialogs) a 15px root and
+   sizes almost everything in rem or from --font-size-root, which is what
+   made them look huge next to the 12px browser UI. One rule for all of them
+   instead of one per page. url-prefix is bare-scheme only in an agent sheet:
+   "about:" matches documents the content process reports as about:*,
+   "chrome://" the parent-process ones. Left alone: windows with a
+   windowtype (the browser itself, dialogs), Reader View (has a platform
+   attribute) and the new-tab page. */
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+    :root:not([windowtype]):not([platform]):not(:has(> body.activity-stream)) {
+        --font-size-root: 12px !important;
+        font-size: 12px !important;
+    }
+}
+
+/* about:processes: non-bold process names, tighter rows. */
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+    tr.process > td.type > span {
+        font-weight: normal !important;
+    }
+    table:has(tr.process) :is(td, th) {
+        padding-block: 2px !important;
+    }
 }
 
 /* about:preferences left navigation. Its buttons/links draw the highlight
