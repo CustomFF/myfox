@@ -81,6 +81,7 @@ SUB="install"
 case "${1:-}" in
     uninstall) SUB="uninstall"; shift ;;
     update)    SUB="update"; shift ;;
+    help|--help|-h) SUB="help"; shift ;;
 esac
 
 FORCE=false
@@ -99,6 +100,14 @@ case "$SUB" in
         ;;
     update)
         _fetch_and_run update "$@"
+        ;;
+    help)
+        # Справка не требует сети, если ядро уже стоит.
+        if [[ -x "$CORE_DIR/bin/myfox-core" ]]; then
+            _exec_core "$CORE_DIR/bin/myfox-core" help "$@"
+        else
+            _fetch_and_run help "$@"
+        fi
         ;;
     install)
         if _installed && ! $FORCE; then

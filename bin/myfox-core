@@ -4,7 +4,7 @@
 # ~/.local/bin/myfox (сам он — копия get.sh, см. bin/myfox-launcher). Наружу
 # как публичная команда не торчит.
 #
-# Usage: myfox-core <install|update|uninstall> [options]
+# Usage: myfox-core <install|update|uninstall|help> [options]
 set -eo pipefail
 
 MYFOX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -12,9 +12,15 @@ MYFOX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # ─── Сабкоманда + флаги ──────────────────────────────────────────────────────
 
 SUB="install"
+SUB_GIVEN=0 HELP_TOPIC=""
 case "${1:-}" in
-    install|update|uninstall) SUB="$1"; shift ;;
+    install|update|uninstall|help) SUB="$1"; SUB_GIVEN=1; shift ;;
 esac
+# `help [команда]` — показать справку (по одной команде, если указана).
+if [[ "$SUB" == "help" ]]; then
+    if [[ -n "${1:-}" && "$1" != -* ]]; then HELP_TOPIC="$1"; shift; fi
+    set -- "$@" --help
+fi
 
 PREFIX="" PROFILE_ARG="" LANG_ARG="" LIST_LANGUAGES=""
 MODE="" NOBL=false NOADDONS=false PLASMA_FORCE=false NO_PLASMA=false FORCE=false SHOW_HELP=""
@@ -52,31 +58,66 @@ done
 . "$MYFOX_ROOT/lib/i18n.sh"
 i18n_load "${LANG_ARG:-$(state_get opt_lang)}"
 
-usage() {
-    cat <<EOF
-$(t usage_title)
+# Строка справки: «  --флаг     описание» (ширина колонки флагов фиксирована).
+_opt() { printf '  %-22s %s\n' "$1" "$2"; }
 
-$(t usage_usage) $0 <install|update|uninstall> [options]
-
-$(t usage_options)
-  --prefix <path>    $(t usage_prefix)
-  --profile <path>   $(t usage_profile)
-  --lang <code>       $(t usage_lang)
-  --list-languages    $(t usage_list_languages)
-  --reinstall          $(t usage_reinstall)
-  --browser-only       $(t usage_browser_only)
-  --nobl               $(t usage_nobl)
-  --noaddons           $(t usage_noaddons)
-  --plasma-integration $(t usage_plasma_integration)
-  --noplasma           $(t usage_noplasma)
-  --force              $(t usage_force)
-  -y, --yes            $(t usage_yes)
-  -v, --verbose        $(t usage_verbose)
-  -h, --help           $(t usage_help)
-EOF
+usage() {  # [general|install|update|uninstall]
+    case "${1:-general}" in
+        install)
+            printf '%s\n\n%s\n\n' "$(t usage_install_title)" "$(t usage_install_desc)"
+            printf '%s\n  curl -fsSL <url>/get.sh | bash -s -- [%s]\n\n' "$(t usage_usage)" "$(t usage_placeholder)"
+            printf '%s\n' "$(t usage_options)"
+            _opt "--prefix <path>" "$(t usage_prefix)"
+            _opt "--profile <path>" "$(t usage_profile)"
+            _opt "--lang <code>" "$(t usage_lang)"
+            _opt "--list-languages" "$(t usage_list_languages)"
+            _opt "--reinstall" "$(t usage_reinstall)"
+            _opt "--browser-only" "$(t usage_browser_only)"
+            _opt "--nobl" "$(t usage_nobl)"
+            _opt "--noaddons" "$(t usage_noaddons)"
+            _opt "--plasma-integration" "$(t usage_plasma_integration)"
+            _opt "--noplasma" "$(t usage_noplasma)"
+            _opt "--force" "$(t usage_force)"
+            _opt "-y, --yes" "$(t usage_yes)"
+            _opt "-v, --verbose" "$(t usage_verbose)"
+            _opt "-h, --help" "$(t usage_help)"
+            ;;
+        update)
+            printf '%s\n\n%s\n\n' "$(t usage_update_title)" "$(t usage_update_desc)"
+            printf '%s\n  myfox update [%s]\n\n' "$(t usage_usage)" "$(t usage_placeholder)"
+            printf '%s\n' "$(t usage_options)"
+            _opt "--reinstall" "$(t usage_reinstall)"
+            _opt "-y, --yes" "$(t usage_yes)"
+            _opt "-v, --verbose" "$(t usage_verbose)"
+            _opt "-h, --help" "$(t usage_help)"
+            ;;
+        uninstall)
+            printf '%s\n\n%s\n\n' "$(t usage_uninstall_title)" "$(t usage_uninstall_desc)"
+            printf '%s\n  myfox uninstall [%s]\n\n' "$(t usage_usage)" "$(t usage_placeholder)"
+            printf '%s\n' "$(t usage_options)"
+            _opt "-y, --yes" "$(t usage_uninstall_yes)"
+            _opt "-v, --verbose" "$(t usage_verbose)"
+            _opt "-h, --help" "$(t usage_help)"
+            ;;
+        *)
+            printf '%s\n\n' "$(t usage_title)"
+            printf '%s\n' "$(t usage_usage)"
+            printf '  %-32s %s\n' "myfox [firefox-args]" "$(t usage_cmd_run)"
+            printf '  %-32s %s\n' "myfox update [options]" "$(t usage_cmd_update)"
+            printf '  %-32s %s\n' "myfox uninstall [options]" "$(t usage_cmd_uninstall)"
+            printf '  %-32s %s\n' "myfox help [command]" "$(t usage_cmd_help)"
+            printf '\n%s\n  curl -fsSL <url>/get.sh | bash -s -- [%s]\n' "$(t usage_first_install)" "$(t usage_placeholder)"
+            ;;
+    esac
 }
 
-[[ -n "$SHOW_HELP" ]] && { usage; exit 0; }
+if [[ -n "$SHOW_HELP" ]]; then
+    if [[ "$SUB" == "help" ]]; then usage "${HELP_TOPIC:-general}"
+    elif [[ "$SUB_GIVEN" == 1 ]]; then usage "$SUB"
+    else usage general
+    fi
+    exit 0
+fi
 
 check_deps
 
@@ -207,7 +248,13 @@ install_wizard() {
                         tui_msgbox "$verdict"
                     done
                 else
-                    step="channel"
+                    local keep_err
+                    if keep_err=$(install_dir_validate "$INSTALL_DIR"); then
+                        INSTALL_DIR="$keep_err"
+                        step="channel"
+                    else
+                        tui_msgbox "$keep_err"
+                    fi
                 fi
                 ;;
             channel)
@@ -384,8 +431,11 @@ install_browser_tarball() {
         log "$(t firefox_already_installed "$INSTALL_DIR")"
         FIREFOX_VERSION=$(firefox_local_version "$INSTALL_DIR")
     else
-        if [[ "$claim" == "foreign" || ( "$mode" == "reinstall" && "$claim" != "empty" ) ]]; then
-            [[ "$claim" == "foreign" ]] && warn "$(t warn_dir_occupied "$INSTALL_DIR")"
+        # A non-empty directory MyFox did not create (typically a hand-installed
+        # Firefox) is never touched — wiping it silently once destroyed a
+        # user's own browser install.
+        [[ "$claim" == "foreign" ]] && error "$(t err_installdir_foreign "$INSTALL_DIR")"
+        if [[ "$mode" == "reinstall" && "$claim" != "empty" ]]; then
             log "$(t reinstalling_cleanly)"
             find "$INSTALL_DIR" -mindepth 1 -delete 2>/dev/null || true
         fi
@@ -878,6 +928,8 @@ run_uninstall() {
     install_hash=$(state_get install_hash)
     [[ -n "$install_hash" ]] && profile_unpin_install "$install_hash"
 
+    local dir_is_ours=0
+    is_myfox_dir "$INSTALL_DIR" && dir_is_ours=1
     if [[ -d "$INSTALL_DIR" ]]; then
         rm -f "$INSTALL_DIR/defaults/pref/autoconfig.js" "$INSTALL_DIR/firefox.cfg" \
             "$INSTALL_DIR/.myfox-installed" 2>/dev/null || true
@@ -929,7 +981,7 @@ run_uninstall() {
 
     firefox_remove_desktop_entry
 
-    if [[ -d "$INSTALL_DIR" ]]; then
+    if [[ -d "$INSTALL_DIR" && "$dir_is_ours" == 1 ]]; then
         rm -rf "$INSTALL_DIR"
         success "$(t dir_removed "$INSTALL_DIR")"
     fi
