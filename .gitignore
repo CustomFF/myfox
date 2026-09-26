@@ -8,6 +8,7 @@
 # === scratch / dev ===
 __pycache__/
 *.pyc
+scratch/refactor-baseline/
 
 # === editor / OS ===
 *.swp

@@ -25,7 +25,7 @@ apply_chrome() {
     for f in userChrome.css agent_overrides.css; do
         if [[ -f "$c_dir/$f" && ! -f "$c_dir/$f.myfox-backup" ]]; then
             cp "$c_dir/$f" "$c_dir/$f.myfox-backup"
-            warn "$(t warn_backed_up_style "$f")"
+            warn "$(t warn_backed_up_style "$f" "$f")"
         fi
     done
 

@@ -45,14 +45,23 @@ fi
 [[ "$1" == "--" ]] || { usage >&2; exit 1; }
 shift
 
-# Команда инсталлера. Если не указан --prefix — подставляем каталог песочницы,
-# чтобы установка никогда не целилась в $HOME/.local/share/firefox.
+# Installer command. If it's an `install` run without an explicit --prefix,
+# add one pointing into the sandbox, so it never targets the real
+# $HOME/.local/share/firefox. --prefix is install-only (myfox-core rejects
+# it for update/uninstall), so it's never added for those.
 CMD=("$@")
 HAS_PREFIX=0
 for a in "${CMD[@]}"; do
     [[ "$a" == "--prefix" ]] && HAS_PREFIX=1
 done
-if [[ "$HAS_PREFIX" == "0" ]]; then
+SUBCMD=install
+for a in "${CMD[@]:1}"; do
+    case "$a" in
+        install|update|uninstall|help) SUBCMD="$a"; break ;;
+        --) break ;;
+    esac
+done
+if [[ "$HAS_PREFIX" == "0" && "$SUBCMD" == "install" ]]; then
     CMD+=("--prefix" "$SANDBOX/install")
 fi
 

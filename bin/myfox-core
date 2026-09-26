@@ -1,64 +1,194 @@
 #!/usr/bin/env bash
-# myfox-core — диспетчер install/update/uninstall. Внутренний интерфейс:
-# вызывается только программно, из get.sh (bootstrap) или из установленного
-# ~/.local/bin/myfox (сам он — копия get.sh, см. bin/myfox-launcher). Наружу
-# как публичная команда не торчит.
+# myfox-core — install/update/uninstall dispatcher. Internal entry point:
+# called only programmatically, from get.sh (bootstrap) or from the
+# installed ~/.local/bin/myfox (itself a copy of get.sh, see
+# bin/myfox-launcher). Not a public command on its own.
 #
 # Usage: myfox-core <install|update|uninstall|help> [options]
 set -eo pipefail
 
 MYFOX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# ─── Сабкоманда + флаги ──────────────────────────────────────────────────────
+# ─── Per-subcommand option tables ───────────────────────────────────────────
+#
+# Row: "<flag[ alias]>|<takes a value: 0|1>|<target var>|<bool value>|<exclusivity group>"
+# Both "--flag value" and "--flag=value" are accepted. Each subcommand only
+# recognizes its own table plus GLOBAL_OPTS — e.g. `update` has no --lang
+# row, so it's rejected instead of silently accepted. <exclusivity group>
+# is only set on rows where two different flags must not both be given
+# (currently just --reinstall/--browser-only); see _opt_apply.
 
-SUB="install"
-SUB_GIVEN=0 HELP_TOPIC=""
-case "${1:-}" in
-    install|update|uninstall|help) SUB="$1"; SUB_GIVEN=1; shift ;;
-esac
-# `help [команда]` — показать справку (по одной команде, если указана).
-if [[ "$SUB" == "help" ]]; then
-    if [[ -n "${1:-}" && "$1" != -* ]]; then HELP_TOPIC="$1"; shift; fi
-    set -- "$@" --help
-fi
+GLOBAL_OPTS=(
+    "-y --yes|0|MYFOX_NONINTERACTIVE|1|"
+    "-v --verbose|0|MYFOX_VERBOSE|1|"
+    "-h --help|0|SHOW_HELP|1|"
+)
+INSTALL_OPTS=(
+    "--prefix|1|PREFIX||"
+    "--profile|1|PROFILE_ARG||"
+    "--lang|1|LANG_ARG||"
+    "--list-languages|0|LIST_LANGUAGES|1|"
+    "--reinstall|0|MODE|reinstall|mode"
+    "--browser-only|0|MODE|browser-only|mode"
+    "--nobl|0|NOBL|true|"
+    "--noaddons|0|NOADDONS|true|"
+    "--plasma-integration|0|PLASMA_FORCE|true|"
+    "--noplasma|0|NO_PLASMA|true|"
+    "--force|0|FORCE|true|"
+)
+UPDATE_OPTS=(
+    "--reinstall|0|MODE|reinstall|"
+)
+UNINSTALL_OPTS=()
 
-PREFIX="" PROFILE_ARG="" LANG_ARG="" LIST_LANGUAGES=""
-MODE="" NOBL=false NOADDONS=false PLASMA_FORCE=false NO_PLASMA=false FORCE=false SHOW_HELP=""
-PLASMA_PKG_HINT="" MYFOX_PATH_HINT=""
-MYFOX_NONINTERACTIVE="${MYFOX_NONINTERACTIVE:-}"
-MYFOX_VERBOSE="${MYFOX_VERBOSE:-0}"
-
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --prefix)   PREFIX="$2"; shift 2 ;;
-        --reinstall|--browser-only)
-            [[ -n "$MODE" ]] && { echo "Modes --reinstall / --browser-only are mutually exclusive." >&2; exit 1; }
-            MODE="${1#--}"; shift ;;
-        --profile)  PROFILE_ARG="$2"; shift 2 ;;
-        --lang)     LANG_ARG="$2"; shift 2 ;;
-        --list-languages) LIST_LANGUAGES=1; shift ;;
-        --nobl)     NOBL=true; shift ;;
-        --noaddons) NOADDONS=true; shift ;;
-        --plasma-integration) PLASMA_FORCE=true; shift ;;
-        --noplasma) NO_PLASMA=true; shift ;;
-        --force)    FORCE=true; shift ;;
-        -y|--yes)   MYFOX_NONINTERACTIVE=1; shift ;;
-        -v|--verbose) MYFOX_VERBOSE=1; shift ;;
-        -h|--help)  SHOW_HELP=1; shift ;;
-        *) echo "Unknown option: $1" >&2; exit 1 ;;
+main() {
+    SUB="install"
+    SUB_GIVEN=0 HELP_TOPIC=""
+    case "${1:-}" in
+        install|update|uninstall|help) SUB="$1"; SUB_GIVEN=1; shift ;;
     esac
-done
+    # `help [command]` — show help, optionally for one subcommand.
+    if [[ "$SUB" == "help" ]]; then
+        if [[ -n "${1:-}" && "$1" != -* ]]; then HELP_TOPIC="$1"; shift; fi
+        set -- "$@" --help
+    fi
 
-# shellcheck source=lib/common.sh
-. "$MYFOX_ROOT/lib/common.sh"
+    PREFIX="" PROFILE_ARG="" LANG_ARG="" LIST_LANGUAGES=""
+    MODE="" NOBL=false NOADDONS=false PLASMA_FORCE=false NO_PLASMA=false FORCE=false SHOW_HELP=""
+    PLASMA_PKG_HINT="" MYFOX_PATH_HINT=""
+    MYFOX_NONINTERACTIVE="${MYFOX_NONINTERACTIVE:-}"
+    MYFOX_VERBOSE="${MYFOX_VERBOSE:-0}"
 
-# ─── i18n: --lang → сохранённый opt_lang → $LANG окружения → en ────────────
+    local opts_table="UNINSTALL_OPTS"
+    case "$SUB" in
+        install|help) opts_table="INSTALL_OPTS" ;;
+        update)       opts_table="UPDATE_OPTS" ;;
+    esac
+    parse_args "$opts_table" "$@"
 
-# shellcheck source=lib/i18n.sh
-. "$MYFOX_ROOT/lib/i18n.sh"
-i18n_load "${LANG_ARG:-$(state_get opt_lang)}"
+    # shellcheck source=lib/common.sh
+    . "$MYFOX_ROOT/lib/common.sh"
 
-# Строка справки: «  --флаг     описание» (ширина колонки флагов фиксирована).
+    # i18n: --lang → saved opt_lang → $LANG from the environment → en.
+    # shellcheck source=lib/i18n.sh
+    . "$MYFOX_ROOT/lib/i18n.sh"
+    i18n_load "${LANG_ARG:-$(state_get opt_lang)}"
+
+    if [[ -n "$SHOW_HELP" ]]; then
+        if [[ "$SUB" == "help" ]]; then usage "${HELP_TOPIC:-general}"
+        elif [[ "$SUB_GIVEN" == 1 ]]; then usage "$SUB"
+        else usage general
+        fi
+        exit 0
+    fi
+
+    check_deps
+
+    # shellcheck source=lib/tui.sh
+    . "$MYFOX_ROOT/lib/tui.sh"
+    # shellcheck source=lib/firefox.sh
+    . "$MYFOX_ROOT/lib/firefox.sh"
+    # shellcheck source=lib/profile.sh
+    . "$MYFOX_ROOT/lib/profile.sh"
+    # shellcheck source=lib/apply.sh
+    . "$MYFOX_ROOT/lib/apply.sh"
+    # shellcheck source=lib/addons.sh
+    . "$MYFOX_ROOT/lib/addons.sh"
+
+    if [[ -n "$LIST_LANGUAGES" ]]; then
+        firefox_list_languages
+        exit 0
+    fi
+    if [[ -n "$LANG_ARG" ]] && ! firefox_validate_lang "$LANG_ARG"; then
+        error "$(t err_unknown_lang "$LANG_ARG")"
+    fi
+
+    local saved
+    if [[ -n "$PREFIX" ]]; then
+        INSTALL_DIR="$PREFIX"
+    elif saved=$(state_get install_dir); [[ -n "$saved" ]]; then
+        INSTALL_DIR="$saved"
+    else
+        INSTALL_DIR="$MYFOX_DEFAULT_PREFIX"
+    fi
+
+    case "$SUB" in
+        install)   run_install ;;
+        update)    run_update ;;
+        uninstall) run_uninstall ;;
+    esac
+}
+
+# ─── Option-table parser ────────────────────────────────────────────────────
+#
+# Runs before common.sh/i18n are loaded (parsing decides --lang, which i18n
+# itself depends on), so its own error messages stay in plain English —
+# there's no UI language to translate them into yet.
+
+declare -A _OPT_GROUP_SEEN=()
+
+# _opt_find_row <table-name> <flag> — prints the matching row, or nothing.
+_opt_find_row() {
+    local -n _t="$1"
+    local flag="$2" row flags f
+    for row in "${_t[@]}"; do
+        flags="${row%%|*}"
+        for f in $flags; do
+            [[ "$f" == "$flag" ]] && { printf '%s' "$row"; return 0; }
+        done
+    done
+    return 1
+}
+
+_opt_apply() {  # <row> <value>
+    local row="$1" val="$2" flags hasarg var boolval group
+    IFS='|' read -r flags hasarg var boolval group <<<"$row"
+    if [[ "$hasarg" == 1 ]]; then
+        printf -v "$var" '%s' "$val"
+        return 0
+    fi
+    if [[ -n "$group" ]]; then
+        if [[ -n "${_OPT_GROUP_SEEN[$group]:-}" ]]; then
+            echo "Modes --reinstall / --browser-only are mutually exclusive." >&2
+            exit 1
+        fi
+        _OPT_GROUP_SEEN[$group]=1
+    fi
+    printf -v "$var" '%s' "$boolval"
+}
+
+# parse_args <subcommand-table-name> <args...>
+parse_args() {
+    local table_name="$1"; shift
+    while [[ $# -gt 0 ]]; do
+        local arg="$1" flag val has_val=0 row hasarg
+        if [[ "$arg" == --*=* ]]; then
+            flag="${arg%%=*}"; val="${arg#*=}"; has_val=1
+        else
+            flag="$arg"
+        fi
+        row=$(_opt_find_row "$table_name" "$flag") || row=$(_opt_find_row GLOBAL_OPTS "$flag") || true
+        if [[ -z "$row" ]]; then
+            echo "Unknown option for '$SUB': $arg" >&2
+            exit 1
+        fi
+        hasarg="${row#*|}"; hasarg="${hasarg%%|*}"
+        if [[ "$hasarg" == 1 ]]; then
+            if [[ "$has_val" == 1 ]]; then
+                _opt_apply "$row" "$val"
+            else
+                [[ $# -ge 2 ]] || { echo "Option '$flag' requires a value." >&2; exit 1; }
+                _opt_apply "$row" "$2"
+                shift
+            fi
+        else
+            _opt_apply "$row" ""
+        fi
+        shift
+    done
+}
+
+# Help line: «  --flag     description» (fixed flag-column width).
 _opt() { printf '  %-22s %s\n' "$1" "$2"; }
 
 usage() {  # [general|install|update|uninstall]
@@ -111,47 +241,7 @@ usage() {  # [general|install|update|uninstall]
     esac
 }
 
-if [[ -n "$SHOW_HELP" ]]; then
-    if [[ "$SUB" == "help" ]]; then usage "${HELP_TOPIC:-general}"
-    elif [[ "$SUB_GIVEN" == 1 ]]; then usage "$SUB"
-    else usage general
-    fi
-    exit 0
-fi
-
-check_deps
-
-# shellcheck source=lib/tui.sh
-. "$MYFOX_ROOT/lib/tui.sh"
-# shellcheck source=lib/firefox.sh
-. "$MYFOX_ROOT/lib/firefox.sh"
-# shellcheck source=lib/profile.sh
-. "$MYFOX_ROOT/lib/profile.sh"
-# shellcheck source=lib/apply.sh
-. "$MYFOX_ROOT/lib/apply.sh"
-# shellcheck source=lib/addons.sh
-. "$MYFOX_ROOT/lib/addons.sh"
-
-if [[ -n "$LIST_LANGUAGES" ]]; then
-    firefox_list_languages
-    exit 0
-fi
-if [[ -n "$LANG_ARG" ]] && ! firefox_validate_lang "$LANG_ARG"; then
-    error "$(t err_unknown_lang "$LANG_ARG")"
-fi
-if [[ "$SUB" == "update" && ( -n "$LANG_ARG" || -n "$PROFILE_ARG" ) ]]; then
-    error "$(t err_update_incompatible_flags)"
-fi
-
-if [[ -n "$PREFIX" ]]; then
-    INSTALL_DIR="$PREFIX"
-elif saved=$(state_get install_dir); [[ -n "$saved" ]]; then
-    INSTALL_DIR="$saved"
-else
-    INSTALL_DIR="$MYFOX_DEFAULT_PREFIX"
-fi
-
-# ─── Общие шаги ──────────────────────────────────────────────────────────────
+# ─── Shared steps ────────────────────────────────────────────────────────────
 
 resolve_lang() {
     local saved
@@ -616,7 +706,7 @@ print_summary() {
     fi
     if [[ -n "$PLASMA_PKG_HINT" ]]; then
         echo ""
-        echo -e "${BOLD}$(t plasma_summary_title)${NC}"
+        cprintf "[bold]$(t plasma_summary_title)[/bold]"
         echo "  ${PLASMA_PKG_HINT}"
     fi
 }
@@ -882,7 +972,7 @@ run_uninstall() {
     # set -e aborts silently on the first failing command otherwise — a
     # clean status line either way (success/cancelled were already covered
     # below; this is specifically the "something broke partway through" case).
-    trap 'echo -e "${RED}$(t err_uninstall_failed)${NC}" >&2' ERR
+    trap 'cprintf "[red]$(t err_uninstall_failed)[/red]" >&2' ERR
 
     if [[ ! -f "$MYFOX_STATE_FILE" ]]; then
         warn "$(t warn_no_install_record "$MYFOX_STATE_FILE")"
@@ -951,7 +1041,7 @@ run_uninstall() {
             if [[ -f "$PROFILE_DIR/chrome/$f.myfox-backup" ]]; then
                 rm -f "$PROFILE_DIR/chrome/$f"
                 mv -f "$PROFILE_DIR/chrome/$f.myfox-backup" "$PROFILE_DIR/chrome/$f"
-                success "$(t style_restored "$f")"
+                success "$(t style_restored "$f" "$f")"
             else
                 rm -f "$PROFILE_DIR/chrome/$f"
             fi
@@ -991,7 +1081,7 @@ run_uninstall() {
 
     echo ""
     if [[ "$del_profile" == "no" && -n "$PROFILE_DIR" ]]; then
-        echo -e "${GREEN}$(t app_removed)${NC}"
+        cprintf "[green]$(t app_removed)[/green]"
         echo "  $(t profile_kept_summary "$PROFILE_DIR")"
     else
         success "$(t uninstalled)"
@@ -1005,11 +1095,4 @@ run_uninstall() {
     rm -rf "$MYFOX_CORE_DIR"
 }
 
-# ─── Диспетчер ───────────────────────────────────────────────────────────────
-
-case "$SUB" in
-    install)   run_install ;;
-    update)    run_update ;;
-    uninstall) run_uninstall ;;
-    *)         error "Unknown subcommand: $SUB" ;;
-esac
+main "$@"

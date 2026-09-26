@@ -303,7 +303,7 @@ tui_choose_kv() {
     fi
 
     _tui_move_default_first "$default" values labels
-    echo -e "${BOLD}${header}${NC}" >&2
+    cprintf "[bold]${header}[/bold]" >&2
     local i
     for i in "${!labels[@]}"; do
         [[ "${values[$i]}" == "$MYFOX_HEADER_TAG" ]] && continue
@@ -335,7 +335,7 @@ tui_filter_kv() {
         values+=("$1"); labels+=("$2"); shift 2
     done
     local q=""
-    echo -e "${BOLD}${header}${NC}" >&2
+    cprintf "[bold]${header}[/bold]" >&2
     read -rp "$(t tui_filter_placeholder) " q </dev/tty
     local -a fvalues=() flabels=() kv=()
     local i
@@ -366,7 +366,7 @@ tui_msgbox() {
         [[ "$fenced_here" == 1 ]] && _tui_fence_end
         return 0
     fi
-    echo -e "${RED}${text}${NC}" >&2
+    cprintf "[red]${text}[/red]" >&2
 }
 
 # tui_pick_dir <initial-path> → stdout: путь. rc 1 = отмена.
@@ -446,7 +446,7 @@ tui_spin() {
 
 # tui_style <text...> — обычный жирный баннер (stderr, как log/warn/success).
 tui_style() {
-    echo -e "${BOLD}$*${NC}" >&2
+    cprintf "[bold]$*[/bold]" >&2
 }
 
 # assets/logo.txt — статический файл, размер не меняется, поэтому не

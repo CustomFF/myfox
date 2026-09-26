@@ -35,27 +35,61 @@ MYFOX_DESKTOP_TITLE="Firefox (myfox)"
 
 INSTALL_MARKER_NAME=".myfox-installed"
 
-# ─── Цвета ──────────────────────────────────────────────────────────────────
-
-RED=$'\033[0;31m'
-GREEN=$'\033[0;32m'
-YELLOW=$'\033[1;33m'
-BLUE=$'\033[0;34m'
-BOLD=$'\033[1m'
-NC=$'\033[0m'
-
-# ─── Логирование ────────────────────────────────────────────────────────────
+# ─── Colors ─────────────────────────────────────────────────────────────────
 #
-# Тихий режим по умолчанию: log/success молчат без --verbose (MYFOX_VERBOSE=1).
-# warn/error печатаются всегда. Сообщения приходят уже переведёнными (через
-# t(), см. lib/i18n.sh) — common.sh только печатает.
+# [tag]...[/tag] markup instead of ${COLOR}...${NC} interpolation at every
+# call site, printed by cprintf() below. Colors auto-disable off a tty,
+# under NO_COLOR, or TERM=dumb — this used to be unconditional, so a run
+# redirected to a file or piped filled the log with raw escape codes.
+# RED/GREEN/BOLD/NC stay around as plain vars too (tui.sh's spinner colors
+# one glyph inline, not a sentence worth tagging) — they're just derived
+# from the same table so there's one source of truth.
+
+MYFOX_USE_COLOR=0
+[[ -t 2 && -z "${NO_COLOR:-}" && "${TERM:-}" != dumb ]] && MYFOX_USE_COLOR=1
+
+declare -A _MYFOX_TAGS=(
+    [bold]=$'\033[1m'      [/bold]=$'\033[22m'
+    [red]=$'\033[0;31m'    [/red]=$'\033[0m'
+    [green]=$'\033[0;32m'  [/green]=$'\033[0m'
+    [yellow]=$'\033[1;33m' [/yellow]=$'\033[0m'
+    [blue]=$'\033[0;34m'   [/blue]=$'\033[0m'
+)
+
+if [[ "$MYFOX_USE_COLOR" == 1 ]]; then
+    RED="${_MYFOX_TAGS[red]}" GREEN="${_MYFOX_TAGS[green]}" YELLOW="${_MYFOX_TAGS[yellow]}"
+    BLUE="${_MYFOX_TAGS[blue]}" BOLD="${_MYFOX_TAGS[bold]}" NC=$'\033[0m'
+else
+    RED="" GREEN="" YELLOW="" BLUE="" BOLD="" NC=""
+fi
+
+# cprintf <text> — expands [tag]/[/tag] pairs (or strips them when color is
+# off) and prints with a trailing newline; the caller adds >&2 as needed.
+# Plain bash substitution, not a sed pipeline — the pattern side of
+# ${text//"[$tag]"/...} is quoted, so it's a literal match, not a glob, and
+# the caller's own interpolated text can safely contain '[' / ']'.
+cprintf() {
+    local text="$1" tag code
+    for tag in "${!_MYFOX_TAGS[@]}"; do
+        code=""
+        [[ "$MYFOX_USE_COLOR" == 1 ]] && code="${_MYFOX_TAGS[$tag]}"
+        text="${text//"[$tag]"/$code}"
+    done
+    printf '%s\n' "$text"
+}
+
+# ─── Logging ─────────────────────────────────────────────────────────────────
+#
+# Quiet by default: log/success stay silent without --verbose
+# (MYFOX_VERBOSE=1). warn/error always print. Messages arrive already
+# translated (via t(), see lib/i18n.sh) — common.sh only prints them.
 
 : "${MYFOX_VERBOSE:=0}"
 
-log()     { [[ "$MYFOX_VERBOSE" == "1" ]] && echo -e "${BLUE}[INF]${NC} $*" >&2; return 0; }
-success() { [[ "$MYFOX_VERBOSE" == "1" ]] && echo -e "${GREEN}[OK]${NC}  $*" >&2; return 0; }
-warn()    { echo -e "${YELLOW}[WRN]${NC} $*" >&2; }
-error()   { echo -e "${RED}[ERR]${NC} $*" >&2; exit 1; }
+log()     { [[ "$MYFOX_VERBOSE" == "1" ]] && cprintf "[blue][INF][/blue] $*" >&2; return 0; }
+success() { [[ "$MYFOX_VERBOSE" == "1" ]] && cprintf "[green][OK][/green]  $*" >&2; return 0; }
+warn()    { cprintf "[yellow][WRN][/yellow] $*" >&2; }
+error()   { cprintf "[red][ERR][/red] $*" >&2; exit 1; }
 
 # ─── Зависимости и архитектура ──────────────────────────────────────────────
 
@@ -121,13 +155,6 @@ state_set() {
         { print }
         END { if (!done) print k "=" v }
     ' "$MYFOX_STATE_FILE" > "$MYFOX_STATE_FILE.tmp" && mv "$MYFOX_STATE_FILE.tmp" "$MYFOX_STATE_FILE"
-}
-
-state_remove() {
-    local key="$1"
-    [[ -f "$MYFOX_STATE_FILE" ]] || return 0
-    awk -F'=' -v k="$key" '$1 != k' "$MYFOX_STATE_FILE" > "$MYFOX_STATE_FILE.tmp" \
-        && mv "$MYFOX_STATE_FILE.tmp" "$MYFOX_STATE_FILE"
 }
 
 state_clear() { rm -f "$MYFOX_STATE_FILE"; }
