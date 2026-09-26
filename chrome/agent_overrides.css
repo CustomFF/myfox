@@ -808,6 +808,34 @@ fxview-empty-state.synced-tabs {
     margin-block-start: 9px !important;
 }
 
+/* History/synced-tabs rows (sidebar-tab-row, shared by both panels): sit
+   flush left with the date/device header's own chevron, unlike bookmarks'
+   tree where children are indented under their folder. Nudge them right to
+   read as nested under the header, matching the bookmarks sidebar. Also
+   shrink the row itself (default 28px, padding-block 4px inside) and the
+   group header (default 36px) down to a denser, more uniform row height —
+   the same density pass we've done everywhere else in this file. */
+sidebar-tab-row {
+    height: 24px !important;
+    margin-inline-start: 32px !important;
+}
+
+/* Firefox also gives the row a 9999px ("stadium") hover fill on top of
+   that — the same Nova pill treatment we square off everywhere else (see
+   the close-button and moz-card rules below/above). Drop it entirely. */
+sidebar-tab-row:hover {
+    border-radius: 0 !important;
+}
+
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+    .fxview-tab-row-main {
+        padding-block: 2px !important;
+    }
+    .moz-card-wrapper summary {
+        min-height: 22px !important;
+    }
+}
+
 /* Every "x" close button is round: tab close, sidebar close, urlbar search
    mode chip, message-bar/notification closes, icon buttons using the close
    glyph. Generic class names, so scoped to internal documents. */
