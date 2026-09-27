@@ -23,12 +23,12 @@ CORE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/myfox/core"
 _lang() { case "${LANG:-en}" in ru*) echo ru ;; *) echo en ;; esac; }
 
 if [[ "$(_lang)" == ru ]]; then
-    MSG_ALREADY="MyFox уже установлен. Запусти «myfox», используй ярлык в меню, или «myfox update» / «myfox uninstall»."
+    MSG_ALREADY="MyFox уже установлен. «myfox browser» запускает браузер, «myfox» — справка, «myfox update» / «myfox uninstall» — обновить/удалить."
     MSG_NOT_INSTALLED="MyFox не установлен."
     MSG_NEED_CURL="Нужен curl."
     MSG_NEED_TAR="Нужен tar."
 else
-    MSG_ALREADY="MyFox is already installed. Run 'myfox', use the app shortcut, or 'myfox update' / 'myfox uninstall'."
+    MSG_ALREADY="MyFox is already installed. 'myfox browser' launches it, 'myfox' shows help, 'myfox update' / 'myfox uninstall' update or remove it."
     MSG_NOT_INSTALLED="MyFox is not installed."
     MSG_NEED_CURL="curl is required."
     MSG_NEED_TAR="tar is required."
@@ -77,10 +77,26 @@ _fetch_and_run() {  # <subcommand> <args...>
     _exec_core "$tmp/bin/myfox-core" "$sub" "$@"
 }
 
+# Одна строка "MyFox установлен: <путь> (Firefox <версия>)" перед справкой —
+# no-op, если ещё не установлен. Офлайн: только state-файл, без сети.
+_print_status() {
+    _installed || return 0
+    local install_dir version
+    install_dir=$(_state_get install_dir)
+    version=$(_state_get firefox_version)
+    if [[ "$(_lang)" == ru ]]; then
+        echo "MyFox установлен: ${install_dir:-?} (Firefox ${version:-?})" >&2
+    else
+        echo "MyFox installed: ${install_dir:-?} (Firefox ${version:-?})" >&2
+    fi
+    echo "" >&2
+}
+
 SUB="install"
 case "${1:-}" in
-    uninstall) SUB="uninstall"; shift ;;
-    update)    SUB="update"; shift ;;
+    uninstall)  SUB="uninstall"; shift ;;
+    update)     SUB="update"; shift ;;
+    browser|ff) SUB="browser"; shift ;;
     help|--help|-h) SUB="help"; shift ;;
 esac
 
@@ -101,7 +117,22 @@ case "$SUB" in
     update)
         _fetch_and_run update "$@"
         ;;
+    browser)
+        # Отдельная подкоманда, а не "myfox без аргументов" — так `myfox`
+        # само по себе можно один раз занять справкой/статусом, не гадая,
+        # что имел в виду пользователь. Через wrapper firefox-myfox (тот
+        # же, что в .desktop — MOZ_APP_LAUNCHER и т.п.), не голый firefox,
+        # иначе поведение отличалось бы от запуска из меню приложений.
+        _installed || { echo "$MSG_NOT_INSTALLED" >&2; exit 1; }
+        install_dir=$(_state_get install_dir)
+        if [[ -x "$install_dir/firefox-myfox" ]]; then
+            exec "$install_dir/firefox-myfox" "$@"
+        else
+            exec "$install_dir/firefox" "$@"
+        fi
+        ;;
     help)
+        _print_status
         # Справка не требует сети, если ядро уже стоит.
         if [[ -x "$CORE_DIR/bin/myfox-core" ]]; then
             _exec_core "$CORE_DIR/bin/myfox-core" help "$@"
@@ -112,8 +143,13 @@ case "$SUB" in
     install)
         if _installed && ! $FORCE; then
             if _is_launcher; then
-                install_dir=$(_state_get install_dir)
-                exec "$install_dir/firefox" "$@"
+                # Лаунчер без подкоманды → статус + справка, не запуск
+                # браузера (для этого — `myfox browser`/`myfox ff`).
+                _print_status
+                if [[ -x "$CORE_DIR/bin/myfox-core" ]]; then
+                    _exec_core "$CORE_DIR/bin/myfox-core" help
+                fi
+                exit 0
             fi
             echo "$MSG_ALREADY" >&2
             exit 0
