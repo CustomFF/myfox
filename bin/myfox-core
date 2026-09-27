@@ -232,7 +232,7 @@ usage() {  # [general|install|update|uninstall]
         *)
             printf '%s\n\n' "$(t usage_title)"
             printf '%s\n' "$(t usage_usage)"
-            printf '  %-32s %s\n' "myfox [firefox-args]" "$(t usage_cmd_run)"
+            printf '  %-32s %s\n' "myfox browser [firefox-args]" "$(t usage_cmd_run)"
             printf '  %-32s %s\n' "myfox update [options]" "$(t usage_cmd_update)"
             printf '  %-32s %s\n' "myfox uninstall [options]" "$(t usage_cmd_uninstall)"
             printf '  %-32s %s\n' "myfox help [command]" "$(t usage_cmd_help)"

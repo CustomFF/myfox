@@ -79,8 +79,12 @@ export XDG_DATA_HOME="$SANDBOX/data"
 export XDG_CACHE_HOME="$SANDBOX/cache"
 export XDG_RUNTIME_DIR="$SANDBOX/runtime"
 
-# Чтобы не сработала ветка KDE Plasma (addons_is_plasma) — сессия в песочнице не Plasma.
-unset XDG_CURRENT_DESKTOP KDE_FULL_SESSION DESKTOP_SESSION SESSION_MANAGER 2>/dev/null || true
+# Чтобы не сработала ветка KDE Plasma (addons_is_plasma) — сессия в песочнице не Plasma,
+# если только явно не попросили сохранить её (MYFOX_SANDBOX_KEEP_DESKTOP=1 — тестирование
+# самой Plasma-ветки).
+if [[ "${MYFOX_SANDBOX_KEEP_DESKTOP:-}" != "1" ]]; then
+    unset XDG_CURRENT_DESKTOP KDE_FULL_SESSION DESKTOP_SESSION SESSION_MANAGER 2>/dev/null || true
+fi
 
 echo "[sandbox] HOME=$HOME" >&2
 echo "[sandbox] XDG_STATE_HOME=$XDG_STATE_HOME" >&2

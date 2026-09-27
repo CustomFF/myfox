@@ -51,13 +51,16 @@ addon_guid() {
 
 # ─── Системный пакет plasma-browser-integration (native-messaging host) ─────
 
+# Dirs searched for the native-messaging-host manifest. Overridable via
+# MYFOX_NMH_DIRS (colon-separated) so this can be tested with the package
+# "missing" without actually uninstalling it — production runs never set
+# that var, so the real fixed list below is what always applies.
 addons_pkg_installed() {
-    local host
-    for host in \
-        /usr/lib/mozilla/native-messaging-hosts/org.kde.plasma.browser_integration.json \
-        /usr/lib64/mozilla/native-messaging-hosts/org.kde.plasma.browser_integration.json \
-        /usr/local/lib/mozilla/native-messaging-hosts/org.kde.plasma.browser_integration.json; do
-        [[ -f "$host" ]] && return 0
+    local dirs="${MYFOX_NMH_DIRS:-/usr/lib/mozilla/native-messaging-hosts:/usr/lib64/mozilla/native-messaging-hosts:/usr/local/lib/mozilla/native-messaging-hosts}"
+    local dir
+    local IFS=:
+    for dir in $dirs; do
+        [[ -f "$dir/org.kde.plasma.browser_integration.json" ]] && return 0
     done
     return 1
 }
