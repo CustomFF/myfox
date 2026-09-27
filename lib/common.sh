@@ -23,12 +23,18 @@ MYFOX_DDBLM_GALLERY="https://daydve.github.io/ddblm/"
 MYFOX_DDBLM_LOCAL="${MYFOX_DDBLM_LOCAL:-}"
 
 MYFOX_DEFAULT_PREFIX="$HOME/.local/share/firefox"
+
+# Everything myfox-core needs to run offline (bin/myfox-core, bin/myfox
+# itself, lib/, i18n/, assets/) lives in one directory — so `myfox
+# uninstall`/`update`/`help` work without a network round-trip, even if
+# the server/domain the tarball was fetched from ever disappears.
+# `~/.local/bin/myfox` is a symlink into it, not a second copy: one real
+# file, one thing to keep in sync (`myfox update` rewrites this whole
+# directory, not two separate locations).
+MYFOX_SHARE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/myfox"
+MYFOX_LAUNCHER_PATH="$MYFOX_SHARE_DIR/bin/myfox"
 MYFOX_BIN_DIR="${MYFOX_BIN_DIR:-$HOME/.local/bin}"
-MYFOX_LAUNCHER_PATH="$MYFOX_BIN_DIR/myfox"
-# Постоянная локальная копия bin/myfox-core+lib/+i18n/ — чтобы `myfox
-# uninstall` работал полностью офлайн (без повторного скачивания тарбола),
-# даже если сервер/домен когда-нибудь пропадёт. `myfox update` её обновляет.
-MYFOX_CORE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/myfox/core"
+MYFOX_SYMLINK_PATH="$MYFOX_BIN_DIR/myfox"
 
 MYFOX_DESKTOP_NAME="firefox-myfox.desktop"
 MYFOX_DESKTOP_TITLE="Firefox (myfox)"

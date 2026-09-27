@@ -15,10 +15,11 @@ DIST_URL="${MYFOX_DIST_URL:-https://example.invalid/myfox-dist.tar.gz}"
 STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/myfox/state"
 BIN_DIR="${MYFOX_BIN_DIR:-$HOME/.local/bin}"
 LAUNCHER_PATH="$BIN_DIR/myfox"
-# Постоянная копия core (bin/myfox-core+lib/+i18n/), которую install_launcher
-# кладёт при установке/обновлении — uninstall работает из неё офлайн, без
-# сети, даже если сервер/домен однажды пропадёт.
-CORE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/myfox/core"
+# Единый каталог (bin/myfox-core+bin/myfox+lib/+i18n/+assets/), который
+# install_launcher (bin/myfox-core) наполняет при установке/обновлении —
+# uninstall/help работают из него офлайн, без сети, даже если сервер/домен
+# однажды пропадёт. ~/.local/bin/myfox — символическая ссылка сюда же.
+CORE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/myfox"
 
 _lang() { case "${LANG:-en}" in ru*) echo ru ;; *) echo en ;; esac; }
 
