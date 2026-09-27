@@ -177,7 +177,7 @@ opts_default() {
     case "$1" in
         browser_only) echo false ;;
         bl)           echo true ;;
-        addons)       echo true ;;
+        theme)        echo dark ;;
         channel)      echo stable ;;
         *)            echo "" ;;
     esac

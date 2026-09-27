@@ -38,6 +38,23 @@ apply_chrome() {
     # No log()/success() here — see apply_autoconfig comment above.
 }
 
+# ─── Theme choice ────────────────────────────────────────────────────────────
+
+# apply_theme_pref <profile_dir> <dark|light> — pre-seeds the initial theme
+# choice into user.js, since a fresh profile hasn't run Firefox yet to have
+# a prefs.js to write into. firefox.cfg reads myfox.theme once (see its
+# "Only ONCE" theme-activation block) to decide which of the two always-
+# installed theme add-ons to enable. Idempotent: replaces any existing
+# myfox.theme line instead of piling up duplicates on repeat installs
+# against the same profile.
+apply_theme_pref() {
+    local profile_dir="$1" theme="$2" f="$profile_dir/user.js" tmp
+    tmp=$(mktemp)
+    [[ -f "$f" ]] && grep -v '^user_pref("myfox\.theme"' "$f" > "$tmp"
+    printf 'user_pref("myfox.theme", "%s");\n' "$theme" >> "$tmp"
+    mv "$tmp" "$f"
+}
+
 # ─── Букмарклеты (ddblm) ──────────────────────────────────────────────────────
 #
 # docs/blm_panel.css → chrome/blm_panel.css, ВСЕ icons/*.svg → chrome/panel-icons/.
