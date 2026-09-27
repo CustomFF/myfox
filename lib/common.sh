@@ -193,6 +193,6 @@ opts_get() {
     fi
 }
 
-opts_has() { [[ -n "$(state_get "opt_${key:=$1}")" ]]; }
+opts_has() { local key="$1"; [[ -n "$(state_get "opt_${key}")" ]]; }
 
 opts_set() { state_set "opt_${1}" "$2"; }
