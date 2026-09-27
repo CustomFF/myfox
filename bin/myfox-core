@@ -554,25 +554,28 @@ install_browser_tarball() {
     [[ -n "$FIREFOX_VERSION" ]] && state_set firefox_version "$FIREFOX_VERSION"
 }
 
-# Копирует лаунчер (~/.local/bin/myfox): из тарбола (bin/myfox-launcher) если
-# есть, иначе — сам get.sh из корня репозитория (git-clone / make install).
+# Populates the unified $MYFOX_SHARE_DIR (bin/myfox, bin/myfox-core, lib/,
+# i18n/, assets/) and points ~/.local/bin/myfox at it with a symlink.
+# rm -rf on the whole dir first — cheap (a few small files) and also wipes
+# any old, pre-single-directory layout's leftovers (that one kept a
+# "core" subdirectory here) along with anything stale from a previous run.
 install_launcher() {
-    mkdir -p "$MYFOX_BIN_DIR"
+    rm -rf "$MYFOX_SHARE_DIR"
+    mkdir -p "$MYFOX_SHARE_DIR/bin"
     if [[ -f "$MYFOX_ROOT/bin/myfox-launcher" ]]; then
         install -m 0755 "$MYFOX_ROOT/bin/myfox-launcher" "$MYFOX_LAUNCHER_PATH"
     else
         install -m 0755 "$MYFOX_ROOT/get.sh" "$MYFOX_LAUNCHER_PATH"
     fi
+    install -m 0755 "$MYFOX_ROOT/bin/myfox-core" "$MYFOX_SHARE_DIR/bin/myfox-core"
+    cp -a "$MYFOX_ROOT/lib" "$MYFOX_SHARE_DIR/lib"
+    cp -a "$MYFOX_ROOT/i18n" "$MYFOX_SHARE_DIR/i18n"
+    cp -a "$MYFOX_ROOT/assets" "$MYFOX_SHARE_DIR/assets"
 
-    # Постоянная копия core — myfox uninstall работает из неё офлайн, без
-    # повторного скачивания тарбола (только myfox update качает заново).
-    rm -rf "$MYFOX_CORE_DIR"
-    mkdir -p "$MYFOX_CORE_DIR/bin"
-    install -m 0755 "$MYFOX_ROOT/bin/myfox-core" "$MYFOX_CORE_DIR/bin/myfox-core"
-    cp -a "$MYFOX_ROOT/lib" "$MYFOX_CORE_DIR/lib"
-    cp -a "$MYFOX_ROOT/i18n" "$MYFOX_CORE_DIR/i18n"
+    mkdir -p "$MYFOX_BIN_DIR"
+    ln -sfn "$MYFOX_LAUNCHER_PATH" "$MYFOX_SYMLINK_PATH"
 
-    success "$(t launcher_installed "$MYFOX_LAUNCHER_PATH")"
+    success "$(t launcher_installed "$MYFOX_SYMLINK_PATH")"
     case ":$PATH:" in
         *":$MYFOX_BIN_DIR:"*) ;;
         *) MYFOX_PATH_HINT=1 ;;
@@ -1092,7 +1095,15 @@ run_uninstall() {
     fi
 
     state_clear
-    [[ -f "$MYFOX_LAUNCHER_PATH" ]] && rm -f "$MYFOX_LAUNCHER_PATH"
+    # Remove the ~/.local/bin symlink only if it's actually ours (resolves
+    # into our share dir) — never touch something else that happens to
+    # sit at that path.
+    if [[ -e "$MYFOX_SYMLINK_PATH" || -L "$MYFOX_SYMLINK_PATH" ]]; then
+        local symlink_target launcher_real
+        symlink_target=$(readlink -f "$MYFOX_SYMLINK_PATH" 2>/dev/null) || true
+        launcher_real=$(readlink -f "$MYFOX_LAUNCHER_PATH" 2>/dev/null) || true
+        [[ -n "$symlink_target" && "$symlink_target" == "$launcher_real" ]] && rm -f "$MYFOX_SYMLINK_PATH"
+    fi
 
     echo ""
     if [[ "$del_profile" == "no" && -n "$PROFILE_DIR" ]]; then
@@ -1102,12 +1113,13 @@ run_uninstall() {
         success "$(t uninstalled)"
     fi
 
-    # Последним шагом — постоянная копия core (bin/myfox-core+lib/+i18n/,
-    # см. install_launcher). Когда офлайн-uninstall запущен ИЗ неё самой
-    # (get.sh делегирует сюда напрямую, без сети) — это самоудаление
-    # собственного каталога; безопасно на Linux, т.к. bash к этому моменту
-    # уже прочитал весь скрипт целиком, дальнейших чтений с диска не будет.
-    rm -rf "$MYFOX_CORE_DIR"
+    # Последним шагом — весь $MYFOX_SHARE_DIR (bin/myfox-core+bin/myfox+
+    # lib/+i18n/+assets/, см. install_launcher). Когда офлайн-uninstall
+    # запущен ИЗ неё самой (get.sh делегирует сюда напрямую, без сети) —
+    # это самоудаление собственного каталога; безопасно на Linux, т.к.
+    # bash к этому моменту уже прочитал весь скрипт целиком, дальнейших
+    # чтений с диска не будет.
+    rm -rf "$MYFOX_SHARE_DIR"
 }
 
 main "$@"
