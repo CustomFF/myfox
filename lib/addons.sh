@@ -3,8 +3,8 @@
 # (<profile_dir>/extensions/<addon-id>.xpi — Firefox ставит их тихо при первом
 # старте профиля). Требует common.sh, i18n.sh. Только curl+awk, без python3.
 
-MYFOX_ADDON_UBLOCK="ublock-origin"
-MYFOX_ADDON_THEME="google-chrome-dark"
+MYFOX_ADDON_THEME_DARK="google-chrome-dark"
+MYFOX_ADDON_THEME_LIGHT="google-chrome-light"
 MYFOX_ADDON_PLASMA="plasma-integration"
 
 # ─── Детект KDE Plasma ────────────────────────────────────────────────────────

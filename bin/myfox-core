@@ -31,7 +31,7 @@ INSTALL_OPTS=(
     "--reinstall|0|MODE|reinstall|mode"
     "--browser-only|0|MODE|browser-only|mode"
     "--nobl|0|NOBL|true|"
-    "--noaddons|0|NOADDONS|true|"
+    "--theme|1|THEME_ARG||"
     "--plasma-integration|0|PLASMA_FORCE|true|"
     "--noplasma|0|NO_PLASMA|true|"
     "--force|0|FORCE|true|"
@@ -53,8 +53,8 @@ main() {
         set -- "$@" --help
     fi
 
-    PREFIX="" PROFILE_ARG="" LANG_ARG="" LIST_LANGUAGES=""
-    MODE="" NOBL=false NOADDONS=false PLASMA_FORCE=false NO_PLASMA=false FORCE=false SHOW_HELP=""
+    PREFIX="" PROFILE_ARG="" LANG_ARG="" LIST_LANGUAGES="" THEME_ARG=""
+    MODE="" NOBL=false PLASMA_FORCE=false NO_PLASMA=false FORCE=false SHOW_HELP=""
     PLASMA_PKG_HINT="" MYFOX_PATH_HINT=""
     MYFOX_NONINTERACTIVE="${MYFOX_NONINTERACTIVE:-}"
     MYFOX_VERBOSE="${MYFOX_VERBOSE:-0}"
@@ -204,7 +204,7 @@ usage() {  # [general|install|update|uninstall]
             _opt "--reinstall" "$(t usage_reinstall)"
             _opt "--browser-only" "$(t usage_browser_only)"
             _opt "--nobl" "$(t usage_nobl)"
-            _opt "--noaddons" "$(t usage_noaddons)"
+            _opt "--theme <dark|light>" "$(t usage_theme)"
             _opt "--plasma-integration" "$(t usage_plasma_integration)"
             _opt "--noplasma" "$(t usage_noplasma)"
             _opt "--force" "$(t usage_force)"
@@ -281,7 +281,7 @@ resolve_channel() {
 install_wizard() {
     local step="welcome" rc=0
     LANG_CODE="" CHANNEL="" BL_ON=false TWEAKED_PROFILE=true
-    WIZ_PROFILE="" WIZ_PROFILE_NEW=0
+    WIZ_PROFILE="" WIZ_PROFILE_NEW=0 WIZ_THEME=""
     # Some steps are a no-op passthrough under certain conditions (e.g. "no
     # myfox profiles yet" on the profile step) and jump straight to the next
     # step without showing a dialog. That's correct when arriving from
@@ -445,10 +445,29 @@ install_wizard() {
                     # Твики включают и стили под букмарклеты — отдельно не спрашиваем.
                     TWEAKED_PROFILE=true
                     BL_ON=true
-                    step="summary"
+                    step="theme"
                 else
                     TWEAKED_PROFILE=false
                     BL_ON=false
+                    step="summary"
+                fi
+                ;;
+            theme)
+                if [[ -n "$THEME_ARG" ]]; then
+                    WIZ_THEME="$THEME_ARG"
+                    step="summary"
+                    continue
+                fi
+                rc=0
+                local theme_ans
+                theme_ans=$(tui_choose_kv "$(t theme_pick_header)" "dark" 1 1 \
+                    dark "$(t theme_dark_option)" light "$(t theme_light_option)") || rc=$?
+                if [[ "$rc" -eq 3 ]]; then
+                    step="tweaks"
+                elif [[ "$rc" -ne 0 ]]; then
+                    return 1
+                else
+                    WIZ_THEME="$theme_ans"
                     step="summary"
                 fi
                 ;;
@@ -457,7 +476,7 @@ install_wizard() {
                 tui_confirm "$(_wizard_summary_text)" yes 1 \
                     "$(t summary_install_label)" "$(t opt_cancel)" || rc=$?
                 if [[ "$rc" -eq 3 ]]; then
-                    step="tweaks"
+                    if [[ "$TWEAKED_PROFILE" == "true" ]]; then step="theme"; else step="tweaks"; fi
                 elif [[ "$rc" -ne 0 ]]; then
                     return 1
                 else
@@ -469,17 +488,16 @@ install_wizard() {
 }
 
 # Текст сводного экрана мастера: что именно будет установлено с учётом уже
-# сделанных выборов (путь/канал/язык/профиль/твики/букмарклеты/аддоны —
-# аддоны включаются молча вместе с твиками, поэтому тут единственное место,
-# где пользователь вообще о них узнаёт).
+# сделанных выборов (путь/канал/язык/профиль/твики/букмарклеты/оформление).
 _wizard_summary_text() {
-    local profile_desc channel_desc
+    local profile_desc channel_desc theme_desc
     if [[ "$WIZ_PROFILE_NEW" == "1" || -z "$WIZ_PROFILE" ]]; then
         profile_desc="$(t profile_new_option)"
     else
         profile_desc="$(myfox_shorten_home "$WIZ_PROFILE")"
     fi
     if [[ "$CHANNEL" == "beta" ]]; then channel_desc="$(t channel_beta)"; else channel_desc="$(t channel_stable)"; fi
+    if [[ "$WIZ_THEME" == "light" ]]; then theme_desc="$(t theme_light_option)"; else theme_desc="$(t theme_dark_option)"; fi
 
     local -a lines=(
         "$(t summary_header)"
@@ -490,7 +508,7 @@ _wizard_summary_text() {
         "$(t summary_row_profile "$profile_desc")"
     )
     if [[ "$TWEAKED_PROFILE" == "true" ]]; then
-        lines+=("$(t summary_row_tweaks_yes)" "$(t summary_row_bl)" "$(t summary_row_addons)")
+        lines+=("$(t summary_row_tweaks_yes)" "$(t summary_row_bl)" "$(t summary_row_theme "$theme_desc")")
     else
         lines+=("$(t summary_row_tweaks_no)")
     fi
@@ -612,34 +630,30 @@ maybe_add_plasma() {  # <array-name>
     fi
 }
 
-# resolve_addons — интерактивные вопросы (confirm, детект Plasma) и наполнение
-# глобального ADDONS_LIST. Без tui_spin: сама загрузка аддонов выполняется
-# позже, вместе с пиннингом профиля, под одним общим спиннером — пользователю
-# всё равно, что это технически два разных шага.
-resolve_addons() {
-    ADDONS_LIST=()
-
-    if [[ "$NOADDONS" == true ]]; then
-        opts_set addons false
-        log "$(t addons_skipped_flag)"
-        return 0
+# resolve_theme — flag → wizard choice → saved choice → default (dark).
+# Only called for a tweaked profile; a fresh profile always gets both theme
+# add-ons (see ADDONS_LIST in run_install), this just decides which one
+# firefox.cfg activates (apply_theme_pref writes it into the new profile).
+resolve_theme() {
+    if [[ -n "$THEME_ARG" ]]; then
+        case "$THEME_ARG" in
+            dark|light) THEME_CHOICE="$THEME_ARG" ;;
+            *) error "$(t err_unknown_theme "$THEME_ARG")" ;;
+        esac
+    elif [[ -n "$WIZARD_RAN" && -n "$WIZ_THEME" ]]; then
+        THEME_CHOICE="$WIZ_THEME"
+    else
+        THEME_CHOICE=$(opts_get theme)
     fi
-    if [[ -n "$WIZARD_RAN" ]]; then
-        opts_set addons true
-    elif opts_has addons; then
-        if [[ "$(opts_get addons)" != "true" ]]; then
-            opts_set addons false
-            log "$(t addons_skipped_saved)"
-            return 0
-        fi
-    elif ! tui_confirm "$(t confirm_addons)" yes; then
-        opts_set addons false
-        log "$(t addons_skipped)"
-        return 0
-    fi
-    opts_set addons true
-    ADDONS_LIST+=("$MYFOX_ADDON_UBLOCK" "$MYFOX_ADDON_THEME")
+    opts_set theme "$THEME_CHOICE"
+}
 
+# resolve_plasma — детект Plasma и наполнение глобального ADDONS_LIST
+# (который уже содержит оба слага тем, см. run_install) плагином интеграции.
+# Без tui_spin: сама загрузка аддонов выполняется позже, вместе с
+# пиннингом профиля, под одним общим спиннером — пользователю всё равно,
+# что это технически два разных шага.
+resolve_plasma() {
     local plasma_opt
     plasma_opt=$(opts_get plasma)
     if [[ "$NO_PLASMA" == true ]]; then
@@ -675,6 +689,7 @@ _setup_profile() {  # <install_dir> <profile_dir> [addon-slug...]
     local rc=$?
     apply_autoconfig "$install_dir"
     apply_chrome "$profile_dir"
+    apply_theme_pref "$profile_dir" "$THEME_CHOICE"
     [[ $# -gt 0 ]] && addons_apply "$profile_dir" "$@"
     [[ "$BL_APPLY" == 1 ]] && apply_bookmarklets "$profile_dir" >/dev/null
     return "$rc"
@@ -792,19 +807,19 @@ run_install() {
 
     if [[ "$TWEAKED_PROFILE" == "false" ]]; then
         # Чистый профиль (выбор мастера "твики: нет") — твики/букмарклеты/
-        # аддоны/пиннинг не трогаем, только браузер + ярлык.
+        # тему/пиннинг не трогаем, только браузер + ярлык.
         log "$(t clean_profile_skip)"
         firefox_create_desktop_entry "$INSTALL_DIR" "$MYFOX_DESKTOP_TITLE" "$MYFOX_DESKTOP_NAME"
         opts_set bl false
-        opts_set addons false
         install_launcher
         print_summary
         return 0
     fi
 
-    local -a ADDONS_LIST=()
+    local -a ADDONS_LIST=("$MYFOX_ADDON_THEME_DARK" "$MYFOX_ADDON_THEME_LIGHT")
     local BL_APPLY=0
-    resolve_addons
+    resolve_theme
+    resolve_plasma
     resolve_bookmarklets
 
     local pin_hash
@@ -1052,11 +1067,11 @@ run_uninstall() {
         success "$(t chrome_removed "$PROFILE_DIR")"
     fi
 
-    # Аддоны (uBlock/тема/plasma) удаляются только по фиксированным ID —
+    # Аддоны (темы/plasma) удаляются только по фиксированным ID —
     # остальные *.xpi в extensions/ могут быть пользовательскими (existing-профиль).
     local -a addon_ids=(
-        "uBlock0@raymondhill.net"
         "{9631ec37-35f2-4719-815e-2f84ff28b901}"
+        "{1fd1213e-dcb2-48d9-806f-c0a8a7d0a8e7}"
         "plasma-browser-integration@kde.org"
     )
     if [[ "$profile_type" == "existing" && "$del_profile" == "yes" \
