@@ -10,6 +10,17 @@
     --user-tab-ear-rounding: calc(var(--myfox-radius, 5px) * 2);
 }
 
+/* "New tab" button: a small round button instead of a rounded square; the
+   circle shows only on hover. Two IDs so it beats the tab-strip padding rule
+   below. */
+#TabsToolbar-customization-target #tabs-newtab-button > .toolbarbutton-icon {
+    box-sizing: border-box !important;
+    width: 22px !important;
+    height: 22px !important;
+    padding: 5px !important;
+    border-radius: 50% !important;
+}
+
 .tab-background {
     border-radius: var(--user-tab-rounding) var(--user-tab-rounding) 0px 0px !important;
     /* Connected */

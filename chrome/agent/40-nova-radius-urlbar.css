@@ -49,12 +49,14 @@ panel[type="arrow"] {
    that grows past the bar on every side (overhang) and swallows the input.
    Zero the growth/overhang/outset tokens so the results simply hang off the
    bar at exactly its width, like a classic autocomplete list, and swap the
-   purple glow for the same soft offset shadow the tab previews use. */
+   purple glow for the same soft offset shadow the tab previews use. Nova
+   names the shadow token -open, without Nova it is -breakout. */
 #urlbar {
     --urlbar-background-overhang-open: 0px !important;
     --urlbarView-joint-background-outset-inline: 0px !important;
     --urlbarView-joint-background-outset-block: 0px !important;
-    --urlbar-background-box-shadow-open: 4px 9px 10px rgba(0, 0, 0, 0.45) !important;
+    --urlbar-background-box-shadow-open: 3px 6px 8px rgba(0, 0, 0, 0.3) !important;
+    --urlbar-background-box-shadow-breakout: 3px 6px 8px rgba(0, 0, 0, 0.3) !important;
     --urlbar-background-border-top-radius-open: var(--myfox-radius) !important;
     --urlbarView-margin-inline: 0px !important;
     --urlbarview-row-padding-block: 0.2rem !important;

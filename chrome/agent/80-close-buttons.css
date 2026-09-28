@@ -22,4 +22,14 @@
     moz-button[iconsrc*="close"] {
         --button-border-radius: 50% !important;
     }
+    /* Sidebar panel headers: a smaller circle than the 24px default. */
+    moz-button[iconsrc$="close.svg"] {
+        width: 20px !important;
+        height: 20px !important;
+        min-width: 20px !important;
+        min-height: 20px !important;
+        --button-size-icon: 20px !important;
+        --button-min-height: 20px !important;
+        --icon-size: 12px !important;
+    }
 }

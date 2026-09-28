@@ -75,14 +75,16 @@ sidebar-panel-header moz-button,
     --button-min-height: 28px !important;
     --space-small: 0px !important;
 }
-/* Round ✕: a tighter circle around the glyph (same 24px as the downloads one). */
+/* Round ✕: a small circle around the glyph (same 20px as the downloads one).
+   Other sidebars' close buttons are sized in 80-close-buttons.css. */
 #sidebar-panel-close {
-    width: 24px !important;
-    height: 24px !important;
-    min-width: 24px !important;
-    min-height: 24px !important;
-    --button-size-icon: 24px !important;
-    --button-min-height: 24px !important;
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
+    min-height: 20px !important;
+    --button-size-icon: 20px !important;
+    --button-min-height: 20px !important;
+    --icon-size: 12px !important;
 }
 sidebar-panel-header .menu-button {
     margin-inline-start: 6px !important;
@@ -115,6 +117,12 @@ moz-input-search:focus-within {
 moz-button.menu-button {
     border-radius: var(--myfox-radius) !important;
     margin-inline-end: 0 !important;
+    width: 22px !important;
+    height: 22px !important;
+    min-width: 22px !important;
+    min-height: 22px !important;
+    --button-size-icon: 22px !important;
+    --button-min-height: 22px !important;
 }
 
 /* Synced-tabs sidebar: its empty-state card starts right under the search

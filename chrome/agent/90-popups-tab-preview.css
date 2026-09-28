@@ -23,12 +23,14 @@
 #tab-preview-panel,
 #tab-note-preview-panel,
 #tabgroup-preview-panel {
-    --panel-box-shadow: 4px 9px 10px rgba(0, 0, 0, 0.45) !important;
+    --panel-box-shadow: 3px 6px 8px rgba(0, 0, 0, 0.3) !important;
     /* The popup window is only as big as the panel plus this margin (4px by
        default), so a wide blur was clipped to a hard-edged gray rectangle.
-       Reserve room for the whole shadow (9px offset + 10px blur = 19px at
-       the bottom, 14px at the right, less elsewhere). */
-    --panel-box-shadow-margin: 20px !important;
+       Reserve room for the whole shadow (6px offset + 8px blur = 14px at
+       the bottom, 11px at the right, less elsewhere). */
+    --panel-box-shadow-margin: 14px !important;
+    /* Same text size as the menus and tooltips (the system's is ~15px). */
+    font-size: 12px !important;
 }
 
 /* Identity/permissions popup ("Firefox на страже", trustpanel-popup) — the
