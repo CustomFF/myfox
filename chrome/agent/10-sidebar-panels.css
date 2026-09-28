@@ -293,3 +293,35 @@ sidebar-tab-row:hover {
 .sidebar-panel-scrollable-content {
     padding: 4px 0 0 !important;
 }
+
+/* Sidebar customize panel: same 12px text and tight rows as the other panels
+   (stock: menu font, 9px above and below every checkbox, 18px between groups). */
+@-moz-document url-prefix("chrome://") {
+    .sidebar-panel:has(> .sidebar-panel-scrollable-content > .customize-group) {
+        font-size: 12px !important;
+    }
+    .sidebar-panel-scrollable-content > .customize-group {
+        margin-block-end: 0 !important;
+    }
+    .sidebar-panel-scrollable-content > * + * {
+        margin-block-start: 6px !important;
+    }
+    .sidebar-panel-scrollable-content moz-checkbox {
+        padding-block: 4px !important;
+        margin-block-start: 0 !important;
+        border: none !important;
+    }
+    .sidebar-panel-scrollable-content moz-checkbox[slot="nested"] {
+        padding-block: 4px !important;
+    }
+    /* One look for the group cards on every channel: no border, a light fill
+       (the stock non-Nova style reads these tokens; ::part() can't be styled
+       from here). */
+    .sidebar-panel:has(> .sidebar-panel-scrollable-content > .customize-group) {
+        --sidebar-box-border: none;
+        --sidebar-box-background: color-mix(in srgb, currentColor 8%, transparent);
+    }
+    .sidebar-panel-scrollable-content .extension-item {
+        padding-block: 4px !important;
+    }
+}

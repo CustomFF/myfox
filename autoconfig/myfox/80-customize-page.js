@@ -17,6 +17,8 @@
             let shadow = this.shadowRoot;
             let fieldset = shadow ? shadow.querySelector(".customize-group.no-end-margin") : null;
             if (fieldset) {
+              // Its legend repeats the panel title; the stock style hides it.
+              fieldset.classList.add("no-label");
               let downloadsCheckbox = shadow.querySelector('moz-checkbox[name="downloads"]') || shadow.getElementById("downloads");
               if (downloadsCheckbox) {
                 downloadsCheckbox.setAttribute("label", t("panel.downloads.title"));
