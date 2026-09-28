@@ -3,9 +3,9 @@
 > **[Русская версия](README.ru.md)**
 
 MyFox is a set of Firefox user-interface tweaks (floating "card" tabs, rounded corners,
-aligned sidebar, Downloads-as-a-sidebar-view, pill-shaped search fields) bundled with a
-**one-command installer** that grabs the latest stable Firefox straight from Mozilla's
-official tarball and applies the tweaks to it.
+aligned sidebar, Downloads-as-a-sidebar-view, compact search fields) bundled with an
+**installer** that grabs Firefox (stable or beta) straight from Mozilla's official tarball
+and applies the tweaks to it.
 
 This repository only contains the **tweaks and the installer**. Bookmarklets live in a
 separate project — **[ddblm](https://github.com/DayDve/ddblm)** (DayDve BookmarkLet Manager). MyFox
@@ -14,112 +14,145 @@ you do not need to build or clone ddblm yourself.
 
 ## Highlights
 
-- **One command install** — `./install.sh` downloads Firefox from `download.mozilla.org`
-  and applies everything: autoconfig, styles, required `about:config` prefs.
-- **Re-runs are smart (idempotent)** — the browser is not re-downloaded, your chosen
-  profile is reused, tweaks are refreshed.
-- **`uninstall.sh`** removes the application and (optionally) the MyFox profile.
-- **Optional bookmarklet tweaks** — icons, hidden labels, and a link to the
-  bookmarklet gallery page (taken from the separate **ddblm** project).
-- **Optional add-ons** — uBlock Origin and a dark theme are installed by default into
-  `<profile>/extensions` (per-profile, so other profiles stay pristine); KDE Plasma integration is available on request.
+- **Wizard or one command** — in a terminal a step-by-step wizard (install directory, stable/beta,
+  Firefox language, profile, tweaks, dark/light appearance); with `-y` it runs without questions.
+- **Profile-local** — tweaks apply only to the profile the installer marked (`<profile>/.myfox`).
+  Any other profile under the same install is stock Firefox; delete the profile and nothing of
+  MyFox is left in it. No policies, nothing install-wide.
+- **Both themes, your pick** — the Google Chrome dark and light themes are installed into the
+  profile; the one you chose is enabled on first start (once — your later choice is never overwritten).
+- **KDE Plasma integration** — the add-on is installed under a Plasma session (or with
+  `--plasma-integration`).
+- **A real command afterwards** — `myfox browser`, `myfox update`, `myfox uninstall`.
 - **No root required** — Firefox lands in `~/.local/share/firefox` and the desktop shortcut
   is named **«Firefox (myfox)»** so it never conflicts with a system-installed Firefox.
 
 ## Requirements
 
-- Linux, bash 4+
-- `curl`, `tar`, `grep`, `awk` (and `python3` only for bookmarklet tweaks)
+- Linux (x86_64 or aarch64), bash 4+
+- `curl`, `tar`, `awk`
+- `dialog` or `whiptail` is optional (the wizard falls back to plain prompts without them)
 
 ## Quick start
+
+From a clone:
 
 ```bash
 git clone https://github.com/DayDve/myfox.git
 cd myfox
-./install.sh
+./bin/myfox-core install          # or: make install ARGS="-y"
 ```
 
-You will be prompted about bookmarklet tweaks at the end (say *n* to skip).
+The installer is designed to be served as a distribution tarball plus `get.sh`
+(`curl -fsSL <url>/get.sh | bash`); no public URL is published yet, see
+[Development](#development) for serving one locally.
 
-## Options
+## The `myfox` command
+
+The installer puts a `myfox` command in `~/.local/bin` (make sure it is on your `PATH`):
+
+```text
+myfox                       Status line and help (does not start the browser)
+myfox browser [args…]       Start the installed browser; all arguments go to Firefox
+myfox ff [args…]            Alias for `myfox browser`
+myfox update [--reinstall]  Re-apply tweaks (and, with --reinstall, re-download Firefox)
+myfox uninstall [-y]        Remove MyFox
+myfox help [command]        Help for one command
+```
+
+## Install options
 
 ```text
   --prefix <path>        Install Firefox to a custom path (default ~/.local/share/firefox).
-                         The path is remembered for future runs.
-  --reinstall            Force re-download of Firefox even if already installed.
   --profile <path>       Use a specific Firefox profile directory (skips detection).
+  --lang <code>          Firefox language (validated against Mozilla; see --list-languages).
+                         Also picks the installer's own interface language (ru/en).
+  --list-languages       Print the available Firefox languages and exit.
+  --reinstall            Force re-download of Firefox even if already installed.
+  --browser-only         Only the tarball and the desktop entry: no profile, no tweaks.
   --nobl                 Skip bookmarklet tweaks.
-  --noaddons             Skip add-ons (uBlock, theme, Plasma integration).
-  --plasma-integration   Force-install the KDE Plasma integration add-on (no prompt),
+  --theme <dark|light>   Appearance of a new profile (default: dark).
+  --plasma-integration   Install the KDE Plasma integration add-on (no prompt),
                          even outside a Plasma session.
   --noplasma             Skip KDE Plasma integration even under Plasma.
+  --force                Install even if already installed.
   -y, --yes              Non-interactive (no prompts).
+  -v, --verbose          Verbose output.
   -h, --help             Show help.
 ```
+
+Both `--flag value` and `--flag=value` work. `update` accepts `--reinstall`, `-y`, `-v`;
+`uninstall` accepts `-y`, `-v`; other flags are rejected for those commands instead of being
+silently ignored. The stable/beta channel is chosen in the wizard (stable when non-interactive).
 
 ## Updating
 
 ```bash
-./install.sh          # refreshes tweaks; does NOT re-download Firefox
-./install.sh --reinstall   # also pulls the latest Firefox build
+myfox update               # refreshes tweaks; does NOT re-download Firefox
+myfox update --reinstall   # also pulls the latest Firefox build
 ```
+
+Styles (`userChrome.css`) and `firefox.cfg` are read at browser start — restart Firefox after
+an update.
 
 ## Uninstalling
 
 ```bash
-./uninstall.sh [-y]
+myfox uninstall [-y]
 ```
 
-It removes the application (autoconfig files, chrome styles, desktop entry) and asks
-whether to delete the MyFox profile as well. A profile you passed in with `--profile`
-is never deleted — only the MyFox tweaks are removed from it.
+It removes the application (autoconfig files, desktop entry, the `myfox` command) and asks
+whether to delete the MyFox profile as well. For a profile you passed in with `--profile`
+only the MyFox tweaks are removed (your own `userChrome.css` is restored from its backup).
 
 ## What gets installed
 
 | Where | What |
 |---|---|
-| `<install>/defaults/pref/autoconfig.js` | enables the Autoconfig system |
-| `<install>/firefox.cfg` | privileged JS: registers agent sheet, patches sidebar/downloads, sets profile-local prefs |
-| `<profile>/chrome/userChrome.css` | user-sheet styles |
-| `<profile>/chrome/agent_overrides.css` | agent-sheet styles |
+| `~/.local/share/firefox` (`--prefix`) | Firefox itself, plus `defaults/pref/autoconfig.js` and `firefox.cfg` (privileged JS: registers the agent sheets, patches sidebar/downloads, sets profile-local prefs) |
+| `~/.local/share/myfox/` | the installer itself: `bin/myfox`, `bin/myfox-core`, `lib/`, `i18n/`, `assets/` — so `update`/`uninstall`/`help` work offline |
+| `~/.local/bin/myfox` | symlink to `~/.local/share/myfox/bin/myfox` |
+| `<profile>/chrome/userChrome.css` + `user/*.css` | user-sheet styles (tabs, toolbar, cards, …) |
+| `<profile>/chrome/agent/*.css` | agent-sheet styles (registered by `firefox.cfg`; reach into shadow DOM) |
+| `<profile>/extensions/` | both theme add-ons, optionally Plasma integration |
+| `<profile>/user.js` | one line, `myfox.theme`, read once by `firefox.cfg` |
 | `<profile>/.myfox` | profile marker — only marked profiles get tweaks |
 | `~/.local/share/applications/firefox-myfox.desktop` | launcher «Firefox (myfox)» |
-| `~/.local/state/myfox/install.json` | installer state (see [docs/logic.md](docs/logic.md)) |
+| `~/.local/state/myfox/state` | installer state (flat `key=value`, see [docs/logic.md](docs/logic.md)) |
 
-Required prefs (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`)
-are set automatically by `firefox.cfg` on first start — **but only for the profile marked by
-myfox** (`<profile>/.myfox`, or fallback: a legacy profile that already has
-`chrome/agent_overrides.css`). Any other profile stays a pristine, unmodified Firefox:
-`firefox.cfg` refuses to apply anything to it (no prefs, no styles, no window tweaks).
+Profiles live in `~/.mozilla/firefox` when that directory exists, otherwise (Firefox 147+ on a
+fresh system) in `$XDG_CONFIG_HOME/mozilla/firefox`; flatpak and snap locations are recognized too.
 
-On the marked profile, `firefox.cfg` also adds two bookmarks to the Bookmarks Toolbar:
-**«Расширенные настройки»** (about:config) and **«Добавить букмарклеты»** (the ddblm
-gallery — bilingual, opens in Russian as `?lang=ru` for a Russian-locale Firefox), and
-activates the installed Chrome Dark theme (when present).
+Required prefs (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`) are set by
+`firefox.cfg` on first start — **but only for the marked profile**. Any other profile stays a
+pristine Firefox: `firefox.cfg` refuses to apply anything to it (no prefs, no styles, no window tweaks).
+
+On the marked profile `firefox.cfg` also, once: adds two bookmarks to the Bookmarks Toolbar —
+**«Расширенные настройки»** (about:config) and **«Добавить букмарклеты»** (the ddblm gallery —
+bilingual, opens as `?lang=ru` for a Russian-locale Firefox) — enables the chosen theme, and sets
+the fresh-profile defaults (compact UI, AI features/telemetry/sponsored content off).
 
 ## Add-ons
 
-By default the installer puts three things into the Firefox install:
+- **Google Chrome Dark / Light themes** — both are always installed; the wizard step (or `--theme`)
+  decides which one is enabled, and also sets Firefox's "website appearance" to match.
+- **KDE Plasma integration** — installed silently under a Plasma session (or with
+  `--plasma-integration`).
 
-- **uBlock Origin** — adblock (installed by default).
-- **Chrome Dark theme** — a dark UI theme (installed by default).
-- **KDE Plasma integration** — installed silently under a Plasma session (or with `--plasma-integration`).
-
-The Plasma integration add-on additionally requires the system package
-`plasma-browser-integration` (the native-messaging host). The installer checks it:
-if the package is missing, a note with the install command is printed at the end of
-the setup — no `sudo` prompts interrupting the dialogs. Use `--noplasma` to skip it
-even under Plasma, and `--noaddons` to skip all add-ons.
+The Plasma add-on additionally needs the system package `plasma-browser-integration` (the
+native-messaging host). The installer checks for it: if it is missing, a note with the install
+command is printed at the end of the setup — no `sudo` prompts interrupting the dialogs. Use
+`--noplasma` to skip the add-on even under Plasma.
 
 ## Bookmarklets (ddblm)
 
-Bookmarklets are a [separate project](https://github.com/DayDve/ddblm). At install time you
-may opt in to the tweaks (custom icons + hidden labels on the Bookmarks Toolbar taken from
-ddblm) and a link to the bookmarklet gallery hosted on GitHub Pages
-([https://daydve.github.io/ddblm/](https://daydve.github.io/ddblm/)). The installer copies
-`docs/blm_panel.css` and **all** `icons/*.svg` from ddblm (raw.githubusercontent.com for
-published ddblm; a local checkout via `MYFOX_DDBLM_LOCAL=/path` while developing)
-into `<profile>/chrome/`, so you do not need to clone or build ddblm yourself.
+Bookmarklets are a [separate project](https://github.com/DayDve/ddblm). The tweaks (custom icons +
+hidden labels on the Bookmarks Toolbar, from ddblm) come with "tweaks: yes"; `--nobl` skips them.
+The installer copies `docs/blm_panel.css` and **all** `icons/*.svg` from ddblm
+(raw.githubusercontent.com for the published ddblm; a local checkout via
+`MYFOX_DDBLM_LOCAL=/path` while developing) into `<profile>/chrome/`, so you do not need to clone
+or build ddblm yourself. The gallery itself is hosted on GitHub Pages
+([https://daydve.github.io/ddblm/](https://daydve.github.io/ddblm/)).
 
 After install, open the gallery (click **«Добавить букмарклеты»** on the Bookmarks Toolbar),
 enable the toolbar (`Ctrl+Shift+B`) and drag the cards onto it.
@@ -133,22 +166,45 @@ enable the toolbar (`Ctrl+Shift+B`) and drag the cards onto it.
 2. Copy `autoconfig/autoconfig.js` into `<install>/defaults/pref/`.
 3. Copy `autoconfig/firefox.cfg` into `<install>/` (next to the `firefox` binary).
    *If a `firefox.cfg` already exists there, back it up first.*
-4. Copy `chrome/userChrome.css` and `chrome/agent_overrides.css` into your profile's
+4. Copy `chrome/userChrome.css`, `chrome/user/` and `chrome/agent/` into your profile's
    `chrome/` directory (path is shown at `about:support` → *Profile Folder*).
-5. Restart Firefox. The required prefs are applied automatically via autoconfig.
+5. Create the marker file `<profile>/.myfox` — without it `firefox.cfg` leaves the profile alone.
+6. Restart Firefox. The required prefs are applied automatically via autoconfig.
 
 > **Note:** editing `/usr/lib/firefox` requires sudo. On systems where you cannot write to
 > the install directory, this approach won't work — use the tarball install instead.
 
 ## What the tweaks look like
 
-- Web pages render as a floating card with rounded corners and even margins.
-- Sidebar bottom aligns with the card bottom.
+- Web pages render as a floating card with rounded corners and even margins; so does the sidebar.
+- One corner radius (`--myfox-radius`) everywhere instead of Nova's assorted pill shapes.
+- Compact rows in the sidebar panels (history, synced tabs, downloads, passwords), one 12px base
+  font on internal pages, round close buttons, a blue accent instead of Nova's violet.
 - The sidebar toggle button highlights when the panel is open and toggles on a single click.
-- History/Bookmarks search fields become compact pills that match the address bar on focus.
-- Compact bookmarklets with custom icons and hidden text labels (when ddblm tweaks enabled).
+- Compact bookmarklets with custom icons and hidden text labels (unless `--nobl`).
 
 ## Development
+
+There is no build step and no automated test suite; see [tests/README.md](tests/README.md) for the
+manual checklists. Before handing anything in:
+
+```bash
+bash -n get.sh bin/myfox-core lib/*.sh scripts/*.sh
+shellcheck -S error get.sh bin/myfox-core lib/*.sh scripts/*.sh
+python3 -m py_compile scratch/*.py        # if scratch/*.py was touched
+```
+
+Never run the installer against your real `$HOME` while developing — use the sandbox, which
+redirects `$HOME` and every `$XDG_*` directory:
+
+```bash
+scratch/sandbox.sh /tmp/mf --fresh -- ./bin/myfox-core install -y --nobl
+scratch/sandbox.sh /tmp/mf -- ./bin/myfox-core update -y
+scratch/sandbox.sh /tmp/mf -- ./bin/myfox-core uninstall -y
+```
+
+To exercise the real `curl | bash` path locally: `scripts/dev-serve.sh` builds `dist/myfox-dist.tar.gz`
+and serves it (with a `get.sh` pointing at itself) on `http://127.0.0.1:8787`.
 
 Hot-reload of styles without restarting the browser is possible via the RDP proxy
 (`firefox_rdp_proxy.py`, lives in the ddblm project):
@@ -159,6 +215,5 @@ python3 scratch/reload_userchrome.py
 ```
 
 Architecture details: [docs/logic.md](docs/logic.md).
-Test plan: [tests/README.md](tests/README.md).
 
 License: [MIT](LICENSE) © DayDve.
