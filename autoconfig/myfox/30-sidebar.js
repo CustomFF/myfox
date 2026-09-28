@@ -17,6 +17,11 @@
       icon: "chrome://mozapps/skin/extensions/extension.svg", l10nId: "",
       titleKey: "panel.addons.title",
     },
+    {
+      view: "viewTranslationsSidebar", name: "translations", url: "about:blank?myfox-translations",
+      icon: "chrome://browser/skin/translations.svg", l10nId: "",
+      titleKey: "panel.translations.title",
+    },
   ];
   MyFox.EXTRA_SIDEBARS = EXTRA_SIDEBARS;
 

@@ -5,6 +5,7 @@
 
     "panel.downloads.title": "Загрузки",
     "panel.addons.title": "Расширения",
+    "panel.translations.title": "Переводы Firefox",
 
     "downloads.search": "Поиск в загрузках",
     "downloads.clear": "Очистить загрузки",

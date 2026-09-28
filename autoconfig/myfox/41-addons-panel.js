@@ -1,6 +1,6 @@
 // Extensions sidebar (see injectAddonsPanel).
 (function (MyFox) {
-  const { t, wrapSearchWithClear } = MyFox;
+  const { t, wrapSearchWithClear, createOwnPanel } = MyFox;
 
   // Builds the add-ons sidebar's UI in a blank page: a compact list of
   // installed extensions with an on/off switch, a search box that filters
@@ -14,45 +14,8 @@
     if (sidebarDoc.getElementById("myfox-addons-panel")) return;
 
     const sbWin = sidebarDoc.defaultView;
-    const HTML = "http://www.w3.org/1999/xhtml";
     const { AddonManager } = win.ChromeUtils.importESModule("resource://gre/modules/AddonManager.sys.mjs");
-    // Theme colors and fonts of the browser's own UI.
-    let themeCss = sidebarDoc.createElementNS(HTML, "link");
-    themeCss.rel = "stylesheet";
-    themeCss.href = "chrome://global/skin/global.css";
-    sidebarDoc.head.appendChild(themeCss);
-    // A blank page doesn't inherit the sidebar's colors; copy them.
-    let root = sidebarDoc.documentElement;
-    let boxStyle = win.getComputedStyle(doc.getElementById("sidebar-box"));
-    let rootStyle = win.getComputedStyle(doc.documentElement);
-    root.style.colorScheme = boxStyle.colorScheme;
-    root.style.setProperty("--sidebar-text-color", boxStyle.color);
-    for (let name of ["--sidebar-background-color", "--link-color"]) {
-      let val = rootStyle.getPropertyValue(name).trim();
-      if (val) root.style.setProperty(name, val);
-    }
-    const mk = (tag, id, cls) => {
-      let e = sidebarDoc.createElementNS(HTML, tag);
-      if (id) e.id = id;
-      if (cls) e.className = cls;
-      return e;
-    };
-
-    let panel = mk("div", "myfox-addons-panel");
-
-    let titleRow = mk("div", null, "myfox-addons-title-row");
-    let h4 = mk("h4");
-    h4.textContent = t("panel.addons.title");
-    titleRow.appendChild(h4);
-    let closeBtn = mk("button", "myfox-addons-close");
-    let closeImg = mk("img");
-    closeImg.src = "chrome://global/skin/icons/close.svg";
-    closeBtn.appendChild(closeImg);
-    closeBtn.addEventListener("click", () => {
-      try { if (sbCtrl) sbCtrl.hide(); } catch(ex) {}
-    });
-    titleRow.appendChild(closeBtn);
-    panel.appendChild(titleRow);
+    let { panel, mk } = createOwnPanel(sidebarDoc, win, doc, sbCtrl, "myfox-addons-panel", t("panel.addons.title"));
 
     // The same search box and toggle the browser's own pages use.
     for (let module of ["moz-input-search", "moz-toggle"]) {
