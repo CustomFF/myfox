@@ -1,0 +1,268 @@
+/* Add-ons sidebar: a blank page (about:blank?myfox-addons) that firefox.cfg
+   fills with a compact extension list (injectAddonsPanel).
+   Agent sheet (registered by firefox.cfg): reaches into shadow DOM and beats
+   the documents' own styles. Load order is by file name. */
+
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+    html:has(#myfox-addons-panel),
+    html:has(#myfox-addons-panel) > body {
+        height: 100% !important;
+        margin: 0 !important;
+        background: transparent !important;
+    }
+    html:has(#myfox-addons-panel) > body {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    #myfox-addons-panel {
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 !important;
+        min-height: 0 !important;
+        box-sizing: border-box !important;
+        padding: 0 4px 4px !important;
+        font: 12px system-ui, sans-serif !important;
+        color: var(--sidebar-text-color, CanvasText) !important;
+    }
+    #myfox-addons-panel [hidden] {
+        display: none !important;
+    }
+
+    .myfox-addons-title-row {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        margin-top: -4px !important;
+    }
+    .myfox-addons-title-row h4 {
+        flex: 1 !important;
+        margin: 0 !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
+        line-height: 28px !important;
+    }
+    #myfox-addons-close {
+        appearance: none !important;
+        border: none !important;
+        background: transparent !important;
+        width: 20px !important;
+        height: 20px !important;
+        min-width: 20px !important;
+        min-height: 20px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: inherit !important;
+        cursor: pointer !important;
+        opacity: 0.7 !important;
+    }
+    #myfox-addons-close:hover {
+        background: var(--button-bgcolor-hover, color-mix(in srgb, currentColor 12%, transparent)) !important;
+        opacity: 1 !important;
+    }
+    #myfox-addons-close img {
+        width: 12px !important;
+        height: 12px !important;
+        -moz-context-properties: fill !important;
+        fill: currentColor !important;
+    }
+
+    #myfox-addons-search {
+        box-sizing: border-box !important;
+        height: 26px !important;
+        margin: 0 0 4px !important;
+        padding: 0 8px !important;
+        font: inherit !important;
+        color: inherit !important;
+        background: color-mix(in srgb, currentColor 6%, transparent) !important;
+        border: 1px solid color-mix(in srgb, currentColor 30%, transparent) !important;
+        border-radius: var(--myfox-radius, 5px) !important;
+    }
+    #myfox-addons-search:focus {
+        outline: none !important;
+        border-color: var(--toolbar-field-border-color-focus, currentColor) !important;
+    }
+
+    #myfox-addons-list {
+        flex: 0 1 auto !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        list-style: none !important;
+    }
+    .myfox-addon {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        height: 28px !important;
+        padding: 0 6px !important;
+        border-radius: var(--myfox-radius, 5px) !important;
+        cursor: pointer !important;
+    }
+    .myfox-addon:hover {
+        background: var(--toolbarbutton-hover-background, color-mix(in srgb, currentColor 10%, transparent)) !important;
+    }
+    .myfox-addon.disabled {
+        opacity: 0.5 !important;
+    }
+    .myfox-addon-icon {
+        width: 16px !important;
+        height: 16px !important;
+        flex: none !important;
+        -moz-context-properties: fill !important;
+        fill: currentColor !important;
+    }
+    .myfox-addon-name {
+        flex: 1 !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+
+    /* On/off switch */
+    .myfox-switch {
+        position: relative !important;
+        flex: none !important;
+        width: 26px !important;
+        height: 14px !important;
+    }
+    .myfox-switch input {
+        position: absolute !important;
+        inset: 0 !important;
+        margin: 0 !important;
+        opacity: 0 !important;
+        cursor: pointer !important;
+    }
+    .myfox-switch-track {
+        position: absolute !important;
+        inset: 0 !important;
+        border-radius: 7px !important;
+        background: color-mix(in srgb, currentColor 30%, transparent) !important;
+        pointer-events: none !important;
+    }
+    .myfox-switch-track::after {
+        content: "";
+        position: absolute !important;
+        top: 2px !important;
+        left: 2px !important;
+        width: 10px !important;
+        height: 10px !important;
+        border-radius: 50% !important;
+        background: var(--sidebar-background-color, #fff) !important;
+    }
+    .myfox-switch input:checked + .myfox-switch-track {
+        background: var(--button-primary-bgcolor, var(--in-content-primary-button-background, #0090ed)) !important;
+    }
+    .myfox-switch input:checked + .myfox-switch-track::after {
+        left: 14px !important;
+    }
+    .myfox-switch input:disabled {
+        cursor: default !important;
+    }
+    .myfox-switch input:disabled + .myfox-switch-track {
+        opacity: 0.4 !important;
+    }
+
+    .myfox-addon-more {
+        appearance: none !important;
+        flex: none !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 20px !important;
+        height: 20px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        border-radius: var(--myfox-radius, 5px) !important;
+        background: transparent !important;
+        color: inherit !important;
+        opacity: 0.7 !important;
+        cursor: pointer !important;
+    }
+    .myfox-addon-more:hover {
+        background: color-mix(in srgb, currentColor 15%, transparent) !important;
+        opacity: 1 !important;
+    }
+    .myfox-addon-more img {
+        width: 16px !important;
+        height: 16px !important;
+        -moz-context-properties: fill !important;
+        fill: currentColor !important;
+    }
+
+    #myfox-addons-menu {
+        position: fixed !important;
+        z-index: 10 !important;
+        min-width: 140px !important;
+        padding: 4px !important;
+        background: color-mix(in srgb, var(--sidebar-background-color, Canvas) 88%, CanvasText) !important;
+        border: 1px solid color-mix(in srgb, currentColor 20%, transparent) !important;
+        border-radius: var(--myfox-radius, 5px) !important;
+        box-shadow: 3px 6px 8px rgba(0, 0, 0, 0.3) !important;
+    }
+    .myfox-menu-item {
+        appearance: none !important;
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        height: 26px !important;
+        margin: 0 !important;
+        padding: 0 8px !important;
+        border: none !important;
+        border-radius: var(--myfox-radius, 5px) !important;
+        background: transparent !important;
+        color: inherit !important;
+        font: inherit !important;
+        text-align: start !important;
+        cursor: pointer !important;
+    }
+    .myfox-menu-item:hover:not(:disabled) {
+        background: color-mix(in srgb, currentColor 12%, transparent) !important;
+    }
+    .myfox-menu-item:disabled {
+        opacity: 0.4 !important;
+        cursor: default !important;
+    }
+
+    #myfox-addons-amo,
+    #myfox-addons-manage {
+        appearance: none !important;
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        margin: 0 !important;
+        padding: 0 6px !important;
+        height: 28px !important;
+        border: none !important;
+        border-radius: var(--myfox-radius, 5px) !important;
+        background: transparent !important;
+        color: inherit !important;
+        font: inherit !important;
+        text-align: start !important;
+        cursor: pointer !important;
+    }
+    #myfox-addons-amo:hover,
+    #myfox-addons-manage:hover {
+        background: var(--toolbarbutton-hover-background, color-mix(in srgb, currentColor 10%, transparent)) !important;
+    }
+    #myfox-addons-amo {
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+        color: var(--link-color, currentColor) !important;
+    }
+    #myfox-addons-footer {
+        margin-top: auto !important;
+        padding-top: 4px !important;
+        border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent) !important;
+    }
+}
