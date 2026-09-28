@@ -36,11 +36,16 @@
                       height: auto !important;
                       min-height: auto !important;
                       max-height: none !important;
-                      padding: 2px 2px 2px 5px !important;
+                      /* The right padding keeps the buttons clear of the pinned
+                         "customize" button (below). */
+                      padding: 2px 30px 2px 5px !important;
+                      box-sizing: border-box !important;
                       position: relative !important;
                       overflow: visible !important;
                   }
                   :host([custom-launcher="true"]) .actions-list {
+                      gap: 0 !important;
+                      padding-block: 0 !important;
                       display: flex !important;
                       flex-direction: row !important;
                       flex-wrap: wrap !important;
@@ -54,6 +59,8 @@
                       overflow: visible !important;
                   }
                   :host([custom-launcher="true"]) .tools-and-extensions {
+                      gap: 0 !important;
+                      padding-block: 0 !important;
                       display: flex !important;
                       flex-direction: row !important;
                       flex-wrap: wrap !important;
@@ -67,9 +74,23 @@
                       padding-right: 0px !important;
                       overflow: visible !important;
                   }
-                  :host([custom-launcher="true"]) .bottom-actions,
                   :host([custom-launcher="true"]) .overflow-button {
                       display: none !important;
+                  }
+                  /* The vertical launcher keeps "customize sidebar" at the bottom
+                     (bottom-actions) or first in the list (vertical tabs). Here
+                     it is pinned to the row's right end, the other buttons wrap
+                     around it, and it looks the same in both modes. */
+                  :host([custom-launcher="true"]) .bottom-actions {
+                      display: contents !important;
+                  }
+                  :host([custom-launcher="true"]) .buttons-wrapper moz-button[view="viewCustomizeSidebar"] {
+                      position: absolute !important;
+                      inset-inline-end: 4px !important;
+                      inset-block-start: 4px !important;
+                      margin: 0 !important;
+                      /* The expanded vertical-tabs launcher hides it. */
+                      visibility: visible !important;
                   }
                   :host([custom-launcher="true"]) .buttons-wrapper moz-button,
                   :host([custom-launcher="true"]) .actions-list moz-button {
@@ -116,6 +137,12 @@
             }
 
             let sidebarMain = container.querySelector("sidebar-main");
+            // The stock vertical launcher (chrome/user/40-sidebar-launcher.css
+            // nudges it into line with the toolbar buttons).
+            if (sidebarMain) {
+              if (!vertical && !customLayout) sidebarMain.setAttribute("myfox-plain-launcher", "true");
+              else sidebarMain.removeAttribute("myfox-plain-launcher");
+            }
 
             if (vertical) {
               box.removeAttribute("custom-launcher");
