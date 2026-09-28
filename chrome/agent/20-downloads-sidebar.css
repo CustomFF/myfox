@@ -40,10 +40,10 @@
     appearance: none !important;
     border: none !important;
     background: transparent !important;
-    width: 24px !important;                 /* Round like every other close button */
-    height: 24px !important;
-    min-width: 24px !important;
-    min-height: 24px !important;
+    width: 20px !important;                 /* Round like every other close button */
+    height: 20px !important;
+    min-width: 20px !important;
+    min-height: 20px !important;
     padding: 0 !important;
     margin: 0 !important;
     cursor: pointer !important;
@@ -59,8 +59,8 @@
 }
 #downloads-sidebar-close image,
 #downloads-sidebar-close img {
-    width: 16px !important;
-    height: 16px !important;
+    width: 12px !important;
+    height: 12px !important;
     -moz-context-properties: fill !important;
     fill: currentColor !important;
 }
@@ -203,8 +203,8 @@ richlistitem.download:focus-visible {
     margin: 0 !important;
 }
 .downloadButton .button-icon {
-    width: 14px !important;
-    height: 14px !important;
+    width: 12px !important;
+    height: 12px !important;
 }
 
 /* Custom search input styling for downloads sidebar */

@@ -1,4 +1,4 @@
-/* Firefox View spacer, icon-only bookmark entries, popup menu rows.
+/* Firefox View spacer, icon-only bookmark entries, popup menu rows, tooltips.
    User sheet, imported by ../userChrome.css. */
 
 /* The Firefox View button itself is not present, but its 40px titlebar-spacer
@@ -56,4 +56,17 @@ menupopup:not(.in-menulist)>menuitem,
 menupopup:not(.in-menulist)>menu {
     padding-block: 4px !important;
     min-height: unset !important;
+}
+
+/* Tooltips: on GTK they are drawn natively (black, 80% opaque, the system's
+   ~15px font), which looks heavy next to the 12px menus. Use the popup
+   surface and the menu text size instead. */
+tooltip {
+    appearance: none !important;
+    background-color: var(--arrowpanel-background, Menu) !important;
+    color: var(--arrowpanel-color, MenuText) !important;
+    border: 1px solid var(--arrowpanel-border-color, ThreeDShadow) !important;
+    border-radius: var(--myfox-radius, 5px) !important;
+    font-size: 12px !important;
+    padding: 4px 8px !important;
 }

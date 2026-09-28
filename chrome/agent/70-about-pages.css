@@ -35,6 +35,10 @@ moz-button.more-options-button {
     .fxaccounts-enable-button:hover {
         background-color: color-mix(in srgb, currentColor 18%, transparent) !important;
     }
+    .menu-button {
+        height: 20px !important;
+        padding-block: 0 !important;
+    }
     .listHeader {
         padding: 8px 12px !important;
     }
@@ -190,4 +194,38 @@ moz-promo {
 }
 moz-visual-picker-item {
     --visual-picker-item-border-radius: var(--myfox-radius) !important;
+}
+
+/* New-tab page: one radius for the search field (Nova makes it a pill), less
+   air around it, a small square "add shortcut" button (slightly translucent
+   until hovered) and a round "personalize" one. */
+@-moz-document url-prefix("about:") {
+    .search-wrapper .search-inner-wrapper {
+        height: 40px !important;
+    }
+    .search-wrapper content-search-handoff-ui {
+        --content-search-handoff-ui-border-radius: var(--myfox-radius) !important;
+    }
+    .open-customization-button {
+        --button-border-radius: 9999px !important;
+    }
+    .add-button {
+        --button-border-radius: var(--myfox-radius) !important;
+        opacity: 0.9 !important;
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
+        min-height: 32px !important;
+        --button-size-icon: 32px !important;
+        --button-min-height: 32px !important;
+        /* size="large" sizes the inner background, not the host. */
+        --button-size-icon-large: 32px !important;
+        --button-min-height-large: 32px !important;
+        --button-padding-block-large: 0px !important;
+        --button-padding-inline-large: 8px !important;
+    }
+    .add-button:hover,
+    .add-button:focus-within {
+        opacity: 1 !important;
+    }
 }
