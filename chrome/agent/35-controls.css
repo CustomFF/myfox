@@ -41,6 +41,12 @@
         --input-text-min-height: 26px !important;
     }
 
+    /* Drop-downs are button-like: the same fill, no outline. Set on the
+       element itself: the component declares its own tokens on :host. */
+    moz-select {
+        --select-border: 1px solid transparent !important;
+    }
+
     /* Focus: a plain accent border, not the design system's glowing ring. */
     moz-input-text:focus-within,
     moz-input-password:focus-within,

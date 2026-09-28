@@ -171,6 +171,16 @@
     return wrap;
   }
 
+  // "dark" or "light": whichever the browser theme is, judged by the sidebar's
+  // text color (light text = dark theme). The computed color-scheme can't be
+  // trusted here: it also follows the "website appearance" setting.
+  function themeScheme(win, doc) {
+    let m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(win.getComputedStyle(doc.getElementById("sidebar-box")).color);
+    if (!m) return "dark";
+    let luminance = (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) / 255;
+    return luminance > 0.5 ? "dark" : "light";
+  }
+
   // The skeleton of a panel built on a blank page (Extensions, Translations):
   // Firefox's theme stylesheet, the sidebar's colors, and a title row with a
   // close button. Returns the panel element (not attached yet) and a small
@@ -188,16 +198,37 @@
     themeCss.rel = "stylesheet";
     themeCss.href = "chrome://global/skin/global.css";
     sidebarDoc.head.appendChild(themeCss);
-    // A blank page doesn't inherit the sidebar's colors; copy them.
+    // A blank page doesn't inherit the sidebar's colors; copy them — and copy
+    // them again when the theme is switched while the panel is open.
     let root = sidebarDoc.documentElement;
-    let boxStyle = win.getComputedStyle(doc.getElementById("sidebar-box"));
-    let rootStyle = win.getComputedStyle(doc.documentElement);
-    root.style.colorScheme = boxStyle.colorScheme;
-    root.style.setProperty("--sidebar-text-color", boxStyle.color);
-    for (let name of ["--sidebar-background-color", "--link-color"]) {
-      let val = rootStyle.getPropertyValue(name).trim();
-      if (val) root.style.setProperty(name, val);
-    }
+    let themeListeners = [];
+    const applyTheme = () => {
+      try {
+        let boxStyle = win.getComputedStyle(doc.getElementById("sidebar-box"));
+        let rootStyle = win.getComputedStyle(doc.documentElement);
+        root.style.colorScheme = themeScheme(win, doc);
+        root.style.setProperty("--sidebar-text-color", boxStyle.color);
+        for (let name of ["--sidebar-background-color", "--link-color"]) {
+          let val = rootStyle.getPropertyValue(name).trim();
+          if (val) root.style.setProperty(name, val);
+        }
+        for (let fn of themeListeners) fn();
+      } catch(e) {}
+    };
+    applyTheme();
+    let themeTimer = null;
+    let themeObserver = new win.MutationObserver(() => {
+      if (themeTimer) win.clearTimeout(themeTimer);
+      // The theme's colors land on the window over a few mutations.
+      themeTimer = win.setTimeout(applyTheme, 150);
+    });
+    themeObserver.observe(doc.documentElement, {
+      attributes: true,
+      attributeFilter: ["lwtheme", "lwt-sidebar", "lwt-toolbar", "style"],
+    });
+    sidebarDoc.defaultView.addEventListener("unload", () => {
+      try { themeObserver.disconnect(); } catch(e) {}
+    }, { once: true });
 
     let panel = mk("div", id, "myfox-panel");
     let titleRow = mk("div", null, "myfox-panel-title-row");
@@ -213,11 +244,11 @@
     });
     titleRow.appendChild(closeBtn);
     panel.appendChild(titleRow);
-    return { panel, mk };
+    return { panel, mk, onThemeChange: fn => themeListeners.push(fn) };
   }
 
   Object.assign(MyFox, {
-    wrapSearchWithClear, createOwnPanel,
+    wrapSearchWithClear, createOwnPanel, themeScheme,
     t, oncePerProfile, whenDelayedStartupDone,
     runOnDOMContentLoaded, notifyLayoutChange, whenPlacesReady,
   });
