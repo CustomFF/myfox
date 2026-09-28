@@ -65,6 +65,17 @@
 #sidebar-container:not([sidebar-launcher-expanded]) #tabbrowser-tabs[orient="vertical"] .tabbrowser-tab {
     --tab-inline-padding: 6px;
 }
+/* The tab's content box is wider than the 16px icon (room for the hidden
+   label); centering it, not just its padding, puts the icon in the middle
+   of the tab regardless of that leftover width. */
+#sidebar-container:not([sidebar-launcher-expanded]) #tabbrowser-tabs[orient="vertical"] .tab-content {
+    justify-content: center !important;
+}
+/* Same reasoning for the "new tab" button: centered in itself, but not in
+   its row, which is wider than the button. */
+#sidebar-container:not([sidebar-launcher-expanded]) #tabbrowser-arrowscrollbox-periphery {
+    justify-content: center !important;
+}
 /* Card edges in line with the "new tab" button below (1px in from each side). */
 #sidebar-container:not([sidebar-launcher-expanded]) #tabbrowser-tabs[orient="vertical"] .tab-background {
     margin-inline: 1px !important;
