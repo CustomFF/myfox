@@ -94,10 +94,11 @@
 /* Light themes: the selected tab is white on a near-white strip and all but
    disappears. A soft shadow around its top and sides (the bottom is clipped
    away, since the tab joins the toolbar there) sets it apart; dark themes
-   already have contrast, so nothing (shadow or clip) is applied there. */
+   already have contrast, so nothing (shadow or clip) is applied there. Vertical
+   tabs (a list in the sidebar, no strip to blend into) don't get it either. */
 @media (prefers-color-scheme: light) {
-    .tabbrowser-tab[selected] .tab-background,
-    .tabbrowser-tab[multiselected] .tab-background {
+    #tabbrowser-tabs:not([orient="vertical"]) .tabbrowser-tab[selected] .tab-background,
+    #tabbrowser-tabs:not([orient="vertical"]) .tabbrowser-tab[multiselected] .tab-background {
         box-shadow: 0 0 8px 0 rgba(0, 0, 0, 0.5) !important;
         clip-path: inset(-12px -16px -2px -16px);
     }
