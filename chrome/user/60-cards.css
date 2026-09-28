@@ -18,13 +18,18 @@
     padding-block-end: 0 !important;
     border-radius: 8px !important;
     overflow: clip !important;
-    background-color: var(--sidebar-background-color) !important;
+    /* A light theme gives the sidebar the same white as the window, so the
+       card would vanish; there it is tinted a little darker. A dark theme's
+       own (darker) sidebar color already stands out. */
+    --myfox-sidebar-bg: light-dark(color-mix(in srgb, var(--sidebar-background-color) 95%, black), var(--sidebar-background-color));
+    background-color: var(--myfox-sidebar-bg) !important;
     color: var(--sidebar-text-color) !important;
     border: var(--border-width) solid var(--chrome-content-separator-color) !important;
     border-block-end: none !important;
 }
 
 #sidebar {
+    background-color: var(--myfox-sidebar-bg) !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     outline: none !important;
