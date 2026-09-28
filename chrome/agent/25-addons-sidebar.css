@@ -138,7 +138,9 @@
         margin: 4px 0 !important;
         padding: 16px 12px !important;
         text-align: center !important;
-        border: 1px solid color-mix(in srgb, currentColor 20%, transparent) !important;
+        /* The panels' card look, see 10-sidebar-panels.css. */
+        border: none !important;
+        background-color: color-mix(in srgb, currentColor 8%, transparent) !important;
         border-radius: var(--myfox-radius, 5px) !important;
     }
     .myfox-empty-img {
@@ -169,7 +171,12 @@
         cursor: pointer !important;
     }
 
-    #myfox-addons-amo,
+    /* An id rule below sets `display`, which would beat the generic hidden
+       rule of 22-own-panels.css; this one is as specific. */
+    #myfox-addons-panel [hidden] {
+        display: none !important;
+    }
+
     #myfox-addons-manage {
         appearance: none !important;
         display: block !important;
@@ -186,15 +193,44 @@
         text-align: start !important;
         cursor: pointer !important;
     }
-    #myfox-addons-amo:hover,
     #myfox-addons-manage:hover {
         background: var(--toolbarbutton-hover-background, color-mix(in srgb, currentColor 10%, transparent)) !important;
     }
+    /* "Search on addons.mozilla.org": a row like the extensions', with a
+       search icon. */
     #myfox-addons-amo {
+        appearance: none !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        height: 28px !important;
+        margin: 0 !important;
+        padding: 0 6px !important;
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: inherit !important;
+        font: inherit !important;
+        text-align: start !important;
+        cursor: pointer !important;
+    }
+    #myfox-addons-amo:hover {
+        background: var(--toolbarbutton-hover-background, color-mix(in srgb, currentColor 10%, transparent)) !important;
+    }
+    #myfox-addons-amo img {
+        flex: none !important;
+        width: 16px !important;
+        height: 16px !important;
+        -moz-context-properties: fill !important;
+        fill: currentColor !important;
+    }
+    #myfox-addons-amo span {
+        min-width: 0 !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         white-space: nowrap !important;
-        color: var(--link-color, currentColor) !important;
     }
     #myfox-addons-footer {
         margin-top: auto !important;

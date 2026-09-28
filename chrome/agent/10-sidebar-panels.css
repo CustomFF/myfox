@@ -192,6 +192,26 @@ moz-button.menu-button {
     --button-min-height: 22px !important;
 }
 
+/* Cards ("plaques": the empty states of the panels) look the same everywhere:
+   no frame, and a tint of the text color over the panel — lighter than the
+   panel on a dark theme, darker on a light one, so it needs no per-theme
+   colors. The Extensions panel's own card does the same (25-addons-sidebar.css). */
+@-moz-document url-prefix("chrome://") {
+    moz-card:not(.date-card):not(.nested-card) {
+        --card-border: none !important;
+        --card-box-shadow: none !important;
+        --card-background-color: color-mix(in srgb, currentColor 8%, transparent) !important;
+        --card-border-radius: var(--myfox-radius) !important;
+        /* Some panels (passwords) paint the card's own background directly. */
+        background-color: color-mix(in srgb, currentColor 8%, transparent) !important;
+    }
+    .selectedTab {
+        border: none !important;
+        box-shadow: none !important;
+        background-color: color-mix(in srgb, currentColor 8%, transparent) !important;
+    }
+}
+
 /* Synced-tabs sidebar: its empty-state card starts right under the search
    box; the history panel's card sits 9px lower. Match the two. */
 fxview-empty-state.synced-tabs {

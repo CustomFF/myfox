@@ -222,6 +222,11 @@
 
     // "Search on addons.mozilla.org" row, shown while a query is typed.
     let amoRow = mk("button", "myfox-addons-amo");
+    let amoIcon = mk("img");
+    amoIcon.src = "chrome://global/skin/icons/search-glass.svg";
+    let amoText = mk("span");
+    amoRow.appendChild(amoIcon);
+    amoRow.appendChild(amoText);
     amoRow.hidden = true;
     amoRow.addEventListener("click", () => openAmoSearch(search.value.trim()));
     panel.insertBefore(amoRow, footer);
@@ -233,7 +238,7 @@
       }
       amoRow.hidden = !query;
       empty.hidden = list.children.length > 0 || !!query;
-      amoRow.textContent = t("addons.amo", search.value.trim());
+      amoText.textContent = t("addons.amo", search.value.trim());
     };
     search.addEventListener("input", applyFilter);
     search.addEventListener("keydown", ev => {
