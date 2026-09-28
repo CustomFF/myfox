@@ -11,7 +11,7 @@
 
 /* Bookmarks-toolbar entries that show only an icon (label hidden). Matched by
    label, so it depends on the bookmark's title — the titles are the ones
-   firefox.cfg creates. */
+   myfox.cfg creates. */
 .bookmark-item[label="Расширенные настройки"] {
     & .toolbarbutton-text {
         display: none !important;

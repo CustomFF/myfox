@@ -8,7 +8,11 @@ apply_autoconfig() {
     local install_dir="$1"
     mkdir -p "$install_dir/defaults/pref"
     install -m 0644 "$MYFOX_AUTOCONFIG_DIR/autoconfig.js" "$install_dir/defaults/pref/autoconfig.js"
-    install -m 0644 "$MYFOX_AUTOCONFIG_DIR/firefox.cfg" "$install_dir/firefox.cfg"
+    install -m 0644 "$MYFOX_AUTOCONFIG_DIR/myfox.cfg" "$install_dir/myfox.cfg"
+    rm -rf "$install_dir/myfox"
+    cp -r "$MYFOX_AUTOCONFIG_DIR/myfox" "$install_dir/myfox"
+    # Прежние версии ставили firefox.cfg; autoconfig.js на него больше не смотрит.
+    rm -f "$install_dir/firefox.cfg"
     # Никаких глобальных политик (distribution/policies.json) — всё профиль-локально.
     # No log()/success() here on purpose — both call sites wrap this in the
     # single "Настройка профиля" tui_spin; a line here would break its
@@ -33,13 +37,13 @@ apply_chrome() {
 
     # Replace the directories wholesale so files dropped from a newer version
     # (or the single-file agent_overrides.css of older installs) don't linger
-    # and get registered by firefox.cfg.
+    # and get registered by myfox.cfg.
     rm -rf "$c_dir/agent" "$c_dir/user" "$c_dir/agent_overrides.css"
     cp -r "$MYFOX_CHROME_DIR/agent" "$c_dir/agent"
     cp -r "$MYFOX_CHROME_DIR/user" "$c_dir/user"
     install -m 0644 "$MYFOX_CHROME_DIR/userChrome.css" "$c_dir/userChrome.css"
 
-    # Профиль-маркер: firefox.cfg проверяет его в начале и применяет твики ТОЛЬКО
+    # Профиль-маркер: myfox.cfg проверяет его в начале и применяет твики ТОЛЬКО
     # к профилю с этим файлом. Профили без маркера остаются чистым Firefox.
     touch "$profile_dir/.myfox"
     # No log()/success() here — see apply_autoconfig comment above.
@@ -49,7 +53,7 @@ apply_chrome() {
 
 # apply_theme_pref <profile_dir> <dark|light> — pre-seeds the initial theme
 # choice into user.js, since a fresh profile hasn't run Firefox yet to have
-# a prefs.js to write into. firefox.cfg reads myfox.theme once (see its
+# a prefs.js to write into. myfox.cfg reads myfox.theme once (see its
 # "Only ONCE" theme-activation block) to decide which of the two always-
 # installed theme add-ons to enable. Idempotent: replaces any existing
 # myfox.theme line instead of piling up duplicates on repeat installs

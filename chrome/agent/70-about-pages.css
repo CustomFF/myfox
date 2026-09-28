@@ -1,5 +1,5 @@
 /* Internal pages: about:preferences, about:addons, about:logins, about:processes, base font.
-   Agent sheet (registered by firefox.cfg): reaches into shadow DOM and beats
+   Agent sheet (registered by myfox.cfg): reaches into shadow DOM and beats
    the documents' own styles. Load order is by file name. */
 
 /* Icon-only buttons (pencil / trash / "+" in the settings lists — some are

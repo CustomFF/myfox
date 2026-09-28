@@ -1,6 +1,6 @@
-/* Add-ons sidebar: a blank page (about:blank?myfox-addons) that firefox.cfg
+/* Add-ons sidebar: a blank page (about:blank?myfox-addons) that myfox.cfg
    fills with a compact extension list (injectAddonsPanel).
-   Agent sheet (registered by firefox.cfg): reaches into shadow DOM and beats
+   Agent sheet (registered by myfox.cfg): reaches into shadow DOM and beats
    the documents' own styles. Load order is by file name. */
 
 @-moz-document url-prefix("about:"), url-prefix("chrome://") {

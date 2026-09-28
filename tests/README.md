@@ -17,7 +17,7 @@ scratch/sandbox.sh /tmp/mf -- ./bin/myfox-core uninstall -y
 bash -n get.sh bin/myfox-core lib/*.sh scripts/*.sh
 shellcheck -S error get.sh bin/myfox-core lib/*.sh scripts/*.sh
 python3 -m py_compile scratch/*.py        # если трогали dev-скрипты
-cp autoconfig/firefox.cfg /tmp/fc.js && node --check /tmp/fc.js   # синтаксис privileged JS
+for f in autoconfig/myfox.cfg autoconfig/myfox/*.js; do cp $f /tmp/fc.js && node --check /tmp/fc.js; done   # синтаксис privileged JS
 ```
 
 ## 1. Справка и разбор флагов (без сети)
@@ -37,7 +37,7 @@ cp autoconfig/firefox.cfg /tmp/fc.js && node --check /tmp/fc.js   # синтак
 ```bash
 scratch/sandbox.sh /tmp/mf --fresh -- ./bin/myfox-core install -y --nobl
 ```
-- [ ] тарбол распакован; `<prefix>/defaults/pref/autoconfig.js`, `<prefix>/firefox.cfg`, `<prefix>/.myfox-installed`, wrapper `<prefix>/firefox-myfox`
+- [ ] тарбол распакован; `<prefix>/defaults/pref/autoconfig.js`, `<prefix>/myfox.cfg`, `<prefix>/myfox/*.js`, `<prefix>/.myfox-installed`, wrapper `<prefix>/firefox-myfox`
 - [ ] профиль создан в `<config>/mozilla/firefox/myfox-1` (свежий `$HOME` без `~/.mozilla/firefox` → каталог XDG; при существующем `~/.mozilla/firefox` — он)
 - [ ] в профиле: `.myfox`, `.myfox-created`, `chrome/userChrome.css`, `chrome/user/*.css`, `chrome/agent/*.css`, `user.js` с `myfox.theme`
 - [ ] в `extensions/` ровно две XPI тем (`{9631ec37-…}`, `{1fd1213e-…}`); Plasma — нет (не сессия Plasma)
@@ -144,7 +144,7 @@ MYFOX_DDBLM_LOCAL=/home/daydve/development/ddblm … install -y --profile <p>   
 
 ## 6. Регрессия после правок
 
-- [ ] `firefox.cfg`: `node --check`; настоящий запуск в песочнице дважды подряд — те же `myfox.*` префы, закладки на месте; ошибок в Browser Console нет
+- [ ] `myfox.cfg`: `node --check`; настоящий запуск в песочнице дважды подряд — те же `myfox.*` префы, закладки на месте; ошибок в Browser Console нет
 - [ ] CSS: относительные `url()` в `chrome/user/*.css` — только с `../` (`grep -rn 'url(' chrome/user chrome/agent | grep -v 'chrome://\|data:'`)
 - [ ] после разбиения/переноса стилей — сравнить computed-style до/после на живом Firefox (главное окно + сайдбары), одинаково для старого и нового набора
 - [ ] `scratch/reload_userchrome.py` (горячая перезагрузка) не развалился: склеивает `user/*.css` и `agent/*.css`

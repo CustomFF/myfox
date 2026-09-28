@@ -92,7 +92,7 @@ myfox update               # refreshes tweaks; does NOT re-download Firefox
 myfox update --reinstall   # also pulls the latest Firefox build
 ```
 
-Styles (`userChrome.css`) and `firefox.cfg` are read at browser start — restart Firefox after
+Styles (`userChrome.css`) and `myfox.cfg` are read at browser start — restart Firefox after
 an update.
 
 ## Uninstalling
@@ -109,13 +109,13 @@ only the MyFox tweaks are removed (your own `userChrome.css` is restored from it
 
 | Where | What |
 |---|---|
-| `~/.local/share/firefox` (`--prefix`) | Firefox itself, plus `defaults/pref/autoconfig.js` and `firefox.cfg` (privileged JS: registers the agent sheets, patches sidebar/downloads, sets profile-local prefs) |
+| `~/.local/share/firefox` (`--prefix`) | Firefox itself, plus `defaults/pref/autoconfig.js`, `myfox.cfg` and `myfox/*.js` (privileged JS: registers the agent sheets, patches sidebar/downloads, sets profile-local prefs) |
 | `~/.local/share/myfox/` | the installer itself: `bin/myfox`, `bin/myfox-core`, `lib/`, `i18n/`, `assets/` — so `update`/`uninstall`/`help` work offline |
 | `~/.local/bin/myfox` | symlink to `~/.local/share/myfox/bin/myfox` |
 | `<profile>/chrome/userChrome.css` + `user/*.css` | user-sheet styles (tabs, toolbar, cards, …) |
-| `<profile>/chrome/agent/*.css` | agent-sheet styles (registered by `firefox.cfg`; reach into shadow DOM) |
+| `<profile>/chrome/agent/*.css` | agent-sheet styles (registered by `myfox.cfg`; reach into shadow DOM) |
 | `<profile>/extensions/` | both theme add-ons, optionally Plasma integration |
-| `<profile>/user.js` | one line, `myfox.theme`, read once by `firefox.cfg` |
+| `<profile>/user.js` | one line, `myfox.theme`, read once by `myfox.cfg` |
 | `<profile>/.myfox` | profile marker — only marked profiles get tweaks |
 | `~/.local/share/applications/firefox-myfox.desktop` | launcher «Firefox (myfox)» |
 | `~/.local/state/myfox/state` | installer state (flat `key=value`, see [docs/logic.md](docs/logic.md)) |
@@ -124,10 +124,10 @@ Profiles live in `~/.mozilla/firefox` when that directory exists, otherwise (Fir
 fresh system) in `$XDG_CONFIG_HOME/mozilla/firefox`; flatpak and snap locations are recognized too.
 
 Required prefs (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`) are set by
-`firefox.cfg` on first start — **but only for the marked profile**. Any other profile stays a
-pristine Firefox: `firefox.cfg` refuses to apply anything to it (no prefs, no styles, no window tweaks).
+`myfox.cfg` on first start — **but only for the marked profile**. Any other profile stays a
+pristine Firefox: `myfox.cfg` refuses to apply anything to it (no prefs, no styles, no window tweaks).
 
-On the marked profile `firefox.cfg` also, once: adds two bookmarks to the Bookmarks Toolbar —
+On the marked profile `myfox.cfg` also, once: adds two bookmarks to the Bookmarks Toolbar —
 **«Расширенные настройки»** (about:config) and **«Добавить букмарклеты»** (the ddblm gallery —
 bilingual, opens as `?lang=ru` for a Russian-locale Firefox) — enables the chosen theme, and sets
 the fresh-profile defaults (compact UI, AI features/telemetry/sponsored content off).
@@ -164,11 +164,11 @@ enable the toolbar (`Ctrl+Shift+B`) and drag the cards onto it.
 
 1. **Locate the install directory**, e.g. `/usr/lib/firefox` (or `~/.local/share/firefox`).
 2. Copy `autoconfig/autoconfig.js` into `<install>/defaults/pref/`.
-3. Copy `autoconfig/firefox.cfg` into `<install>/` (next to the `firefox` binary).
-   *If a `firefox.cfg` already exists there, back it up first.*
+3. Copy `autoconfig/myfox.cfg` and the `autoconfig/myfox/` directory into `<install>/` (next to the
+   `firefox` binary).
 4. Copy `chrome/userChrome.css`, `chrome/user/` and `chrome/agent/` into your profile's
    `chrome/` directory (path is shown at `about:support` → *Profile Folder*).
-5. Create the marker file `<profile>/.myfox` — without it `firefox.cfg` leaves the profile alone.
+5. Create the marker file `<profile>/.myfox` — without it `myfox.cfg` leaves the profile alone.
 6. Restart Firefox. The required prefs are applied automatically via autoconfig.
 
 > **Note:** editing `/usr/lib/firefox` requires sudo. On systems where you cannot write to
