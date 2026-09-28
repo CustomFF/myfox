@@ -28,6 +28,13 @@
     @media (max-width: 420px) {
         :root {
             background: transparent !important;
+            /* The page sizes its controls from these: 40px pickers, 300px
+               boxes, 16px padding. Make them the size of our other controls
+               and let the two boxes share the height instead of a fixed one. */
+            --AT-square-button-large: 24px !important;
+            --AT-square-button-small: 24px !important;
+            --AT-input-padding: 8px !important;
+            --AT-section-height: 96px !important;
         }
         body {
             padding: 0 !important;
@@ -36,11 +43,20 @@
         #about-translations-description {
             display: none !important;
         }
+        #about-translations-header {
+            margin: 0 !important;
+            gap: 0 !important;
+        }
+        body {
+            gap: 4px !important;
+        }
         #about-translations-main-user-interface {
             max-width: none !important;
             width: 100% !important;
+            height: calc(100vh - 4px) !important;
+            gap: 4px !important;
             grid-template-columns: 1fr auto !important;
-            grid-template-rows: auto auto 180px 180px !important;
+            grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr) !important;
         }
         #about-translations-source-select {
             grid-column: 1 !important;
@@ -55,13 +71,24 @@
             grid-row: 1 / span 2 !important;
             align-self: center !important;
         }
-        #about-translations-source-section {
+        #about-translations-source-section,
+        #about-translations-target-section {
             grid-column: 1 / -1 !important;
+            min-height: 0 !important;
+            /* No frame: the box is a filled field. A tint of the text color
+               over whatever is behind, so it reads on any theme. */
+            border: none !important;
+            background-color: color-mix(in srgb, currentColor 10%, transparent) !important;
+        }
+        #about-translations-source-section {
             grid-row: 3 !important;
         }
         #about-translations-target-section {
-            grid-column: 1 / -1 !important;
             grid-row: 4 !important;
+        }
+        #about-translations-source-section:focus-within {
+            outline: 1.5px solid color-mix(in srgb, light-dark(#0a84ff, #4dabff) 50%, transparent) !important;
+            outline-offset: -1.5px !important;
         }
     }
 }
