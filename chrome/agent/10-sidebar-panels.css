@@ -53,9 +53,9 @@ sidebar-panel-header .options-container {
 }
 #sidebar-panel-header > h4,
 #sidebar-panel-header > html\:h4 {
-    line-height: 28px !important;
-    height: 28px !important;
-    min-height: 28px !important;
+    line-height: 20px !important;
+    height: 20px !important;
+    min-height: 20px !important;
 }
 .sidebar-panel-heading h4,
 .sidebar-panel-heading .text-truncated-ellipsis {
@@ -105,6 +105,73 @@ moz-input-search {
     --focus-outline-width: 0px !important;
 }
 
+/* The search boxes of our own panels (downloads, extensions) take the same
+   focus color the built-in panels get from their own stylesheet. */
+#downloads-sidebar-search,
+#myfox-addons-search {
+    --toolbar-field-border-color-focus: color-mix(in srgb, light-dark(#0a84ff, #4dabff) 50%, transparent) !important;
+    --input-text-min-height: 26px !important;
+    --input-text-border-radius: var(--myfox-radius, 5px) !important;
+    --focus-outline: none !important;
+    --focus-outline-color: transparent !important;
+    --focus-outline-width: 0px !important;
+}
+
+/* Clear (x) button over the search box of our own panels (downloads,
+   extensions); built by wrapSearchWithClear in myfox/00-common.js. */
+.myfox-search-wrap {
+    position: relative !important;
+    display: block !important;
+    margin: 0 0 4px !important;
+}
+.myfox-search-clear {
+    appearance: none !important;
+    position: absolute !important;
+    inset-inline-end: 3px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
+    min-height: 20px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+    color: inherit !important;
+    opacity: 0.7 !important;
+    cursor: pointer !important;
+}
+.myfox-search-clear[hidden] {
+    display: none !important;
+}
+.myfox-search-clear:hover {
+    background: color-mix(in srgb, currentColor 15%, transparent) !important;
+    opacity: 1 !important;
+}
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+    input[data-myfox-no-clear]::-moz-search-clear-button {
+        display: none !important;
+    }
+}
+.myfox-search-clear img {
+    width: 12px !important;
+    height: 12px !important;
+    -moz-context-properties: fill !important;
+    fill: currentColor !important;
+}
+
+/* Bookmarks: its header row was 8px taller than the others', leaving the
+   search box lower; the header is aligned above, this closes the last gap. */
+moz-input-search#search-box {
+    margin-top: -4px !important;
+}
+
 moz-input-search:focus-within {
     --input-text-border: 1.5px solid var(--toolbar-field-border-color-focus, rgb(91, 110, 139)) !important;
     --input-text-background-color: var(--toolbar-field-background-color-focus, rgba(60, 64, 67, 1)) !important;
@@ -141,7 +208,22 @@ fxview-empty-state.synced-tabs {
    the same density pass we've done everywhere else in this file. */
 sidebar-tab-row {
     height: 24px !important;
-    margin-inline-start: 32px !important;
+    margin-inline-start: 20px !important;
+}
+
+/* History date groups (moz-card accordions) read like the bookmarks tree:
+   plain 24px rows, a small chevron on the left (down = open, right =
+   closed), regular weight, square corners, no gaps between groups. */
+moz-card.date-card {
+    margin: 0 !important;
+    --card-border-radius: 0px !important;
+    --card-padding-block: 0px !important;
+    --card-padding-inline: 0px !important;
+    --card-heading-padding-inline: 4px !important;
+    --card-gap: 4px !important;
+    --font-weight-heading: normal !important;
+    --card-accordion-closed-icon: url("chrome://global/skin/icons/arrow-right.svg") !important;
+    --card-accordion-open-icon: url("chrome://global/skin/icons/arrow-down.svg") !important;
 }
 
 /* Firefox also gives the row a 9999px ("stadium") hover fill on top of
@@ -154,9 +236,12 @@ sidebar-tab-row:hover {
 @-moz-document url-prefix("about:"), url-prefix("chrome://") {
     .fxview-tab-row-main {
         padding-block: 2px !important;
+        border-radius: 0 !important;
     }
     .moz-card-wrapper summary {
-        min-height: 22px !important;
+        min-height: 24px !important;
+        display: flex !important;
+        align-items: center !important;
     }
 }
 
@@ -174,10 +259,17 @@ sidebar-tab-row:hover {
         outline: none !important;
     }
 }
+/* The same for the search boxes of our own panels, which live in about:
+   documents (marked by wrapSearchWithClear in myfox/00-common.js). */
+@-moz-document url-prefix("about:") {
+    input[data-myfox-no-clear] {
+        outline: none !important;
+    }
+}
 
 /* The scrollable content wrapper around the synced-tabs empty-state card
    had 3px of its own padding stacked on top of our 4px .sidebar-panel
    padding, so that card sat 3px narrower than the search box above it. */
 .sidebar-panel-scrollable-content {
-    padding: 0 !important;
+    padding: 4px 0 0 !important;
 }

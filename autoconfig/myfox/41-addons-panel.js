@@ -1,6 +1,6 @@
 // Extensions sidebar (see injectAddonsPanel).
 (function (MyFox) {
-  const { tr } = MyFox;
+  const { tr, wrapSearchWithClear } = MyFox;
 
   // Builds the add-ons sidebar's UI in a blank page: a compact list of
   // installed extensions with an on/off switch, a search box that filters
@@ -27,8 +27,7 @@
     let rootStyle = win.getComputedStyle(doc.documentElement);
     root.style.colorScheme = boxStyle.colorScheme;
     root.style.setProperty("--sidebar-text-color", boxStyle.color);
-    for (let name of ["--sidebar-background-color", "--toolbar-field-background-color",
-        "--toolbar-field-border-color", "--toolbar-field-border-color-focus", "--link-color"]) {
+    for (let name of ["--sidebar-background-color", "--link-color"]) {
       let val = rootStyle.getPropertyValue(name).trim();
       if (val) root.style.setProperty(name, val);
     }
@@ -55,24 +54,14 @@
     titleRow.appendChild(closeBtn);
     panel.appendChild(titleRow);
 
-    let search = mk("input", "myfox-addons-search");
-    search.type = "search";
-    search.placeholder = tr(doc, "Поиск расширений", "Search add-ons");
-    let searchWrap = mk("div", null, "myfox-search-wrap");
-    searchWrap.appendChild(search);
-    let clearBtn = mk("button", null, "myfox-search-clear");
-    clearBtn.title = tr(doc, "Очистить", "Clear");
-    clearBtn.hidden = true;
-    let clearImg = mk("img");
-    clearImg.src = "chrome://global/skin/icons/close.svg";
-    clearBtn.appendChild(clearImg);
-    clearBtn.addEventListener("click", () => {
-      search.value = "";
-      applyFilter();
-      search.focus();
-    });
-    searchWrap.appendChild(clearBtn);
-    panel.appendChild(searchWrap);
+    // The same search box the history and bookmarks panels use.
+    try {
+      sbWin.ChromeUtils.importESModule(
+        "chrome://global/content/elements/moz-input-search.mjs", { global: "current" });
+    } catch(e) {}
+    let search = mk("moz-input-search", "myfox-addons-search");
+    search.setAttribute("placeholder", tr(doc, "Поиск расширений", "Search add-ons"));
+    panel.appendChild(wrapSearchWithClear(sidebarDoc, search, tr(doc, "Очистить", "Clear")));
 
     let list = mk("ul", "myfox-addons-list");
     panel.appendChild(list);
@@ -268,7 +257,6 @@
 
     const applyFilter = () => {
       let query = search.value.toLowerCase().trim();
-      clearBtn.hidden = !search.value;
       for (let li of list.children) {
         li.hidden = !!query && !li.dataset.name.includes(query);
       }
@@ -304,6 +292,8 @@
     });
 
     sidebarDoc.body.appendChild(panel);
+    // Like the built-in panels: the search box is ready for typing.
+    sbWin.setTimeout(() => { try { search.focus(); } catch(e) {} }, 0);
     render().then(applyFilter).catch(() => {});
   }
 

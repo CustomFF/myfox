@@ -18,8 +18,8 @@
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
-    height: 28px !important;                /* Matches standard sidebar-panel-header height */
-    min-height: 28px !important;
+    height: 20px !important;                /* Same header row as the built-in panels */
+    min-height: 20px !important;
     padding: 0 !important;
     margin: 0 !important;
 }
@@ -29,8 +29,8 @@
     color: var(--sidebar-text-color, currentColor) !important;
     margin: 0 !important;
     padding: 0 !important;
-    line-height: 28px !important;           /* Centers text vertically in the 28px header */
-    height: 28px !important;
+    line-height: 20px !important;           /* Centers text vertically in the 20px header */
+    height: 20px !important;
     flex: 1 !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
@@ -207,36 +207,23 @@ richlistitem.download:focus-visible {
     height: 12px !important;
 }
 
-/* Custom search input styling for downloads sidebar */
+/* The search box is the built-in moz-input-search (styled with the other
+   sidebar panels in 10-sidebar-panels.css); this only places it. */
 #downloads-sidebar-search-container {
-    padding: 4px 0px !important;
-    display: flex !important;
-    align-items: center !important;
-    height: 34px !important;                /* Matches standard sidebar-search-container height */
-    box-sizing: border-box !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+#downloads-sidebar-search-container[hidden] {
+    display: none !important;
 }
 #downloads-sidebar-search {
+    display: block !important;
     width: 100% !important;
-    height: 26px !important;
-    border-radius: var(--myfox-radius) !important;
-    border: 1px solid color-mix(in srgb, currentColor 45%, transparent) !important;
-    background-color: var(--input-text-background-color, Field) !important;
-    background-image: url("chrome://global/skin/icons/search-textbox.svg") !important;
-    background-repeat: no-repeat !important;
-    background-position: 8px center !important;
-    background-size: 13px !important;
-    -moz-context-properties: fill !important;
-    fill: var(--toolbar-field-color, currentColor) !important;
-    color: var(--toolbar-field-color, currentColor) !important;
-    padding: 0 8px 0 28px !important;
-    font-size: 12px !important;
-    outline: none !important;
-    box-sizing: border-box !important;
-}
-#downloads-sidebar-search:focus {
-    border: 1.5px solid var(--toolbar-field-border-color-focus, rgb(91, 110, 139)) !important;
-    background-color: var(--toolbar-field-background-color-focus, rgba(60, 64, 67, 1)) !important;
-    fill: var(--toolbar-field-color-focus, currentColor) !important;
+    /* This document resolves the field colors differently than the other
+       sidebar panels; use the same ones. */
+    --input-text-background-color: Field !important;
+    --input-text-border-color: color-mix(in srgb, currentColor 50%, transparent) !important;
+    --input-text-color: FieldText !important;
 }
 
 /* Custom clear downloads footer styling for downloads sidebar */
