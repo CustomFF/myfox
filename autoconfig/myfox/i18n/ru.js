@@ -27,6 +27,8 @@
 
     "customize.launcherAbove": "Панель кнопок над сайдбаром",
 
+    "bookmarks.advanced": "Расширенные настройки",
+    "bookmarks.gallery": "Добавить букмарклеты",
 
     "toolbar.bookmarks.label": "Панель закладок",
     "toolbar.bookmarks.tooltip": "Показать/скрыть панель закладок (Ctrl+Shift+B)",

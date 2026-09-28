@@ -30,6 +30,8 @@
 
     "customize.launcherAbove": "Show button panel above sidebar",
 
+    "bookmarks.advanced": "Advanced settings",
+    "bookmarks.gallery": "Add bookmarklets",
 
     "toolbar.bookmarks.label": "Bookmarks Toolbar",
     "toolbar.bookmarks.tooltip": "Show/hide bookmarks toolbar (Ctrl+Shift+B)",
