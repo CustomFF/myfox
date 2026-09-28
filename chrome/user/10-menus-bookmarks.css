@@ -58,6 +58,27 @@ menupopup:not(.in-menulist)>menu {
     min-height: unset !important;
 }
 
+/* Popup menus and panels in the browser window (bookmark folder menus, the
+   add/edit-bookmark panel, ...) take their corners from the design-system
+   radius scale, which Nova pushes to 12-24px ("pills"). Point the scale at
+   the one radius used everywhere else and drop the pill hover fill on rows;
+   the tokens reach the popup's shadow tree by inheritance. */
+menupopup,
+panel {
+    --panel-border-radius: var(--myfox-radius, 5px) !important;
+    --menuitem-border-radius: 0px !important;
+    --panel-menuitem-border-radius: 0px !important;
+    --border-radius-small: var(--myfox-radius, 5px) !important;
+    --border-radius-medium: var(--myfox-radius, 5px) !important;
+    --border-radius-large: var(--myfox-radius, 5px) !important;
+    --border-radius-xlarge: var(--myfox-radius, 5px) !important;
+}
+
+/* The add/edit-bookmark panel's fields and buttons. */
+#editBookmarkPanel :is(input, menulist, button) {
+    border-radius: var(--myfox-radius, 5px) !important;
+}
+
 /* Tooltips: on GTK they are drawn natively (black, 80% opaque, the system's
    ~15px font), which looks heavy next to the 12px menus. Use the popup
    surface and the menu text size instead. */
