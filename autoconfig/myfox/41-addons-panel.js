@@ -54,11 +54,13 @@
     titleRow.appendChild(closeBtn);
     panel.appendChild(titleRow);
 
-    // The same search box the history and bookmarks panels use.
-    try {
-      sbWin.ChromeUtils.importESModule(
-        "chrome://global/content/elements/moz-input-search.mjs", { global: "current" });
-    } catch(e) {}
+    // The same search box and toggle the browser's own pages use.
+    for (let module of ["moz-input-search", "moz-toggle"]) {
+      try {
+        sbWin.ChromeUtils.importESModule(
+          "chrome://global/content/elements/" + module + ".mjs", { global: "current" });
+      } catch(e) {}
+    }
     let search = mk("moz-input-search", "myfox-addons-search");
     search.setAttribute("placeholder", tr(doc, "Поиск расширений", "Search add-ons"));
     panel.appendChild(wrapSearchWithClear(sidebarDoc, search, tr(doc, "Очистить", "Clear")));
@@ -194,22 +196,22 @@
         li.title = addon.description || addon.name;
         li.appendChild(name);
 
-        let sw = mk("label", null, "myfox-switch");
-        let box = mk("input");
-        box.type = "checkbox";
-        box.checked = !addon.userDisabled;
-        box.disabled = !(addon.permissions & AddonManager.PERM_CAN_DISABLE)
-          && !(addon.permissions & AddonManager.PERM_CAN_ENABLE);
-        box.addEventListener("change", async () => {
+        let sw = mk("moz-toggle", null, "myfox-toggle");
+        if (!addon.userDisabled) sw.setAttribute("pressed", "");
+        if (!(addon.permissions & AddonManager.PERM_CAN_DISABLE)
+            && !(addon.permissions & AddonManager.PERM_CAN_ENABLE)) {
+          sw.setAttribute("disabled", "");
+        }
+        sw.setAttribute("aria-label", addon.name);
+        sw.addEventListener("toggle", async () => {
           try {
-            if (box.checked) await addon.enable(); else await addon.disable();
+            if (sw.pressed) await addon.enable(); else await addon.disable();
           } catch(ex) {
-            box.checked = !addon.userDisabled;
+            sw.pressed = !addon.userDisabled;
           }
         });
+        // Toggling must not open the add-on's details page.
         sw.addEventListener("click", ev => ev.stopPropagation());
-        sw.appendChild(box);
-        sw.appendChild(mk("span", null, "myfox-switch-track"));
         li.appendChild(sw);
 
         let more = mk("button", null, "myfox-addon-more");

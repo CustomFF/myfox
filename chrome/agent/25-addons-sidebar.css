@@ -115,48 +115,9 @@
         white-space: nowrap !important;
     }
 
-    /* On/off switch */
-    .myfox-switch {
-        position: relative !important;
+    /* On/off switch: the design system's moz-toggle, sized in 35-controls.css. */
+    .myfox-toggle {
         flex: none !important;
-        width: 26px !important;
-        height: 14px !important;
-    }
-    .myfox-switch input {
-        position: absolute !important;
-        inset: 0 !important;
-        margin: 0 !important;
-        opacity: 0 !important;
-        cursor: pointer !important;
-    }
-    .myfox-switch-track {
-        position: absolute !important;
-        inset: 0 !important;
-        border-radius: var(--myfox-radius, 5px) !important;
-        background: color-mix(in srgb, currentColor 30%, transparent) !important;
-        pointer-events: none !important;
-    }
-    .myfox-switch-track::after {
-        content: "";
-        position: absolute !important;
-        top: 2px !important;
-        left: 2px !important;
-        width: 10px !important;
-        height: 10px !important;
-        border-radius: calc(var(--myfox-radius, 5px) - 2px) !important;
-        background: var(--sidebar-background-color, #fff) !important;
-    }
-    .myfox-switch input:checked + .myfox-switch-track {
-        background: var(--button-primary-bgcolor, var(--in-content-primary-button-background, #0090ed)) !important;
-    }
-    .myfox-switch input:checked + .myfox-switch-track::after {
-        left: 14px !important;
-    }
-    .myfox-switch input:disabled {
-        cursor: default !important;
-    }
-    .myfox-switch input:disabled + .myfox-switch-track {
-        opacity: 0.4 !important;
     }
 
     .myfox-addon.removed {

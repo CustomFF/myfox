@@ -237,20 +237,21 @@ richlistitem.download:focus-visible {
 
 #downloads-sidebar-clear-btn {
     appearance: none !important;
-    background-color: var(--button-hover-background, rgba(255, 255, 255, 0.08)) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-sizing: border-box !important;
+    height: 26px !important;
+    background-color: color-mix(in srgb, currentColor 12%, transparent) !important;
+    border: 1px solid transparent !important;
     color: currentColor !important;
-    padding: 6px 12px !important;
+    padding: 0 12px !important;
     border-radius: var(--myfox-radius) !important;
     cursor: pointer !important;
-    font-size: 11px !important;
-    font-weight: 500 !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
     width: 100% !important;
     text-align: center !important;
 }
-
 #downloads-sidebar-clear-btn:hover {
-    background-color: var(--button-active-background, rgba(255, 255, 255, 0.15)) !important;
+    background-color: color-mix(in srgb, currentColor 20%, transparent) !important;
 }
 
 /* Hide Clear Downloads footer when there are no download items */
