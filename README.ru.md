@@ -91,7 +91,7 @@ myfox update               # обновляет твики; Firefox НЕ пер�
 myfox update --reinstall   # ещё и скачивает свежую сборку Firefox
 ```
 
-Стили (`userChrome.css`) и `firefox.cfg` читаются при старте браузера — после обновления
+Стили (`userChrome.css`) и `myfox.cfg` читаются при старте браузера — после обновления
 перезапусти Firefox.
 
 ## Удаление
@@ -108,13 +108,13 @@ MyFox. У профиля, указанного через `--profile`, сним�
 
 | Где | Что |
 |---|---|
-| `~/.local/share/firefox` (`--prefix`) | сам Firefox, плюс `defaults/pref/autoconfig.js` и `firefox.cfg` (privileged JS: регистрирует agent-листы, патчит сайдбар/загрузки, ставит профильные префы) |
+| `~/.local/share/firefox` (`--prefix`) | сам Firefox, плюс `defaults/pref/autoconfig.js`, `myfox.cfg` и `myfox/*.js` (privileged JS: регистрирует agent-листы, патчит сайдбар/загрузки, ставит профильные префы) |
 | `~/.local/share/myfox/` | сам инсталлер: `bin/myfox`, `bin/myfox-core`, `lib/`, `i18n/`, `assets/` — чтобы `update`/`uninstall`/`help` работали офлайн |
 | `~/.local/bin/myfox` | символическая ссылка на `~/.local/share/myfox/bin/myfox` |
 | `<profile>/chrome/userChrome.css` + `user/*.css` | user-sheet стили (вкладки, панели, карточки, …) |
-| `<profile>/chrome/agent/*.css` | agent-sheet стили (регистрирует `firefox.cfg`; достают внутрь shadow DOM) |
+| `<profile>/chrome/agent/*.css` | agent-sheet стили (регистрирует `myfox.cfg`; достают внутрь shadow DOM) |
 | `<profile>/extensions/` | обе темы, по желанию интеграция с Plasma |
-| `<profile>/user.js` | одна строка `myfox.theme`, `firefox.cfg` читает её один раз |
+| `<profile>/user.js` | одна строка `myfox.theme`, `myfox.cfg` читает её один раз |
 | `<profile>/.myfox` | маркер профиля — твики получает только помеченный профиль |
 | `~/.local/share/applications/firefox-myfox.desktop` | ярлык «Firefox (myfox)» |
 | `~/.local/state/myfox/state` | состояние инсталлера (плоский `key=value`, см. [docs/logic.md](docs/logic.md)) |
@@ -123,11 +123,11 @@ MyFox. У профиля, указанного через `--profile`, сним�
 системе) — в `$XDG_CONFIG_HOME/mozilla/firefox`; распознаются и расположения flatpak/snap.
 
 Нужные префы (`toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`) ставит
-`firefox.cfg` при первом старте — **но только для помеченного профиля**. Любой другой профиль
-остаётся чистым Firefox: `firefox.cfg` отказывается что-либо к нему применять (ни префов, ни
+`myfox.cfg` при первом старте — **но только для помеченного профиля**. Любой другой профиль
+остаётся чистым Firefox: `myfox.cfg` отказывается что-либо к нему применять (ни префов, ни
 стилей, ни правок окна).
 
-На помеченном профиле `firefox.cfg` ещё, один раз: добавляет на панель закладок две закладки —
+На помеченном профиле `myfox.cfg` ещё, один раз: добавляет на панель закладок две закладки —
 **«Расширенные настройки»** (about:config) и **«Добавить букмарклеты»** (галерея ddblm —
 двуязычная, для русскоязычного Firefox открывается как `?lang=ru`) — включает выбранную тему и
 выставляет стартовые настройки свежего профиля (компактный интерфейс, ИИ/телеметрия/спонсоры выключены).
@@ -162,11 +162,11 @@ GitHub Pages ([https://daydve.github.io/ddblm/](https://daydve.github.io/ddblm/)
 
 1. **Найди каталог установки**, например `/usr/lib/firefox` (или `~/.local/share/firefox`).
 2. Скопируй `autoconfig/autoconfig.js` в `<install>/defaults/pref/`.
-3. Скопируй `autoconfig/firefox.cfg` в `<install>/` (рядом с бинарником `firefox`).
-   *Если там уже есть `firefox.cfg`, сначала сделай бэкап.*
+3. Скопируй `autoconfig/myfox.cfg` и каталог `autoconfig/myfox/` в `<install>/` (рядом с
+   бинарником `firefox`).
 4. Скопируй `chrome/userChrome.css`, `chrome/user/` и `chrome/agent/` в каталог `chrome/`
    своего профиля (путь показан в `about:support` → *Папка профиля*).
-5. Создай файл-маркер `<profile>/.myfox` — без него `firefox.cfg` профиль не трогает.
+5. Создай файл-маркер `<profile>/.myfox` — без него `myfox.cfg` профиль не трогает.
 6. Перезапусти Firefox. Нужные префы выставятся сами через autoconfig.
 
 > **Важно:** правка `/usr/lib/firefox` требует sudo. Если писать в каталог установки нельзя,

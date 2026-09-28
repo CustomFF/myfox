@@ -1,5 +1,5 @@
-/* Downloads sidebar (its header, list, search box and footer are built by firefox.cfg).
-   Agent sheet (registered by firefox.cfg): reaches into shadow DOM and beats
+/* Downloads sidebar (its header, list, search box and footer are built by myfox.cfg).
+   Agent sheet (registered by myfox.cfg): reaches into shadow DOM and beats
    the documents' own styles. Load order is by file name. */
 
 /* Downloads panel header (injected via JS) styled to match standard sidebar-header */

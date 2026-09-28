@@ -1,5 +1,5 @@
 /* Sidebar panels (bookmarks, history, synced tabs): header, search box, padding, tab rows.
-   Agent sheet (registered by firefox.cfg): reaches into shadow DOM and beats
+   Agent sheet (registered by myfox.cfg): reaches into shadow DOM and beats
    the documents' own styles. Load order is by file name. */
 
 /* Custom styles for sidebar panel headers and padding reduction */

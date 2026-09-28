@@ -40,9 +40,9 @@ myfox-core install
    │              чужой непустой каталог без нашего маркера — НЕ трогаем (ошибка)
    ├─ [профиль]  --profile | мастер / автосоздание нового myfox-N
    │              каталог профилей — по правилу самого Firefox (см. ниже)
-   ├─ [твики]    autoconfig.js → <install>/defaults/pref/ ; firefox.cfg → <install>/
+   ├─ [твики]    autoconfig.js → <install>/defaults/pref/ ; myfox.cfg + myfox/*.js → <install>/
    │              userChrome.css + user/ + agent/ → <profile>/chrome/ ; маркер <profile>/.myfox
-   │              префы ставит сам firefox.cfg при старте
+   │              префы ставит сам myfox.cfg при старте
    ├─ [темы]     обе XPI → <profile>/extensions/ ; выбор → <profile>/user.js (myfox.theme)
    ├─ [plasma?]  (по сессии/флагу) plasma-browser-integration → <profile>/extensions/
    ├─ [bl]       blm_panel.css + все иконки ddblm → <profile>/chrome/ (если не --nobl)
@@ -71,23 +71,23 @@ myfox-core install
 - Установка в `~/.local` не требует root. Autoconfig-файлы можно класть без sudo.
 - Имя «Firefox (myfox)» не конфликтует с системным ярлыком браузера.
 
-### Почему префы ставятся через firefox.cfg, а не user.js
-- `firefox.cfg` (Autoconfig) выполняется при каждом старте с привилегиями и уже используется твиками — это надёжная точка для префов.
+### Почему префы ставятся через myfox.cfg, а не user.js
+- `myfox.cfg` (Autoconfig) выполняется при каждом старте с привилегиями и уже используется твиками — это надёжная точка для префов.
 - Всё, что пользователь может поменять штатно, ставится ОДИН раз на профиль под собственным guard-префом
   (`myfox.corePreferencesInitialized`, `myfox.firstRunPreferencesInitialized`, `myfox.themeApplied`,
   `myfox.galleryBookmarkAdded`, `sidebar.launcherAboveSidebar.initialized`) и не перезаписывается позже.
 - Единственное, что идёт через `user.js`: `myfox.theme` — сигнал от инсталлера свежему, ещё не стартовавшему
-  профилю (у него нет `prefs.js`, куда писать). Сам `myfox.theme` — не настройка Firefox, ничто кроме `firefox.cfg` её не читает.
+  профилю (у него нет `prefs.js`, куда писать). Сам `myfox.theme` — не настройка Firefox, ничто кроме `myfox.cfg` её не читает.
 
 ### Профиль-локальность
-`firefox.cfg` первым делом проверяет маркер `<profile>/.myfox` и иначе бросает исключение — ниже ничего не
+`myfox.cfg` первым делом проверяет маркер `<profile>/.myfox` и иначе бросает исключение — ниже ничего не
 исполняется. Политик (`distribution/policies.json`) нет; аддоны — в `<profile>/extensions/`. Чужой/новый профиль
 в той же инсталляции — обычный Firefox.
 
 ### Стили: два механизма
 - `userChrome.css` — user-лист, читается один раз при старте; сам только `@import`-ит `user/*.css`
   (относительные `url()` внутри импортируемых файлов считаются от них самих).
-- `agent/*.css` — **agent-листы**: регистрируются `firefox.cfg` через `nsIStyleSheetService.AGENT_SHEET`, по имени файла
+- `agent/*.css` — **agent-листы**: регистрируются `myfox.cfg` через `nsIStyleSheetService.AGENT_SHEET`, по имени файла
   (числовые префиксы = порядок каскада). Только агентский origin достаёт внутрь shadow DOM
   (`moz-button`, `panel-list`, …) и перекрывает стили самих документов; user-лист так не умеет. Правила с общими
   именами классов обёрнуты в `@-moz-document url-prefix("about:"), url-prefix("chrome://")` (в agent-листе честны только
@@ -136,7 +136,7 @@ bash-printf не поддерживает — повторяющийся арг�
 | `lib/profile.sh` | `profiles.ini`/`installs.ini`, пиннинг `[Install<HASH>]`, создание профилей |
 | `lib/apply.sh` | autoconfig, `chrome/`, тема (`user.js`), букмарклеты (ddblm) |
 | `lib/addons.sh` | XPI с AMO (`addon_guid`/`addon_fetch`), детект Plasma и системного пакета |
-| `autoconfig/firefox.cfg`, `autoconfig/autoconfig.js` | privileged JS твики / включение Autoconfig |
+| `autoconfig/myfox.cfg`, `autoconfig/myfox/*.js`, `autoconfig/autoconfig.js` | privileged JS твики / включение Autoconfig |
 | `chrome/userChrome.css`, `chrome/user/*.css`, `chrome/agent/*.css` | стили |
 | `scripts/build-dist.sh`, `scripts/dev-serve.sh` | сборка дистрибутива / локальная раздача |
 | `scratch/sandbox.sh` | безопасный прогон в изолированном `$HOME` |

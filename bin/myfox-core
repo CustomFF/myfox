@@ -640,7 +640,7 @@ maybe_add_plasma() {  # <array-name>
 # resolve_theme — flag → wizard choice → saved choice → default (dark).
 # Only called for a tweaked profile; a fresh profile always gets both theme
 # add-ons (see ADDONS_LIST in run_install), this just decides which one
-# firefox.cfg activates (apply_theme_pref writes it into the new profile).
+# myfox.cfg activates (apply_theme_pref writes it into the new profile).
 resolve_theme() {
     if [[ -n "$THEME_ARG" ]]; then
         case "$THEME_ARG" in
@@ -1043,8 +1043,9 @@ run_uninstall() {
     local dir_is_ours=0
     is_myfox_dir "$INSTALL_DIR" && dir_is_ours=1
     if [[ -d "$INSTALL_DIR" ]]; then
-        rm -f "$INSTALL_DIR/defaults/pref/autoconfig.js" "$INSTALL_DIR/firefox.cfg" \
-            "$INSTALL_DIR/.myfox-installed" 2>/dev/null || true
+        rm -f "$INSTALL_DIR/defaults/pref/autoconfig.js" "$INSTALL_DIR/myfox.cfg" \
+            "$INSTALL_DIR/firefox.cfg" "$INSTALL_DIR/.myfox-installed" 2>/dev/null || true
+        rm -rf "$INSTALL_DIR/myfox" 2>/dev/null || true
         success "$(t autoconfig_removed "$INSTALL_DIR")"
     fi
 

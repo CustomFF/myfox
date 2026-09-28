@@ -1,5 +1,5 @@
 /* Accent palette: Nova's violet scale swapped for blue.
-   Agent sheet (registered by firefox.cfg): reaches into shadow DOM and beats
+   Agent sheet (registered by myfox.cfg): reaches into shadow DOM and beats
    the documents' own styles. Load order is by file name. */
 
 /* ── Rein in Nova's violet/purple accent palette ────────────────────────

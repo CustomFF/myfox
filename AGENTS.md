@@ -9,10 +9,10 @@ MyFox — набор твиков для Firefox и инсталлер. Осно
 
 1. **Инсталлер** скачивает Firefox (stable или beta) с `download.mozilla.org` (тарбол) в `~/.local/share/firefox` (или `--prefix <path>`) и применяет на него твики myfox. Публичный вход — `get.sh` (bootstrap `curl … | bash` и установленный лаунчер `myfox`); вся логика — в `bin/myfox-core`.
 2. **Твики** — в двух местах:
-   - **`autoconfig/`** — `autoconfig.js` в `defaults/pref/` (включает Autoconfig: `general.config.filename=firefox.cfg`) и сам `firefox.cfg` в корне установки. Это **privileged JS, исполняется Firefox** при каждом старте: регистрирует все `chrome/agent/*.css` как `AGENT_SHEET`, патчит sidebar (панели «Загрузки» и «Расширения»), ставит префы, закладки, включает выбранную тему.
+   - **`autoconfig/`** — `autoconfig.js` в `defaults/pref/` (включает Autoconfig: `general.config.filename=myfox.cfg`) и `myfox.cfg` в корне установки — загрузчик: проверяет профиль и подгружает модули `<install>/myfox/*.js` (из `autoconfig/myfox/`, порядок по имени файла, через `resource://myfox/`). Это **privileged JS, исполняется Firefox** при каждом старте; модули: регистрирует все `chrome/agent/*.css` как `AGENT_SHEET`, патчит sidebar (панели «Загрузки» и «Расширения»), ставит префы, закладки, включает выбранную тему.
    - **`chrome/`** — CSS: `userChrome.css` (user-sheet, только `@import user/*.css`), `user/*.css` и `agent/*.css` (agent-sheets, порядок каскада — по имени файла, отсюда числовые префиксы).
-3. **Кросс-инсталляция и изоляция профилей (важная идея)**: твики и аддоны применяются ТОЛЬКО к профилю с маркером `<profile>/.myfox` внутри инсталляции с флагом `install_dir/.myfox-installed` (legacy-условия «есть `agent_overrides.css`» больше нет). Чужой/новый профиль в той же инсталляции — немодифицированный Firefox (firefox.cfg бросает исключение до любых твиков). Аддоны ставятся пер-профильно в `<profile>/extensions/`, а не в `distribution/` — иначе попали бы во все профили.
-   **Инвариант «профиль-локальность»**: НИКАКИХ глобальных настроек инсталляции (`distribution/policies.json` не ставится, политики не используются) — весь код и все префы живут в профиле (prefs.js, `chrome/`, `extensions/`, `user.js`). Удалил профиль → кристально чистый ванильный Firefox. Всё профиль-специфичное пишет только `firefox.cfg` под guard-ом.
+3. **Кросс-инсталляция и изоляция профилей (важная идея)**: твики и аддоны применяются ТОЛЬКО к профилю с маркером `<profile>/.myfox` внутри инсталляции с флагом `install_dir/.myfox-installed` (legacy-условия «есть `agent_overrides.css`» больше нет). Чужой/новый профиль в той же инсталляции — немодифицированный Firefox (myfox.cfg бросает исключение до любых твиков). Аддоны ставятся пер-профильно в `<profile>/extensions/`, а не в `distribution/` — иначе попали бы во все профили.
+   **Инвариант «профиль-локальность»**: НИКАКИХ глобальных настроек инсталляции (`distribution/policies.json` не ставится, политики не используются) — весь код и все префы живут в профиле (prefs.js, `chrome/`, `extensions/`, `user.js`). Удалил профиль → кристально чистый ванильный Firefox. Всё профиль-специфичное пишет только `myfox.cfg` под guard-ом.
 4. **Букмарклеты** — не часть этого репозитория и НЕ сабмодуль. Это отдельный проект **ddblm** (`/home/daydve/development/ddblm`); myfox только копирует его готовые твики: `docs/blm_panel.css` → `<profile>/chrome/blm_panel.css` и ВСЕ `icons/*.svg` → `<profile>/chrome/panel-icons/`.
 
 ## Структура
@@ -29,7 +29,7 @@ myfox/
 │   ├── profile.sh    # profiles.ini/installs.ini, пиннинг [Install<HASH>], создание профилей
 │   ├── apply.sh      # autoconfig/chrome, тема (user.js), букмарклеты (ddblm)
 │   └── addons.sh     # XPI с AMO в <profile>/extensions/ (две темы, plasma), детект Plasma
-├── autoconfig/       # autoconfig.js + firefox.cfg (privileged JS со всей логикой твиков)
+├── autoconfig/       # autoconfig.js + myfox.cfg (загрузчик) + myfox/*.js (модули privileged JS с логикой твиков)
 ├── chrome/           # userChrome.css (импорты) + user/*.css + agent/*.css
 ├── i18n/             # каталоги сообщений интерфейса инсталлера
 ├── assets/           # logo.txt для приветствия мастера
@@ -68,8 +68,8 @@ myfox/
 - Выбор языка (`firefox_detect_lang`) маппит `LANG` → коды Mozilla; список — из сети (`product-details.mozilla.org/1.0/languages.json`), фильтр по подстроке. `--lang` заодно выбирает язык интерфейса инсталлера.
 
 ### Темы и аддоны
-- `lib/addons.sh`: по AMO-слагу `addon_guid` тянет guid через API, `addon_fetch` кладёт XPI в `<profile>/extensions/<guid>.xpi` (Firefox ставит при первом старте; нужен `extensions.autoDisableScopes=0` defaultPref в `firefox.cfg`). Зависимости — curl + awk.
-- Обе темы (`google-chrome-dark`/`google-chrome-light`) ставятся ВСЕГДА; выбор (мастер/`--theme`, дефолт dark) пишется `apply_theme_pref` в `<profile>/user.js` как `myfox.theme` и один раз (guard `myfox.themeApplied`) включается `firefox.cfg`, он же выставляет `layout.css.prefers-color-scheme.content-override`. ID тем и Plasma дублируются в `firefox.cfg` (`THEME_IDS`) и в списке удаляемых XPI в `run_uninstall` — менять вместе.
+- `lib/addons.sh`: по AMO-слагу `addon_guid` тянет guid через API, `addon_fetch` кладёт XPI в `<profile>/extensions/<guid>.xpi` (Firefox ставит при первом старте; нужен `extensions.autoDisableScopes=0` defaultPref в `myfox.cfg`). Зависимости — curl + awk.
+- Обе темы (`google-chrome-dark`/`google-chrome-light`) ставятся ВСЕГДА; выбор (мастер/`--theme`, дефолт dark) пишется `apply_theme_pref` в `<profile>/user.js` как `myfox.theme` и один раз (guard `myfox.themeApplied`) включается `myfox.cfg`, он же выставляет `layout.css.prefers-color-scheme.content-override`. ID тем и Plasma дублируются в `myfox.cfg` (`THEME_IDS`) и в списке удаляемых XPI в `run_uninstall` — менять вместе.
 - KDE Plasma integration: молча в сессии Plasma или с `--plasma-integration` (`--noplasma` гасит). Нужен системный пакет `plasma-browser-integration` (native host): инсталлер проверяет (`addons_pkg_installed`, каталоги переопределяются `MYFOX_NMH_DIRS` — для тестов) и печатает заметку с командой в конце, без sudo-промптов.
 
 ### Букмарклеты (bl)
@@ -78,15 +78,15 @@ myfox/
 - Иконка этой закладки подключена `url("../panel-icons/…")` из `chrome/user/10-menus-bookmarks.css`: **относительные `url()` в импортируемом файле считаются от него самого**, не от `userChrome.css`.
 - Термин «blm» в myfox не используется — только «bl»/букмарклеты (имя файла `blm_panel.css` сохранено как в ddblm).
 
-### Твики и префы (autoconfig/firefox.cfg)
-- **Guard профиля** в самом начале: нет `<profile>/.myfox` → `throw`; дальше ничего не исполняется. Не обходить и не выносить логику за него.
+### Твики и префы (autoconfig/myfox.cfg и autoconfig/myfox/*.js)
+- **Guard профиля** в самом начале `myfox.cfg`, до загрузки модулей: нет `<profile>/.myfox` → `throw`; дальше ничего не исполняется. Не обходить и не выносить логику за него.
 - Всё, что пользователь может менять штатно (префы, тема, закладки), применяется **не более одного раза** на профиль под guard-префом (`oncePerProfile(guardPref, fn)`): `myfox.corePreferencesInitialized`, `myfox.firstRunPreferencesInitialized`, `sidebar.launcherAboveSidebar.initialized`, `myfox.themeApplied`, `myfox.galleryBookmarkAdded` — и никогда не перезаписывает выбор пользователя. **Guards срабатывают один раз**: изменил преф внутри блока — на существующем профиле НЕ переприменится, пока не сбросишь guard (about:config). Не дублируй эти префы в `user.js`. Исключение — пункт «Загрузки» в `sidebar.main.tools`: возвращается всегда (на нём держится наша панель загрузок).
-- Стартовые настройки свежего профиля (компактный интерфейс, отключение ИИ/Pocket/спонсоров/телеметрии) — таблица `freshProfilePrefs` в блоке `myfox.firstRunPreferencesInitialized`.
+- Стартовые настройки свежего профиля (компактный интерфейс, отключение ИИ/Pocket/спонсоров/телеметрии) — таблица `freshProfilePrefs` (`autoconfig/myfox/20-prefs.js`) в блоке `myfox.firstRunPreferencesInitialized`.
 - `distribution/policies.json` **не ставится**; кнопка «Импорт закладок» убирается профиль-локально (виджет `import-button`).
 - Хелперы наверху файла: `tr(doc, ru, en)`, `oncePerProfile`, `whenDelayedStartupDone`; константы — блок «Constants». Строки интерфейса (`"Загрузки"`, названия закладок) остаются русскими: CSS матчит закладки по этим названиям.
 
 ### Стили (chrome/)
-- `agent/*.css` регистрирует `firefox.cfg` в порядке имён файлов — новый файл = новый номер, каталог/манифест не нужны. Agent-origin нужен, чтобы достать внутрь shadow DOM и перекрыть стили документов; user-лист так не умеет. Правила с общими именами классов оборачивай в `@-moz-document url-prefix("about:"), url-prefix("chrome://")` (в agent-листе работают только голые схемы, длинные префиксы не срабатывают).
+- `agent/*.css` регистрирует `myfox.cfg` в порядке имён файлов — новый файл = новый номер, каталог/манифест не нужны. Agent-origin нужен, чтобы достать внутрь shadow DOM и перекрыть стили документов; user-лист так не умеет. Правила с общими именами классов оборачивай в `@-moz-document url-prefix("about:"), url-prefix("chrome://")` (в agent-листе работают только голые схемы, длинные префиксы не срабатывают).
 - `userChrome.css` читается один раз при старте (правки user-листов — рестарт браузера); agent-листы можно перерегистрировать на лету, но **content-процессы (about:newtab, about:preferences…) динамическую подмену не подхватывают** — проверять после перезапуска.
 - Один радиус `--myfox-radius`; Nova-токены переопределяются как custom properties, а не через pref.
 
@@ -95,7 +95,7 @@ myfox/
 1. **Язык**: код и комментарии — английские, коротко и только «почему» (без ссылок на историю правок — она в git); этот файл — русский. README основной — английский + `README.ru.md`. Пользовательские строки инсталлера — через `i18n/` (ru+en), не хардкодом; исключение — ошибки разбора флагов (язык ещё не известен).
 2. **Не дублировать**: тарбол-логика — в `lib/firefox.sh`; менеджер букмарклетов живёт в ddblm — myfox только копирует готовые твики. Логику навески на системный Firefox в инсталлер не добавляй без явной просьбы (есть только README-инструкция).
 3. **`set -eo pipefail`** активен (без `-u`). Функции возвращают значения через stdout, а `log/success/warn/error` уходят в **stderr** — из `$(...)` stderr не захватывать; вызовы в `$(...)`, которые могут вернуть ненулевой код, оборачивать `|| true`.
-4. **Изменения твиков**: `firefox.cfg` и CSS исполняются в privileged-контексте Firefox — правь аккуратно, соблюдай guards. После правки `firefox.cfg`/`user/*.css` нужен `myfox update` + перезапуск браузера.
+4. **Изменения твиков**: `myfox.cfg` и CSS исполняются в privileged-контексте Firefox — правь аккуратно, соблюдай guards. После правки `myfox.cfg`/`user/*.css` нужен `myfox update` + перезапуск браузера.
 5. **Не коммить**: `Office.conf`, бэкапы, state-маркеры, файлы ddblm (правим/копируем их при тесте твиков), сгенерированные артефакты (`dist/`, `scratch/refactor-baseline/`).
 6. **Тесты**: автотестов нет — чек-листы в `tests/README.md`. Минимум перед сдачей:
    - `bash -n get.sh bin/myfox-core lib/*.sh scripts/*.sh`
@@ -103,7 +103,7 @@ myfox/
    - `python3 -m py_compile scratch/*.py` (если трогали dev-скрипты)
 7. **Не трогай чужие файлы**: другие клоны репозитория (вроде `~/dev/myfox`) не изменяй — правь только копию, над которой работаешь.
 8. **Осторожно с реальной установкой**: инсталлер качает большие тарболы и меняет `~/.mozilla`/профили/desktop entry. Только песочница: `scratch/sandbox.sh <dir> [--fresh] -- ./bin/myfox-core <cmd> …` (изолирует HOME и все XDG; `--prefix` подставляет сам, только для `install`). Реальный профиль пользователя не трогай.
-9. **Проверка стилей вживую**: через RDP-прокси (см. README, «Development»); `--headless --screenshot` для проверки JS `firefox.cfg` не годится — процесс завершается раньше асинхронной логики; нужен настоящий запуск.
+9. **Проверка стилей вживую**: через RDP-прокси (см. README, «Development»); `--headless --screenshot` для проверки JS `myfox.cfg` не годится — процесс завершается раньше асинхронной логики; нужен настоящий запуск.
 
 ## Справочник команд
 

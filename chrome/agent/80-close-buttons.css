@@ -1,5 +1,5 @@
 /* Round close buttons.
-   Agent sheet (registered by firefox.cfg): reaches into shadow DOM and beats
+   Agent sheet (registered by myfox.cfg): reaches into shadow DOM and beats
    the documents' own styles. Load order is by file name. */
 
 /* Every "x" close button is round: tab close, sidebar close, urlbar search
