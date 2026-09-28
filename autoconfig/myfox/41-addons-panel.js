@@ -203,11 +203,20 @@
           sw.setAttribute("disabled", "");
         }
         sw.setAttribute("aria-label", addon.name);
+        // The tooltip names the action the click will do.
+        const setTip = () => {
+          sw.title = sw.hasAttribute("pressed")
+            ? tr(doc, "Отключить расширение", "Disable extension")
+            : tr(doc, "Включить расширение", "Enable extension");
+        };
+        setTip();
         sw.addEventListener("toggle", async () => {
+          setTip();
           try {
             if (sw.pressed) await addon.enable(); else await addon.disable();
           } catch(ex) {
             sw.pressed = !addon.userDisabled;
+            setTip();
           }
         });
         // Toggling must not open the add-on's details page.
