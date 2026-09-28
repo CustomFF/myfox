@@ -28,3 +28,13 @@
 #sidebar-box[custom-launcher="true"]>#sidebar-header {
     order: 2 !important;
 }
+
+/* The stock vertical launcher (option off, no vertical tabs) hugs the window
+   edge and the bookmarks toolbar above it: line it up with the toolbar's
+   buttons and with the top of the sidebar card. */
+sidebar-main[myfox-plain-launcher] {
+    margin-block-start: 4px !important;
+    margin-inline-start: 3px !important;
+    /* ...without moving the sidebar card beside it. */
+    margin-inline-end: -3px !important;
+}
