@@ -44,3 +44,11 @@
 #tabbrowser-tabs[closebuttons="activetab"][orient="horizontal"] .tabbrowser-tab:not([selected]):hover .tab-close-button {
     display: flex !important;
 }
+
+/* Vertical tabs, launcher expanded: the tab content is inset 17px so that an
+   icon centers in the collapsed strip, which leaves the expanded list looking
+   indented. Bring the favicons in line with the "new tab" row's plus sign. The
+   collapsed strip (no [sidebar-launcher-expanded]) keeps its centering. */
+#sidebar-container[sidebar-launcher-expanded] #tabbrowser-tabs[orient="vertical"] .tabbrowser-tab {
+    --tab-inline-padding: 8px;
+}
