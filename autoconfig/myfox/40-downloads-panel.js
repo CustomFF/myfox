@@ -1,12 +1,12 @@
 // Downloads sidebar: about:downloads has no header or footer of its own in a
 // sidebar, so build them. Styled by chrome/agent/20-downloads-sidebar.css.
 (function (MyFox) {
-  const { tr } = MyFox;
+  const { tr, wrapSearchWithClear } = MyFox;
 
   // Builds the downloads sidebar's own header (title, close button,
   // search box) and footer ("Clear downloads") — about:downloads has none
   // in a sidebar. Styled by chrome/agent/20-downloads-sidebar.css.
-  function injectSearch(sidebarDoc, sbCtrl) {
+  function injectSearch(sidebarDoc, sbCtrl, doc) {
     if (!sidebarDoc || sidebarDoc.location.href !== "about:downloads") return;
     if (sidebarDoc.getElementById("downloads-sidebar-header")) return;
 
@@ -18,7 +18,7 @@
     titleRow.className = "downloads-sidebar-title-row";
 
     let h4 = sidebarDoc.createElementNS("http://www.w3.org/1999/xhtml", "h4");
-    h4.setAttribute("data-l10n-id", "downloads-window");
+    h4.textContent = tr(doc, "Загрузки", "Downloads");
     titleRow.appendChild(h4);
 
     let closeBtn = sidebarDoc.createXULElement("toolbarbutton");
@@ -39,11 +39,15 @@
     let searchContainer = sidebarDoc.createElementNS("http://www.w3.org/1999/xhtml", "div");
     searchContainer.id = "downloads-sidebar-search-container";
 
-    let searchInput = sidebarDoc.createElementNS("http://www.w3.org/1999/xhtml", "input");
-    searchInput.type = "search";
-    searchInput.setAttribute("data-l10n-id", "downloads-search");
+    // The same search box the history and bookmarks panels use.
+    try {
+      sidebarDoc.defaultView.ChromeUtils.importESModule(
+        "chrome://global/content/elements/moz-input-search.mjs", { global: "current" });
+    } catch(e) {}
+    let searchInput = sidebarDoc.createElementNS("http://www.w3.org/1999/xhtml", "moz-input-search");
     searchInput.id = "downloads-sidebar-search";
-    searchContainer.appendChild(searchInput);
+    searchInput.setAttribute("placeholder", tr(doc, "Поиск в загрузках", "Search downloads"));
+    searchContainer.appendChild(wrapSearchWithClear(sidebarDoc, searchInput, tr(doc, "Очистить", "Clear")));
     header.appendChild(searchContainer);
 
     const filterDownloads = () => {
@@ -68,12 +72,26 @@
     searchInput.addEventListener("input", filterDownloads);
 
     rootEl.insertBefore(header, rootEl.firstChild);
+    // Like the built-in panels: the search box is ready for typing.
+    sidebarDoc.defaultView.setTimeout(() => { try { searchInput.focus(); } catch(e) {} }, 0);
 
-    // Keep the filter applied as downloads come and go
+    // Keep the filter applied as downloads come and go, and show the search
+    // box only while there is something to search.
     let list = sidebarDoc.getElementById("downloadsListBox");
+    const updateSearchVisibility = () => {
+      let any = !!(list && list.querySelector("richlistitem.download"));
+      searchContainer.hidden = !any;
+      if (!any && searchInput.value) {
+        // A stale filter would hide the next download that shows up.
+        searchInput.value = "";
+        searchInput.dispatchEvent(new sidebarDoc.defaultView.Event("input", { bubbles: true }));
+      }
+    };
+    updateSearchVisibility();
     if (list) {
       let listObserver = new sidebarDoc.defaultView.MutationObserver(() => {
         filterDownloads();
+        updateSearchVisibility();
       });
       listObserver.observe(list, { childList: true });
     }
@@ -115,5 +133,5 @@
     rootEl.appendChild(footer);
   }
 
-  MyFox.sidebarHooks.push(({ sbCtrl, sidebar }) => injectSearch(sidebar.contentDocument, sbCtrl));
+  MyFox.sidebarHooks.push(({ sbCtrl, sidebar, doc }) => injectSearch(sidebar.contentDocument, sbCtrl, doc));
 })(globalThis.MyFox);

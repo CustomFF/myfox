@@ -103,7 +103,39 @@
     } catch(e) {}
   }
 
+  // Puts a clear (x) button over the right edge of a moz-input-search. Returns
+  // the wrapper element, which the caller inserts instead of the search box.
+  function wrapSearchWithClear(sidebarDoc, search, title) {
+    const HTML = "http://www.w3.org/1999/xhtml";
+    let wrap = sidebarDoc.createElementNS(HTML, "div");
+    wrap.className = "myfox-search-wrap";
+    wrap.appendChild(search);
+    let btn = sidebarDoc.createElementNS(HTML, "button");
+    btn.className = "myfox-search-clear";
+    btn.title = title;
+    btn.hidden = true;
+    let img = sidebarDoc.createElementNS(HTML, "img");
+    img.src = "chrome://global/skin/icons/close.svg";
+    btn.appendChild(img);
+    btn.addEventListener("click", () => {
+      search.value = "";
+      search.dispatchEvent(new sidebarDoc.defaultView.Event("input", { bubbles: true }));
+      search.focus();
+    });
+    search.addEventListener("input", () => { btn.hidden = !search.value; });
+    wrap.appendChild(btn);
+    // The box has its own native clear button in some documents; keep ours
+    // only (hidden by a rule in chrome/agent/10-sidebar-panels.css).
+    const markInput = () => {
+      let inner = search.shadowRoot && search.shadowRoot.querySelector("input");
+      if (inner) inner.setAttribute("data-myfox-no-clear", "");
+    };
+    Promise.resolve(search.updateComplete).then(markInput).catch(() => {});
+    return wrap;
+  }
+
   Object.assign(MyFox, {
+    wrapSearchWithClear,
     hasRussianLocale, tr, oncePerProfile, whenDelayedStartupDone,
     runOnDOMContentLoaded, notifyLayoutChange, whenPlacesReady,
   });
