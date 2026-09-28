@@ -45,6 +45,10 @@
                          fit goes into the overflow menu (52-launcher-overflow.js). */
                       height: 32px !important;
                       overflow: hidden !important;
+                      /* The row must not size the launcher: a collapsed launcher is
+                         as wide as its content, and the full row of buttons would
+                         stretch it (and the overflow menu could never kick in). */
+                      contain: inline-size !important;
                   }
                   :host([custom-launcher="true"]) .actions-list {
                       gap: 0 !important;
