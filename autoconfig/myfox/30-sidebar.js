@@ -2,20 +2,20 @@
 // buttons and tooltips, the tools pref, and the hook that runs the panel
 // modules whenever a sidebar document loads.
 (function (MyFox) {
-  const { prefs, tr } = MyFox;
+  const { prefs, t } = MyFox;
 
   // Sidebar panels Firefox doesn't ship. `name` is the id in the
-  // sidebar.main.tools pref; the ru/en pair is the title and launcher tooltip.
+  // sidebar.main.tools pref; titleKey is the message used for the title and launcher tooltip.
   const EXTRA_SIDEBARS = [
     {
       view: "viewDownloadsSidebar", name: "downloads", url: "about:downloads",
       icon: "chrome://browser/skin/downloads/downloads.svg", l10nId: "navbar-downloads",
-      title: ["Загрузки", "Downloads"],
+      titleKey: "panel.downloads.title",
     },
     {
       view: "viewAddonsSidebar", name: "addons", url: "about:blank?myfox-addons",
       icon: "chrome://mozapps/skin/extensions/extension.svg", l10nId: "",
-      title: ["Расширения", "Extensions"],
+      titleKey: "panel.addons.title",
     },
   ];
   MyFox.EXTRA_SIDEBARS = EXTRA_SIDEBARS;
@@ -63,7 +63,7 @@
 
         function updateAll() {
           for (let panel of EXTRA_SIDEBARS) {
-            let targetText = tr(doc, panel.title[0], panel.title[1]);
+            let targetText = t(panel.titleKey);
             for (let btn of shadow.querySelectorAll(`moz-button[view='${panel.view}']`)) {
               if (btn.tooltiptext !== targetText) {
                 btn.removeAttribute("data-l10n-id");
@@ -102,7 +102,7 @@
                 map.set(panel.view, {
                   icon: panel.icon,
                   url: panel.url,
-                  title: tr(doc, panel.title[0], panel.title[1]),
+                  title: t(panel.titleKey),
                   ...(panel.l10nId ? { sourceL10nEl: panel.l10nId } : {})
                 });
               }
@@ -131,7 +131,7 @@
                 iconUrl: panel.icon,
                 l10nId: panel.l10nId,
                 // The customize panel uses this as the checkbox label.
-                tooltiptext: tr(doc, panel.title[0], panel.title[1]),
+                tooltiptext: t(panel.titleKey),
                 disabled: toolsPref ? !toolsPref.split(",").includes(panel.name) : false,
                 hidden: false,
                 attention: false

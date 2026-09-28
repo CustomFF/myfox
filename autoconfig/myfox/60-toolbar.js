@@ -1,7 +1,7 @@
 // Toolbar: removes the import button, adds the bookmarks-toolbar toggle
 // button and keeps its checked state in sync.
 (function (MyFox) {
-  const { tr, whenDelayedStartupDone } = MyFox;
+  const { t, whenDelayedStartupDone } = MyFox;
 
   function initWindow(win) {
     const doc = win.document;
@@ -42,8 +42,8 @@
           if (!widget) {
             CustomizableUI.createWidget({
               id: "toggle-bookmarks-toolbar-button",
-              label: tr(doc, "Панель закладок", "Bookmarks Toolbar"),
-              tooltiptext: tr(doc, "Показать/скрыть панель закладок (Ctrl+Shift+B)", "Show/hide bookmarks toolbar (Ctrl+Shift+B)"),
+              label: t("toolbar.bookmarks.label"),
+              tooltiptext: t("toolbar.bookmarks.tooltip"),
               localized: false,
               onCreated(button) {
                 const win = button.ownerDocument.defaultView;

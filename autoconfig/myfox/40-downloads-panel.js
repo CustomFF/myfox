@@ -1,7 +1,7 @@
 // Downloads sidebar: about:downloads has no header or footer of its own in a
 // sidebar, so build them. Styled by chrome/agent/20-downloads-sidebar.css.
 (function (MyFox) {
-  const { tr, wrapSearchWithClear } = MyFox;
+  const { t, wrapSearchWithClear } = MyFox;
 
   // Builds the downloads sidebar's own header (title, close button,
   // search box) and footer ("Clear downloads") — about:downloads has none
@@ -18,7 +18,7 @@
     titleRow.className = "downloads-sidebar-title-row";
 
     let h4 = sidebarDoc.createElementNS("http://www.w3.org/1999/xhtml", "h4");
-    h4.textContent = tr(doc, "Загрузки", "Downloads");
+    h4.textContent = t("panel.downloads.title");
     titleRow.appendChild(h4);
 
     let closeBtn = sidebarDoc.createXULElement("toolbarbutton");
@@ -46,8 +46,8 @@
     } catch(e) {}
     let searchInput = sidebarDoc.createElementNS("http://www.w3.org/1999/xhtml", "moz-input-search");
     searchInput.id = "downloads-sidebar-search";
-    searchInput.setAttribute("placeholder", tr(doc, "Поиск в загрузках", "Search downloads"));
-    searchContainer.appendChild(wrapSearchWithClear(sidebarDoc, searchInput, tr(doc, "Очистить", "Clear")));
+    searchInput.setAttribute("placeholder", t("downloads.search"));
+    searchContainer.appendChild(wrapSearchWithClear(sidebarDoc, searchInput, t("common.clear")));
     header.appendChild(searchContainer);
 
     const filterDownloads = () => {
@@ -115,10 +115,10 @@
           }
         }
       }).catch(e => {
-        clearBtn.textContent = tr(sidebarDoc, "Очистить загрузки", "Clear Downloads");
+        clearBtn.textContent = t("downloads.clear");
       });
     } else {
-      clearBtn.textContent = tr(sidebarDoc, "Очистить загрузки", "Clear Downloads");
+      clearBtn.textContent = t("downloads.clear");
     }
 
     clearBtn.addEventListener("click", function() {

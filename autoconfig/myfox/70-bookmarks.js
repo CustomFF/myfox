@@ -5,7 +5,7 @@
 // inserted earlier). Idempotent — an existing bookmark is never duplicated;
 // the guard pref is set only once both are in place.
 (function (MyFox) {
-  const { Cc, Ci, prefs, tr, whenPlacesReady } = MyFox;
+  const { Cc, Ci, prefs, whenPlacesReady } = MyFox;
 
   // Bookmarks-toolbar entries. chrome/user/10-menus-bookmarks.css matches
   // them by these exact Russian titles (icon-only styling).
@@ -38,7 +38,7 @@
     // The gallery is bilingual (client-side ?lang=ru), so a Russian
     // Firefox gets the localized URL from the start.
     let baseGalleryUrl = GALLERY_URL;
-    let galleryUrl = tr(win.document, baseGalleryUrl + "?lang=ru", baseGalleryUrl);
+    let galleryUrl = (MyFox.lang === "ru" ? baseGalleryUrl + "?lang=ru" : baseGalleryUrl);
 
     // A bookmark from before the gallery was bilingual points at the base
     // URL — move it to the localized one instead of adding a duplicate.
