@@ -5,14 +5,21 @@
 // inserted earlier). Idempotent — an existing bookmark is never duplicated;
 // the guard pref is set only once both are in place.
 (function (MyFox) {
-  const { Cc, Ci, prefs, whenPlacesReady } = MyFox;
+  const { Cc, Ci, prefs, t, whenPlacesReady } = MyFox;
 
-  // Bookmarks-toolbar entries. chrome/user/10-menus-bookmarks.css matches
-  // them by these exact Russian titles (icon-only styling).
-  const BOOKMARK_ADVANCED_TITLE = "Расширенные настройки";
-  const BOOKMARK_GALLERY_TITLE = "Добавить букмарклеты";
+  // The titles are in the browser's language. The entries are recognized by
+  // their bookmark GUID, kept in the prefs below (see 72-bookmark-roles.js),
+  // so neither the title nor a later change of the gallery's address matters.
   // The bookmarklet gallery (ddblm) picks its language from ?lang=.
   const GALLERY_URL = "https://daydve.github.io/ddblm/";
+  // Addresses the gallery had before GALLERY_URL: a bookmark still pointing at
+  // one of them is ours and is moved to the current address. Add the old
+  // address here whenever GALLERY_URL changes.
+  const GALLERY_LEGACY_URLS = [];
+  const ROLE_PREFS = {
+    advanced: "myfox.bookmark.advanced",
+    gallery: "myfox.bookmark.gallery",
+  };
 
   function addGalleryBookmarks() {
     let wm = Cc["@mozilla.org/appshell/window-mediator;1"].getService(Ci.nsIWindowMediator);
@@ -26,12 +33,18 @@
     let bookmarksDone = prefs.getBoolPref("myfox.galleryBookmarkAdded", false);
 
     let toolbarGuid = "toolbar_____";
-    let addIfMissing = (title, url, index) => {
+    // Remembers which bookmark plays `role`, for the styling.
+    const remember = (role, bookmark) => {
+      try { if (bookmark) prefs.setStringPref(ROLE_PREFS[role], bookmark.guid); } catch(e) {}
+      return null;
+    };
+    let addIfMissing = (title, url, index, role) => {
       return pu.bookmarks.fetch({ url }).then(found => {
         if (!found) {
-          return pu.bookmarks.insert({ parentGuid: toolbarGuid, title, url, index });
+          return pu.bookmarks.insert({ parentGuid: toolbarGuid, title, url, index })
+            .then(added => remember(role, added));
         }
-        return null;
+        return remember(role, found);
       }).catch(() => null);
     };
 
@@ -46,17 +59,18 @@
       if (galleryUrl !== baseGalleryUrl) {
         return pu.bookmarks.fetch({ url: baseGalleryUrl }).then(existing => {
           if (existing && existing.parentGuid === toolbarGuid) {
-            return pu.bookmarks.update({ guid: existing.guid, url: galleryUrl }).then(() => null);
+            return pu.bookmarks.update({ guid: existing.guid, url: galleryUrl })
+              .then(() => remember("gallery", existing));
           }
-          return addIfMissing(BOOKMARK_GALLERY_TITLE, galleryUrl, 1);
+          return addIfMissing(t("bookmarks.gallery"), galleryUrl, 1, "gallery");
         }).catch(() => null);
       }
-      return addIfMissing(BOOKMARK_GALLERY_TITLE, galleryUrl, 1);
+      return addIfMissing(t("bookmarks.gallery"), galleryUrl, 1, "gallery");
     };
 
     if (!bookmarksDone && !MyFox.bookmarksRunning) {
       MyFox.bookmarksRunning = true;
-      let ensureAll = () => addIfMissing(BOOKMARK_ADVANCED_TITLE, "about:config", 0)
+      let ensureAll = () => addIfMissing(t("bookmarks.advanced"), "about:config", 0, "advanced")
         .then(saveGalleryBookmark);
       // On a new profile's first start Places may still be processing the
       // default bookmarks and erase what we just added (that's how
@@ -96,5 +110,35 @@
     }
   }
 
+  // Profiles set up before the GUIDs were recorded already have the bookmarks:
+  // find them once by URL and remember them. Runs on every start but only
+  // acts while a GUID is missing.
+  function recordExistingBookmarks() {
+    let win = Cc["@mozilla.org/appshell/window-mediator;1"].getService(Ci.nsIWindowMediator)
+      .getMostRecentWindow("navigator:browser");
+    let pu = win && win.PlacesUtils;
+    if (!pu) return;
+    const find = async (role, urls) => {
+      if (prefs.getStringPref(ROLE_PREFS[role], "")) return;
+      for (let url of urls) {
+        let found = await pu.bookmarks.fetch({ url });
+        if (found && found.parentGuid === "toolbar_____") {
+          prefs.setStringPref(ROLE_PREFS[role], found.guid);
+          // A gallery bookmark left at a previous address follows the move.
+          if (role === "gallery" && GALLERY_LEGACY_URLS.includes(url)) {
+            await pu.bookmarks.update({ guid: found.guid, url: galleryUrlFor() });
+          }
+          return;
+        }
+      }
+    };
+    find("advanced", ["about:config"]).catch(() => {});
+    find("gallery", [galleryUrlFor(), GALLERY_URL, ...GALLERY_LEGACY_URLS]).catch(() => {});
+  }
+  function galleryUrlFor() {
+    return MyFox.lang === "ru" ? GALLERY_URL + "?lang=ru" : GALLERY_URL;
+  }
+
   MyFox.windowInits.push(() => whenPlacesReady(addGalleryBookmarks));
+  MyFox.windowInits.push(() => whenPlacesReady(recordExistingBookmarks));
 })(globalThis.MyFox);

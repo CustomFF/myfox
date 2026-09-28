@@ -9,10 +9,13 @@
     display: none !important;
 }
 
-/* Bookmarks-toolbar entries that show only an icon (label hidden). Matched by
-   label, so it depends on the bookmark's title — the titles are the ones
-   myfox.cfg creates. */
-.bookmark-item[label="Расширенные настройки"] {
+/* Bookmarks-toolbar entries that show only an icon (label hidden): the
+   about:config shortcut and the bookmarklet gallery, both created by
+   myfox.cfg. The `myfox-role` attribute is put on their buttons by
+   myfox/72-bookmark-roles.js, by bookmark GUID — not by title, language or
+   URL, so renaming them or moving the gallery to another address changes
+   nothing here. */
+.bookmark-item:is([myfox-role="advanced"], [myfox-role="gallery"]) {
     & .toolbarbutton-text {
         display: none !important;
     }
@@ -26,30 +29,15 @@
     }
 }
 
-.bookmark-item[label="Расширенные настройки"] image {
+.bookmark-item[myfox-role="advanced"] image {
     background-image: url("chrome://global/skin/icons/settings.svg") !important;
-}
-
-.bookmark-item[label="Добавить букмарклеты"] {
-    & .toolbarbutton-text {
-        display: none !important;
-    }
-
-    & image {
-        width: 0 !important;
-        height: 0 !important;
-        padding: 0 0 16px 16px !important;
-        background-size: contain !important;
-        background-repeat: no-repeat !important;
-    }
 }
 
 /* Relative to this file (chrome/user/), hence "../": panel-icons/ is a sibling
    of user/, copied there from ddblm. */
-.bookmark-item[label="Добавить букмарклеты"] image {
+.bookmark-item[myfox-role="gallery"] image {
     background-image: url("../panel-icons/import-bookmarklets.svg") !important;
 }
-
 
 /* Tighter drop-down/context/popup menu rows. */
 menupopup:not(.in-menulist)>menuitem,
