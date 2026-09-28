@@ -3,7 +3,7 @@
 > **[Русская версия](README.ru.md)**
 
 MyFox is a set of Firefox user-interface tweaks (floating "card" tabs, rounded corners,
-aligned sidebar, Downloads-as-a-sidebar-view, compact search fields) bundled with an
+aligned sidebar, Downloads and Extensions as sidebar views, compact search fields) bundled with an
 **installer** that grabs Firefox (stable or beta) straight from Mozilla's official tarball
 and applies the tweaks to it.
 
