@@ -58,7 +58,21 @@
     let search = mk("input", "myfox-addons-search");
     search.type = "search";
     search.placeholder = tr(doc, "Поиск расширений", "Search add-ons");
-    panel.appendChild(search);
+    let searchWrap = mk("div", null, "myfox-search-wrap");
+    searchWrap.appendChild(search);
+    let clearBtn = mk("button", null, "myfox-search-clear");
+    clearBtn.title = tr(doc, "Очистить", "Clear");
+    clearBtn.hidden = true;
+    let clearImg = mk("img");
+    clearImg.src = "chrome://global/skin/icons/close.svg";
+    clearBtn.appendChild(clearImg);
+    clearBtn.addEventListener("click", () => {
+      search.value = "";
+      applyFilter();
+      search.focus();
+    });
+    searchWrap.appendChild(clearBtn);
+    panel.appendChild(searchWrap);
 
     let list = mk("ul", "myfox-addons-list");
     panel.appendChild(list);
@@ -72,12 +86,12 @@
     footer.appendChild(manage);
     panel.appendChild(footer);
 
-    const openAmoSearch = (query) => {
+    const openAmo = (path) => {
       let loc = win.Services.locale.appLocaleAsBCP47;
-      win.openTrustedLinkIn(
-        "https://addons.mozilla.org/" + loc + "/firefox/search/?type=extension&q=" + encodeURIComponent(query),
-        "tab");
+      win.openTrustedLinkIn("https://addons.mozilla.org/" + loc + path, "tab");
     };
+    const openAmoSearch = (query) =>
+      openAmo("/firefox/search/?type=extension&q=" + encodeURIComponent(query));
 
     // Per-row "..." menu: one floating element reused for every row.
     let menu = mk("div", "myfox-addons-menu");
@@ -88,6 +102,18 @@
     const openMgr = (view) => {
       try { win.BrowserAddonUI.openAddonsMgr(view); } catch(ex) {}
     };
+    // Removal is postponed like on about:addons: the row stays with an "Undo"
+    // button until it is undone or the panel is left.
+    let ourPending = new Set();
+    async function removeAddon(addon) {
+      try {
+        let { remove, report } = await win.BrowserAddonUI.promptRemoveExtension(addon);
+        if (!remove) return;
+        await addon.uninstall(true);
+        ourPending.add(addon);
+        if (report) await win.BrowserAddonUI.reportAddon(addon.id, "uninstall");
+      } catch(ex) {}
+    }
     function showMenu(addon, anchor) {
       if (!menu.hidden && menuAnchor === anchor) { closeMenu(); return; }
       menu.textContent = "";
@@ -103,9 +129,8 @@
         item(tr(doc, "Настройки", "Preferences"), () => openMgr(view + "/preferences"));
       }
       item(tr(doc, "Управление", "Manage"), () => openMgr(view));
-      item(tr(doc, "Удалить", "Remove"), () => {
-        try { win.BrowserAddonUI.removeAddon(addon.id); } catch(ex) {}
-      }, !(addon.permissions & AddonManager.PERM_CAN_UNINSTALL));
+      item(tr(doc, "Удалить", "Remove"), () => removeAddon(addon),
+        !(addon.permissions & AddonManager.PERM_CAN_UNINSTALL));
       menu.hidden = false;
       menuAnchor = anchor;
       // Under the button, right-aligned; above it if there is no room.
@@ -140,6 +165,33 @@
       for (let addon of addons) {
         let li = mk("li", null, "myfox-addon");
         if (addon.userDisabled) li.classList.add("disabled");
+        if (addon.pendingOperations & AddonManager.PENDING_UNINSTALL) {
+          // Removed, but can still be undone.
+          li.classList.add("removed");
+          li.dataset.name = addon.name.toLowerCase();
+          li.hidden = !!query && !addon.name.toLowerCase().includes(query);
+          let removedIcon = mk("img", null, "myfox-addon-icon");
+          removedIcon.src = addon.iconURL || "chrome://mozapps/skin/extensions/extensionGeneric.svg";
+          li.appendChild(removedIcon);
+          let text = mk("span", null, "myfox-addon-name");
+          text.textContent = addon.name;
+          text.title = addon.name;
+          li.appendChild(text);
+          let label = mk("span", null, "myfox-removed-label");
+          label.textContent = tr(doc, "удалено", "removed");
+          li.appendChild(label);
+          let undo = mk("button", null, "myfox-addon-more");
+          undo.title = tr(doc, "Отменить", "Undo");
+          let undoImg = mk("img");
+          undoImg.src = "chrome://global/skin/icons/undo.svg";
+          undo.appendChild(undoImg);
+          undo.addEventListener("click", () => {
+            try { addon.cancelUninstall(); } catch(ex) {}
+          });
+          li.appendChild(undo);
+          list.appendChild(li);
+          continue;
+        }
         li.hidden = !!query && !addon.name.toLowerCase().includes(query);
         li.dataset.name = addon.name.toLowerCase();
 
@@ -186,6 +238,28 @@
       list.hidden = addons.length === 0;
     }
 
+    // Shown instead of the list while nothing is installed.
+    let empty = mk("div", "myfox-addons-empty");
+    let emptyImg = mk("img", null, "myfox-empty-img");
+    emptyImg.src = "chrome://mozapps/skin/extensions/kit-addons.svg";
+    empty.appendChild(emptyImg);
+    let emptyTitle = mk("h3");
+    emptyTitle.textContent = tr(doc,
+      "Даже несколько расширений могут многое изменить",
+      "Even a few extensions can make a big difference");
+    empty.appendChild(emptyTitle);
+    let emptyText = mk("p");
+    emptyText.textContent = tr(doc,
+      "У нас есть рекомендации, которые помогут вам улучшить фокусировку, приватность и многое другое.",
+      "We have recommendations to help you improve focus, privacy, and more.");
+    empty.appendChild(emptyText);
+    let emptyBtn = mk("button");
+    emptyBtn.textContent = tr(doc, "Найдите свое первое расширение", "Find your first extension");
+    emptyBtn.addEventListener("click", () => openAmo("/firefox/extensions/"));
+    empty.appendChild(emptyBtn);
+    empty.hidden = true;
+    panel.insertBefore(empty, footer);
+
     // "Search on addons.mozilla.org" row, shown while a query is typed.
     let amoRow = mk("button", "myfox-addons-amo");
     amoRow.hidden = true;
@@ -194,10 +268,12 @@
 
     const applyFilter = () => {
       let query = search.value.toLowerCase().trim();
+      clearBtn.hidden = !search.value;
       for (let li of list.children) {
         li.hidden = !!query && !li.dataset.name.includes(query);
       }
       amoRow.hidden = !query;
+      empty.hidden = list.children.length > 0 || !!query;
       amoRow.textContent = tr(doc,
         "Искать «" + search.value.trim() + "» на addons.mozilla.org",
         "Search “" + search.value.trim() + "” on addons.mozilla.org");
@@ -205,15 +281,26 @@
     search.addEventListener("input", applyFilter);
     search.addEventListener("keydown", ev => {
       if (ev.key === "Enter" && search.value.trim()) openAmoSearch(search.value.trim());
+      if (ev.key === "Escape" && search.value) { search.value = ""; applyFilter(); }
     });
 
     let listener = {};
-    for (let ev of ["onEnabled", "onDisabled", "onInstalled", "onUninstalled"]) {
+    // Removing an add-on on about:addons only marks it "pending uninstall"
+    // (it can be undone), so react to that and to the undo as well.
+    for (let ev of ["onEnabled", "onDisabled", "onInstalled", "onUninstalled",
+        "onUninstalling", "onOperationCancelled"]) {
       listener[ev] = () => { render().then(applyFilter).catch(() => {}); };
     }
     AddonManager.addAddonListener(listener);
     sbWin.addEventListener("unload", () => {
       try { AddonManager.removeAddonListener(listener); } catch(ex) {}
+      // Leaving the panel makes our postponed removals final, as leaving
+      // about:addons does.
+      for (let addon of ourPending) {
+        try {
+          if (addon.pendingOperations & AddonManager.PENDING_UNINSTALL) addon.uninstall();
+        } catch(ex) {}
+      }
     });
 
     sidebarDoc.body.appendChild(panel);
