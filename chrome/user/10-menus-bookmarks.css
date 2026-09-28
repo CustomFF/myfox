@@ -44,8 +44,10 @@
     }
 }
 
+/* Relative to this file (chrome/user/), hence "../": panel-icons/ is a sibling
+   of user/, copied there from ddblm. */
 .bookmark-item[label="Добавить букмарклеты"] image {
-    background-image: url("panel-icons/import-bookmarklets.svg") !important;
+    background-image: url("../panel-icons/import-bookmarklets.svg") !important;
 }
 
 
