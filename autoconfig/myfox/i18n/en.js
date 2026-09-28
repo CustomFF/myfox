@@ -8,6 +8,7 @@
 
     "panel.downloads.title": "Downloads",
     "panel.addons.title": "Extensions",
+    "panel.translations.title": "Firefox Translations",
 
     "downloads.search": "Search downloads",
     "downloads.clear": "Clear Downloads",

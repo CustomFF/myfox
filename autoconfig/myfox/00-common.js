@@ -171,8 +171,53 @@
     return wrap;
   }
 
+  // The skeleton of a panel built on a blank page (Extensions, Translations):
+  // Firefox's theme stylesheet, the sidebar's colors, and a title row with a
+  // close button. Returns the panel element (not attached yet) and a small
+  // element factory. Styled by chrome/agent/22-own-panels.css.
+  function createOwnPanel(sidebarDoc, win, doc, sbCtrl, id, title) {
+    const HTML = "http://www.w3.org/1999/xhtml";
+    const mk = (tag, elId, cls) => {
+      let e = sidebarDoc.createElementNS(HTML, tag);
+      if (elId) e.id = elId;
+      if (cls) e.className = cls;
+      return e;
+    };
+    // Theme colors and fonts of the browser's own UI.
+    let themeCss = mk("link");
+    themeCss.rel = "stylesheet";
+    themeCss.href = "chrome://global/skin/global.css";
+    sidebarDoc.head.appendChild(themeCss);
+    // A blank page doesn't inherit the sidebar's colors; copy them.
+    let root = sidebarDoc.documentElement;
+    let boxStyle = win.getComputedStyle(doc.getElementById("sidebar-box"));
+    let rootStyle = win.getComputedStyle(doc.documentElement);
+    root.style.colorScheme = boxStyle.colorScheme;
+    root.style.setProperty("--sidebar-text-color", boxStyle.color);
+    for (let name of ["--sidebar-background-color", "--link-color"]) {
+      let val = rootStyle.getPropertyValue(name).trim();
+      if (val) root.style.setProperty(name, val);
+    }
+
+    let panel = mk("div", id, "myfox-panel");
+    let titleRow = mk("div", null, "myfox-panel-title-row");
+    let h4 = mk("h4");
+    h4.textContent = title;
+    titleRow.appendChild(h4);
+    let closeBtn = mk("button", "myfox-panel-close");
+    let closeImg = mk("img");
+    closeImg.src = "chrome://global/skin/icons/close.svg";
+    closeBtn.appendChild(closeImg);
+    closeBtn.addEventListener("click", () => {
+      try { if (sbCtrl) sbCtrl.hide(); } catch(ex) {}
+    });
+    titleRow.appendChild(closeBtn);
+    panel.appendChild(titleRow);
+    return { panel, mk };
+  }
+
   Object.assign(MyFox, {
-    wrapSearchWithClear,
+    wrapSearchWithClear, createOwnPanel,
     t, oncePerProfile, whenDelayedStartupDone,
     runOnDOMContentLoaded, notifyLayoutChange, whenPlacesReady,
   });
