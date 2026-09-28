@@ -1,0 +1,59 @@
+/* Controls: one look for buttons, text fields, selects and toggles in the
+   browser's own pages, sidebars and dialogs. The design-system components
+   (moz-button, moz-input-text, moz-toggle, ...) read these tokens, so setting
+   them once here restyles every one of them.
+   Agent sheet (registered by myfox.cfg): reaches into shadow DOM and beats
+   the documents' own styles. Load order is by file name.
+   The same look for the browser window's own panels lives in
+   ../user/80-controls.css. */
+
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+    :root {
+        /* Buttons: no outline (Nova outlines the default button in the accent
+           color); the default button is a subtle fill instead. The border
+           keeps its 1px so nothing changes size. */
+        --button-border-color: transparent !important;
+        --button-border-color-hover: transparent !important;
+        --button-border-color-active: transparent !important;
+        --button-background-color: color-mix(in srgb, currentColor 12%, transparent) !important;
+        --button-background-color-hover: color-mix(in srgb, currentColor 20%, transparent) !important;
+        --button-background-color-active: color-mix(in srgb, currentColor 28%, transparent) !important;
+
+        /* Ghost (icon-only, close, "...") buttons stay transparent until hovered. */
+        --button-background-color-ghost: transparent !important;
+        --button-background-color-ghost-hover: color-mix(in srgb, currentColor 15%, transparent) !important;
+        --button-background-color-ghost-active: color-mix(in srgb, currentColor 25%, transparent) !important;
+        --button-border-color-ghost: transparent !important;
+
+        /* Text fields: the same quiet border the sidebar search boxes have. */
+        --input-text-border-color: color-mix(in srgb, currentColor 50%, transparent) !important;
+    }
+
+    /* One height for text buttons, fields and selects (icon buttons keep
+       their own square sizes). */
+    moz-button:not([type~="icon"]) {
+        --button-min-height: 26px !important;
+    }
+    moz-input-text,
+    moz-input-search,
+    moz-input-password,
+    moz-select {
+        --input-text-min-height: 26px !important;
+    }
+
+    /* Focus: a plain accent border, not the design system's glowing ring. */
+    moz-input-text:focus-within,
+    moz-input-password:focus-within,
+    moz-select:focus-within {
+        --input-text-border: 1.5px solid color-mix(in srgb, light-dark(#0a84ff, #4dabff) 50%, transparent) !important;
+        --focus-outline: none !important;
+    }
+
+    /* Toggles: one size everywhere (32x16), a rounded rectangle with a
+       rounded-square knob instead of a pill. */
+    moz-toggle {
+        --toggle-width: 32px !important;
+        --toggle-height: 16px !important;
+        --toggle-border-radius: var(--myfox-radius, 5px) !important;
+    }
+}
