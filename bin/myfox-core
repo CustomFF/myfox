@@ -508,7 +508,11 @@ _wizard_summary_text() {
         "$(t summary_row_profile "$profile_desc")"
     )
     if [[ "$TWEAKED_PROFILE" == "true" ]]; then
-        lines+=("$(t summary_row_tweaks_yes)" "$(t summary_row_bl)" "$(t summary_row_theme "$theme_desc")")
+        # Bookmarklets are bundled into "tweaks: yes" without their own
+        # wizard question (see resolve_bookmarklets) — no separate summary
+        # row for them either, or it'd look like a choice that was never
+        # actually offered.
+        lines+=("$(t summary_row_tweaks_yes)" "$(t summary_row_theme "$theme_desc")")
     else
         lines+=("$(t summary_row_tweaks_no)")
     fi
