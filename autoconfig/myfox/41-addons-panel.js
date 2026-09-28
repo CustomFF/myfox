@@ -190,7 +190,8 @@
 
         let name = mk("span", null, "myfox-addon-name");
         name.textContent = addon.name;
-        name.title = addon.name;
+        // The tooltip is the add-on's description (the name is on the row).
+        li.title = addon.description || addon.name;
         li.appendChild(name);
 
         let sw = mk("label", null, "myfox-switch");
