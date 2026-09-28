@@ -1,6 +1,6 @@
 // Extensions sidebar (see injectAddonsPanel).
 (function (MyFox) {
-  const { tr, wrapSearchWithClear } = MyFox;
+  const { t, wrapSearchWithClear } = MyFox;
 
   // Builds the add-ons sidebar's UI in a blank page: a compact list of
   // installed extensions with an on/off switch, a search box that filters
@@ -42,7 +42,7 @@
 
     let titleRow = mk("div", null, "myfox-addons-title-row");
     let h4 = mk("h4");
-    h4.textContent = tr(doc, "Расширения", "Extensions");
+    h4.textContent = t("panel.addons.title");
     titleRow.appendChild(h4);
     let closeBtn = mk("button", "myfox-addons-close");
     let closeImg = mk("img");
@@ -62,15 +62,15 @@
       } catch(e) {}
     }
     let search = mk("moz-input-search", "myfox-addons-search");
-    search.setAttribute("placeholder", tr(doc, "Поиск расширений", "Search add-ons"));
-    panel.appendChild(wrapSearchWithClear(sidebarDoc, search, tr(doc, "Очистить", "Clear")));
+    search.setAttribute("placeholder", t("addons.search"));
+    panel.appendChild(wrapSearchWithClear(sidebarDoc, search, t("common.clear")));
 
     let list = mk("ul", "myfox-addons-list");
     panel.appendChild(list);
 
     let footer = mk("div", "myfox-addons-footer");
     let manage = mk("button", "myfox-addons-manage");
-    manage.textContent = tr(doc, "Управление расширениями", "Manage extensions");
+    manage.textContent = t("addons.manage");
     manage.addEventListener("click", () => {
       try { win.BrowserAddonUI.openAddonsMgr("addons://list/extension"); } catch(ex) {}
     });
@@ -117,10 +117,10 @@
       };
       let view = "addons://detail/" + encodeURIComponent(addon.id);
       if (addon.optionsURL) {
-        item(tr(doc, "Настройки", "Preferences"), () => openMgr(view + "/preferences"));
+        item(t("addons.menu.preferences"), () => openMgr(view + "/preferences"));
       }
-      item(tr(doc, "Управление", "Manage"), () => openMgr(view));
-      item(tr(doc, "Удалить", "Remove"), () => removeAddon(addon),
+      item(t("addons.menu.manage"), () => openMgr(view));
+      item(t("addons.menu.remove"), () => removeAddon(addon),
         !(addon.permissions & AddonManager.PERM_CAN_UNINSTALL));
       menu.hidden = false;
       menuAnchor = anchor;
@@ -169,10 +169,10 @@
           text.title = addon.name;
           li.appendChild(text);
           let label = mk("span", null, "myfox-removed-label");
-          label.textContent = tr(doc, "удалено", "removed");
+          label.textContent = t("addons.removed");
           li.appendChild(label);
           let undo = mk("button", null, "myfox-addon-more");
-          undo.title = tr(doc, "Отменить", "Undo");
+          undo.title = t("addons.undo");
           let undoImg = mk("img");
           undoImg.src = "chrome://global/skin/icons/undo.svg";
           undo.appendChild(undoImg);
@@ -206,8 +206,8 @@
         // The tooltip names the action the click will do.
         const setTip = () => {
           sw.title = sw.hasAttribute("pressed")
-            ? tr(doc, "Отключить расширение", "Disable extension")
-            : tr(doc, "Включить расширение", "Enable extension");
+            ? t("addons.tip.disable")
+            : t("addons.tip.enable");
         };
         setTip();
         sw.addEventListener("toggle", async () => {
@@ -224,7 +224,7 @@
         li.appendChild(sw);
 
         let more = mk("button", null, "myfox-addon-more");
-        more.title = tr(doc, "Ещё", "More");
+        more.title = t("addons.more");
         let moreImg = mk("img");
         moreImg.src = "chrome://global/skin/icons/more.svg";
         more.appendChild(moreImg);
@@ -245,17 +245,13 @@
     emptyImg.src = "chrome://mozapps/skin/extensions/kit-addons.svg";
     empty.appendChild(emptyImg);
     let emptyTitle = mk("h3");
-    emptyTitle.textContent = tr(doc,
-      "Даже несколько расширений могут многое изменить",
-      "Even a few extensions can make a big difference");
+    emptyTitle.textContent = t("addons.empty.title");
     empty.appendChild(emptyTitle);
     let emptyText = mk("p");
-    emptyText.textContent = tr(doc,
-      "У нас есть рекомендации, которые помогут вам улучшить фокусировку, приватность и многое другое.",
-      "We have recommendations to help you improve focus, privacy, and more.");
+    emptyText.textContent = t("addons.empty.text");
     empty.appendChild(emptyText);
     let emptyBtn = mk("button");
-    emptyBtn.textContent = tr(doc, "Найдите свое первое расширение", "Find your first extension");
+    emptyBtn.textContent = t("addons.empty.button");
     emptyBtn.addEventListener("click", () => openAmo("/firefox/extensions/"));
     empty.appendChild(emptyBtn);
     empty.hidden = true;
@@ -274,9 +270,7 @@
       }
       amoRow.hidden = !query;
       empty.hidden = list.children.length > 0 || !!query;
-      amoRow.textContent = tr(doc,
-        "Искать «" + search.value.trim() + "» на addons.mozilla.org",
-        "Search “" + search.value.trim() + "” on addons.mozilla.org");
+      amoRow.textContent = t("addons.amo", search.value.trim());
     };
     search.addEventListener("input", applyFilter);
     search.addEventListener("keydown", ev => {

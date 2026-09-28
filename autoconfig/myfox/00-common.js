@@ -1,7 +1,7 @@
 // Shared helpers and the registries the other modules plug into. Loaded
 // first (modules load in file-name order).
 (function (MyFox) {
-  const { prefs, os, wm } = MyFox;
+  const { Cc, Ci, prefs, os, wm } = MyFox;
 
   // Registries filled by the modules and run by 90-windows.js:
   //   windowInits    fn(win) — once per browser window, after DOMContentLoaded
@@ -11,13 +11,50 @@
   MyFox.sidebarHooks = [];
   MyFox.documentHooks = [];
 
-  function hasRussianLocale(doc) {
-    return !!(doc.documentElement.lang && doc.documentElement.lang.startsWith("ru"));
+  // ── Strings ────────────────────────────────────────────────────────────
+  // Catalogs live in i18n/<language>.js. English is always loaded (the
+  // fallback for any missing key); on top of it goes the catalog matching
+  // the browser's language, by full tag ("pt-br") and then by language
+  // ("pt"), if the file exists. The language is fixed at startup.
+  MyFox.messages = {};
+  const scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].getService(Ci.mozIJSSubScriptLoader);
+  function loadCatalog(code) {
+    let file = MyFox.modDir.clone();
+    file.append("i18n");
+    file.append(code + ".js");
+    if (!file.exists()) return false;
+    try {
+      scriptLoader.loadSubScript("resource://myfox/i18n/" + code + ".js", globalThis);
+      return true;
+    } catch(e) {
+      return false;
+    }
   }
+  loadCatalog("en");
+  // Catalogs to consult, most specific first ("pt-br", "pt"), English last.
+  MyFox.langChain = [];
+  {
+    let tag = String(Services.locale.appLocaleAsBCP47 || "en").toLowerCase();
+    for (let code of [tag, tag.split("-")[0]]) {
+      if (code !== "en" && !MyFox.langChain.includes(code) && loadCatalog(code)) {
+        MyFox.langChain.push(code);
+      }
+    }
+    MyFox.langChain.push("en");
+  }
+  // The language in use: "ru", "pt-br", ..., or "en".
+  MyFox.lang = MyFox.langChain[0];
 
-  // Picks the Russian or English string by the document's language.
-  function tr(doc, ru, en) {
-    return hasRussianLocale(doc) ? ru : en;
+  // The string for `key` in the browser's language ({0}, {1}, ... are filled
+  // from the extra arguments); English, then the key itself, if it is missing.
+  function t(key, ...args) {
+    let msg;
+    for (let code of MyFox.langChain) {
+      msg = (MyFox.messages[code] || {})[key];
+      if (msg !== undefined) break;
+    }
+    if (msg === undefined) msg = key;
+    return msg.replace(/\{(\d+)\}/g, (m, i) => (args[i] !== undefined ? args[i] : m));
   }
 
   // Runs fn once per profile: the guard pref is set before fn runs, so a
@@ -136,7 +173,7 @@
 
   Object.assign(MyFox, {
     wrapSearchWithClear,
-    hasRussianLocale, tr, oncePerProfile, whenDelayedStartupDone,
+    t, oncePerProfile, whenDelayedStartupDone,
     runOnDOMContentLoaded, notifyLayoutChange, whenPlacesReady,
   });
 })(globalThis.MyFox);

@@ -1,7 +1,7 @@
 // Sidebar customize page: adds the launcher-above-sidebar checkbox and keeps
 // the extra panels' labels.
 (function (MyFox) {
-  const { prefs, tr, notifyLayoutChange } = MyFox;
+  const { prefs, t, notifyLayoutChange } = MyFox;
 
   MyFox.documentHooks.push(win => {
     if (win.location.href !== "chrome://browser/content/sidebar/sidebar-customize.html") return;
@@ -19,7 +19,7 @@
             if (fieldset) {
               let downloadsCheckbox = shadow.querySelector('moz-checkbox[name="downloads"]') || shadow.getElementById("downloads");
               if (downloadsCheckbox) {
-                downloadsCheckbox.setAttribute("label", tr(this.ownerDocument, "Загрузки", "Downloads"));
+                downloadsCheckbox.setAttribute("label", t("panel.downloads.title"));
                 downloadsCheckbox.removeAttribute("data-l10n-id");
               }
 
@@ -29,7 +29,7 @@
                 checkbox.id = "custom-launcher-above-sidebar";
                 checkbox.setAttribute("type", "checkbox");
                 checkbox.setAttribute("name", "launcherAboveSidebar");
-                checkbox.setAttribute("label", tr(this.ownerDocument, "Панель кнопок над сайдбаром", "Show button panel above sidebar"));
+                checkbox.setAttribute("label", t("customize.launcherAbove"));
 
                 let vtCheckbox = shadow.getElementById("vertical-tabs");
                 if (vtCheckbox && vtCheckbox.nextSibling) {
