@@ -47,8 +47,27 @@
 
 /* Vertical tabs, launcher expanded: the tab content is inset 17px so that an
    icon centers in the collapsed strip, which leaves the expanded list looking
-   indented. Bring the favicons in line with the "new tab" row's plus sign. The
-   collapsed strip (no [sidebar-launcher-expanded]) keeps its centering. */
+   indented. Bring the favicons in line with the "new tab" row's plus sign. */
 #sidebar-container[sidebar-launcher-expanded] #tabbrowser-tabs[orient="vertical"] .tabbrowser-tab {
     --tab-inline-padding: 8px;
+}
+
+/* Collapsed to icons: the 17px inset was meant for a wider strip; with our
+   28px cards (4px margins in a 36px tab) it pushes the icon toward the right
+   edge, where the page card clips it. Center the icon in its card. The close
+   button already overlays the tab, it needs no room of its own. */
+#sidebar-container:not([sidebar-launcher-expanded]) #tabbrowser-tabs[orient="vertical"] {
+    /* The strip is 36px wide in a 28px container, so the right card edge and
+       the icon's centering both fall outside what is visible. */
+    width: 100% !important;
+    min-width: 0 !important;
+}
+#sidebar-container:not([sidebar-launcher-expanded]) #tabbrowser-tabs[orient="vertical"] .tabbrowser-tab {
+    --tab-inline-padding: 6px;
+}
+/* Card edges in line with the "new tab" button below (1px in from each side). */
+#sidebar-container:not([sidebar-launcher-expanded]) #tabbrowser-tabs[orient="vertical"] .tab-background {
+    margin-inline: 1px !important;
+    width: auto !important;
+    justify-self: stretch !important;
 }
