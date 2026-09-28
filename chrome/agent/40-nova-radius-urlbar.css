@@ -62,6 +62,11 @@ panel[type="arrow"] {
     --urlbarview-row-padding-block: 0.2rem !important;
     --urlbarview-row-min-height: 26px !important;
 }
+/* The "Switch to tab" pill is taller than the compact row's content box, so
+   the row clipped its bottom edge. Trim the pill's vertical padding. */
+.urlbarView-action.urlbarView-switchToTab {
+    padding-block: 2px !important;
+}
 /* A touch of transparency for the open list, applied to the theme's own
    color (a fixed rgb here looked wrong on light themes). Both halves of the
    joint background get the same treatment so the bar and list stay one
