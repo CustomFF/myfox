@@ -118,24 +118,29 @@ def main():
     if not os.path.exists(profile_chrome):
         os.makedirs(profile_chrome, exist_ok=True)
         
-    files_to_sync = ["userChrome.css", "agent_overrides.css"]
-    for fname in files_to_sync:
-        src = os.path.join(workspace_chrome, fname)
-        dst = os.path.join(profile_chrome, fname)
-        if os.path.exists(src):
-            shutil.copy2(src, dst)
-            print(f"Synced {fname} to profile.")
-            
-    # Read stylesheet contents for data URI injection
-    with open(os.path.join(workspace_chrome, "userChrome.css"), "r", encoding="utf-8") as f:
-        userchrome_css = f.read()
-        
-    # Strip @import statements from the data URI content to prevent Gecko security blocks
-    import re
-    userchrome_css = re.sub(r'@import\s+url\([^)]+\)[^;]*;', '', userchrome_css)
-    with open(os.path.join(workspace_chrome, "agent_overrides.css"), "r", encoding="utf-8") as f:
-        sidebar_agent_css = f.read()
-    
+    # userChrome.css only @imports user/*.css; agent sheets are chrome/agent/*.css.
+    for fname in ["userChrome.css"]:
+        shutil.copy2(os.path.join(workspace_chrome, fname), os.path.join(profile_chrome, fname))
+        print(f"Synced {fname} to profile.")
+    for dname in ["user", "agent"]:
+        dst = os.path.join(profile_chrome, dname)
+        shutil.rmtree(dst, ignore_errors=True)
+        shutil.copytree(os.path.join(workspace_chrome, dname), dst)
+        print(f"Synced {dname}/ to profile.")
+
+    def concat(dname):
+        d = os.path.join(workspace_chrome, dname)
+        out = []
+        for fn in sorted(os.listdir(d)):
+            if fn.endswith(".css"):
+                with open(os.path.join(d, fn), "r", encoding="utf-8") as f:
+                    out.append(f.read())
+        return "\n".join(out)
+
+    # Data-URI injection can't @import, so feed it the concatenated parts.
+    userchrome_css = concat("user")
+    sidebar_agent_css = concat("agent")
+
     # JS Code to dynamically reload stylesheets using data URIs to bypass caching
     js_code = """
     (function(chromeCSS, agentCSS) {

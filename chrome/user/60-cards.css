@@ -1,0 +1,39 @@
+/* Webpage and sidebar as rounded cards.
+   User sheet, imported by ../userChrome.css. */
+
+/* Card style for webpage viewport (all four corners rounded with a small margin) */
+:root:not([inDOMFullscreen]) .browserContainer {
+    margin: 4px 4px 5px 4px !important;
+    border-radius: 8px !important;
+    overflow: clip !important;
+}
+
+/* The sidebar (launcher icon row + panel) is a card like the webpage
+   viewport above: same top/bottom margins, a small left margin, all four
+   corners rounded. Nova rounds only the box's top corners and leaves it
+   flush with the window's left/bottom edges and 4px above the page card. */
+#sidebar-box {
+    margin: 4px 0 5px 4px !important;
+    padding-block-end: 0 !important;
+    border-radius: 8px !important;
+    overflow: clip !important;
+}
+
+#sidebar {
+    border-radius: 0 !important;
+}
+
+/* The splitter is already a 4px gutter between the two cards; drop the page
+   card's own left margin so the gap matches the 4px used everywhere else. */
+#sidebar-box:not([hidden]) ~ #tabbrowser-tabbox .browserContainer {
+    margin-inline-start: 0 !important;
+}
+
+/* Make sidebar-button look pressed/active when sidebar is open */
+body:has(#sidebar-box:not([hidden])) #sidebar-button .toolbarbutton-badge-stack {
+    background-color: var(--toolbarbutton-active-background, color-mix(in srgb, currentColor 25%, transparent)) !important;
+}
+
+body:has(#sidebar-box:not([hidden])) #sidebar-button:hover .toolbarbutton-badge-stack {
+    background-color: var(--toolbarbutton-hover-background, color-mix(in srgb, currentColor 35%, transparent)) !important;
+}

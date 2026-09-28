@@ -1,0 +1,30 @@
+/* Opera-like launcher row above the sidebar (attribute set by firefox.cfg).
+   User sheet, imported by ../userChrome.css. */
+
+/* Custom Opera-like horizontal buttons above the sidebar when vertical tabs are disabled */
+
+#sidebar-box[custom-launcher="true"] {
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#sidebar-box[hidden] {
+    display: none !important;
+}
+
+#sidebar-box[custom-launcher="true"]>#sidebar-container {
+    order: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+}
+
+#sidebar-box[custom-launcher="true"]>.sidebar-browser-stack {
+    order: 1 !important;
+}
+
+#sidebar-box[custom-launcher="true"]>#sidebar-header {
+    order: 2 !important;
+}

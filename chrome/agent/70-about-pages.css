@@ -1,0 +1,193 @@
+/* Internal pages: about:preferences, about:addons, about:logins, about:processes, base font.
+   Agent sheet (registered by firefox.cfg): reaches into shadow DOM and beats
+   the documents' own styles. Load order is by file name. */
+
+/* Icon-only buttons (pencil / trash / "+" in the settings lists — some are
+   type="icon"; the pencil, trash and "+" are type="default" buttons in an
+   actions slot that just have no label)
+   draw an accent-blue outline around each glyph via the composed
+   --button-border token (overriding just --button-border-color isn't enough);
+   the glyph alone is enough. */
+moz-button[type~="icon"],
+moz-button[slot^="actions"]:not([label]),
+moz-button.more-options-button {
+    --button-border: none !important;
+}
+
+/* about:logins page: same 12px base, no outline on the icon-only "+" and
+   "..." buttons, and much tighter spacing (rows, header, detail pane). The
+   generic class names are scoped to internal documents (an agent sheet only
+   honors bare-scheme url-prefix: "about:" is what matches in the content
+   process where about:logins lives, "chrome://" elsewhere). */
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+    .ghost-button,
+    .text-button,
+    .icon-button,
+    .menu-button,
+    .fxaccounts-enable-button {
+        border-color: transparent !important;
+        background-color: color-mix(in srgb, currentColor 10%, transparent) !important;
+    }
+    .ghost-button:hover,
+    .text-button:hover,
+    .icon-button:hover,
+    .menu-button:hover,
+    .fxaccounts-enable-button:hover {
+        background-color: color-mix(in srgb, currentColor 18%, transparent) !important;
+    }
+    .listHeader {
+        padding: 8px 12px !important;
+    }
+    .meta {
+        padding: 0 12px 8px !important;
+    }
+    li.list-item {
+        padding: 3px 12px !important;
+    }
+    .labels {
+        min-height: 0 !important;
+    }
+    .container > .column form > .header {
+        margin-block: 0 16px !important;
+    }
+    .detail-row {
+        margin-bottom: 16px !important;
+    }
+    .detail-grid {
+        row-gap: 16px !important;
+    }
+    .detail-grid > .detail-row {
+        margin-bottom: 0 !important;
+    }
+    .field-label {
+        margin-bottom: 4px !important;
+    }
+    .detail-grid {
+        margin-bottom: 16px !important;
+    }
+    .container:has(> .column form) {
+        padding-inline: 24px !important;
+    }
+    input.filter {
+        border-radius: var(--myfox-radius) !important;
+    }
+}
+
+/* Toggle switches: the track (and the knob, which reuses the same token)
+   is a full circle by default. */
+moz-toggle {
+    --toggle-border-radius: var(--myfox-radius) !important;
+}
+
+/* Search-engine list rows: 12px of padding above and below each two-line
+   row made them tall and airy. */
+moz-box-item[id^="engineList-"],
+moz-box-item[id^="searchmode-"] {
+    --box-padding: 5px 12px !important;
+}
+
+/* about:addons list: each add-on is a .card with 16px of bottom margin and
+   11px of padding all round, and recommended ones stack a further 7px above
+   the description. Tighten the gaps between cards and the air inside them. */
+:is(addon-card, recommended-addon-card) > .card {
+    margin-block-end: 4px !important;
+    padding-block: 6px !important;
+}
+recommended-addon-card .addon-description {
+    margin-block-start: 3px !important;
+}
+/* Its text sizes are hard-coded px (16px names, 14px descriptions and
+   buttons) — bring them down to the density of the rest of the UI. */
+:is(addon-card, recommended-addon-card) .addon-name {
+    font-size: 13px !important;
+    line-height: 18px !important;
+}
+:is(addon-card, recommended-addon-card) .addon-description {
+    font-size: 12px !important;
+    line-height: 16px !important;
+}
+.disco-cta-button {
+    font-size: 12px !important;
+}
+/* Rating stars in the recommended list (16px by default). The component
+   derives its star size from --icon-size on an inner element, so that is the
+   token to override (--rating-star-size on the host is shadowed). */
+moz-five-star {
+    --icon-size: 11px !important;
+}
+:root:has(addon-list) {
+    --font-size-xlarge: 15px !important;
+    --font-size-large: 12px !important;
+}
+
+/* Vertical gap between the settings cards (1.5rem by default). */
+:root:has(moz-page-nav) section:has(> setting-group) {
+    gap: 8px !important;
+}
+/* Dropdown lists (moz-select) render their value semi-bold via a token. */
+moz-select {
+    --select-font-weight: 400 !important;
+}
+
+/* ── One base font size for every internal page ───────────────────────────
+   Nova gives internal pages (about:*, sidebars, dialogs) a 15px root and
+   sizes almost everything in rem or from --font-size-root, which is what
+   made them look huge next to the 12px browser UI. One rule for all of them
+   instead of one per page. url-prefix is bare-scheme only in an agent sheet:
+   "about:" matches documents the content process reports as about:*,
+   "chrome://" the parent-process ones. Left alone: windows with a
+   windowtype (the browser itself, dialogs), Reader View (has a platform
+   attribute) and the new-tab page. */
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+    :root:not([windowtype]):not([platform]):not(:has(> body.activity-stream)) {
+        --font-size-root: 12px !important;
+        font-size: 12px !important;
+    }
+}
+
+/* about:processes: non-bold process names, tighter rows. */
+@-moz-document url-prefix("about:"), url-prefix("chrome://") {
+    tr.process > td.type > span {
+        font-weight: normal !important;
+    }
+    table:has(tr.process) :is(td, th) {
+        padding-block: 2px !important;
+    }
+}
+
+/* about:preferences left navigation. Its buttons/links draw the highlight
+   pill and spacing from component tokens declared on the (light-DOM) host
+   elements, so plain host rules override them — no script needed. Square
+   highlight, tighter rows and gaps, and a smaller font (matching the context
+   menu's density) instead of Nova's 9999px pills and roomy 15px rows. */
+moz-page-nav {
+    --page-nav-gap: 2px !important;
+}
+moz-page-nav-button {
+    --page-nav-button-border-radius: 0px !important;
+    --page-nav-button-padding: 6px 10px !important;
+    font-size: 13px !important;
+}
+
+/* about:preferences cards/boxes/promos/message bars/pickers. Their corner
+   radii come from tokens declared on the (light-DOM) host elements, so host
+   rules override them — the same Nova pill treatment as everywhere else,
+   pulled onto --myfox-radius without any script. */
+moz-card,
+moz-box-group,
+moz-box-item,
+moz-box-link,
+moz-box-button {
+    border-radius: var(--myfox-radius) !important;
+    --box-border-radius: var(--myfox-radius) !important;
+    --box-border-radius-inner: var(--myfox-radius) !important;
+}
+moz-message-bar {
+    --message-bar-border-radius: var(--myfox-radius) !important;
+}
+moz-promo {
+    --promo-border-radius: var(--myfox-radius) !important;
+}
+moz-visual-picker-item {
+    --visual-picker-item-border-radius: var(--myfox-radius) !important;
+}

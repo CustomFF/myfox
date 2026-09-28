@@ -19,20 +19,27 @@ apply_autoconfig() {
 
 apply_chrome() {
     local profile_dir="$1"
-    mkdir -p "$profile_dir/chrome"
+    local c_dir="$profile_dir/chrome"
+    mkdir -p "$c_dir"
 
-    local c_dir="$profile_dir/chrome" f
-    for f in userChrome.css agent_overrides.css; do
-        if [[ -f "$c_dir/$f" && ! -f "$c_dir/$f.myfox-backup" ]]; then
-            cp "$c_dir/$f" "$c_dir/$f.myfox-backup"
-            warn "$(t warn_backed_up_style "$f" "$f")"
-        fi
-    done
+    # A user's own pre-existing userChrome.css is kept once as .myfox-backup
+    # (restored on uninstall). Only on the first application to a profile —
+    # once .myfox exists, the file there is ours. agent/ and user/ are ours too.
+    if [[ ! -f "$profile_dir/.myfox" && -f "$c_dir/userChrome.css" \
+        && ! -f "$c_dir/userChrome.css.myfox-backup" ]]; then
+        cp "$c_dir/userChrome.css" "$c_dir/userChrome.css.myfox-backup"
+        warn "$(t warn_backed_up_style "userChrome.css" "userChrome.css")"
+    fi
 
-    install -m 0644 "$MYFOX_CHROME_DIR/userChrome.css" "$profile_dir/chrome/userChrome.css"
-    install -m 0644 "$MYFOX_CHROME_DIR/agent_overrides.css" "$profile_dir/chrome/agent_overrides.css"
+    # Replace the directories wholesale so files dropped from a newer version
+    # (or the single-file agent_overrides.css of older installs) don't linger
+    # and get registered by firefox.cfg.
+    rm -rf "$c_dir/agent" "$c_dir/user" "$c_dir/agent_overrides.css"
+    cp -r "$MYFOX_CHROME_DIR/agent" "$c_dir/agent"
+    cp -r "$MYFOX_CHROME_DIR/user" "$c_dir/user"
+    install -m 0644 "$MYFOX_CHROME_DIR/userChrome.css" "$c_dir/userChrome.css"
 
-    # Маркер профиля: firefox.cfg проверяет его в начале и применяет твики ТОЛЬКО
+    # Профиль-маркер: firefox.cfg проверяет его в начале и применяет твики ТОЛЬКО
     # к профилю с этим файлом. Профили без маркера остаются чистым Firefox.
     touch "$profile_dir/.myfox"
     # No log()/success() here — see apply_autoconfig comment above.

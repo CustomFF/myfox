@@ -1,0 +1,39 @@
+/* Accent palette: Nova's violet scale swapped for blue.
+   Agent sheet (registered by firefox.cfg): reaches into shadow DOM and beats
+   the documents' own styles. Load order is by file name. */
+
+/* ── Rein in Nova's violet/purple accent palette ────────────────────────
+   Nova's dark-mode accent (buttons, links, focus outline, selected settings
+   nav item, address bar text, etc.) resolves to --color-violet-* /
+   --color-violet-desaturated-* — visually a light-purple (#b89cff-family),
+   which for years has meant "private browsing" in Firefox. We swap the
+   whole violet scale for a blue scale at matching lightness/saturation
+   (same hue as our own accent below) so every consumer of these tokens
+   picks up blue instead, not just the ones we've spotted so far. */
+:root {
+    --color-violet-0: #ecf5ff !important;
+    --color-violet-10: #ddecff !important;
+    --color-violet-20: #c1ddff !important;
+    --color-violet-30: #9cc9ff !important;
+    --color-violet-40: #71b1ff !important;
+    --color-violet-50: #4e8edd !important;
+    --color-violet-60: #396ba8 !important;
+    --color-violet-70: #294c76 !important;
+    --color-violet-80: #1c3048 !important;
+    --color-violet-90: #141b23 !important;
+    --color-violet-desaturated-0: #f0f4f8 !important;
+    --color-violet-desaturated-10: #e1ebf8 !important;
+    --color-violet-desaturated-20: #c8d8ec !important;
+    --color-violet-desaturated-30: #aabfd9 !important;
+    --color-violet-desaturated-40: #87a1c0 !important;
+    --color-violet-desaturated-50: #66809f !important;
+    --color-violet-desaturated-60: #4a617d !important;
+    --color-violet-desaturated-70: #31465f !important;
+    --color-violet-desaturated-80: #1d2f44 !important;
+    --color-violet-desaturated-90: #0e1d30 !important;
+
+    --color-accent-primary: light-dark(#0a84ff, #4dabff) !important;
+    --color-accent-primary-hover: light-dark(#0074e8, #7cc4ff) !important;
+    --color-accent-primary-active: light-dark(#0060c7, #a8d9ff) !important;
+    --color-accent-primary-selected: light-dark(#0a84ff, #4dabff) !important;
+}

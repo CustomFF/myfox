@@ -1,0 +1,272 @@
+/* Downloads sidebar (its header, list, search box and footer are built by firefox.cfg).
+   Agent sheet (registered by firefox.cfg): reaches into shadow DOM and beats
+   the documents' own styles. Load order is by file name. */
+
+/* Downloads panel header (injected via JS) styled to match standard sidebar-header */
+#downloads-sidebar-header {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0 !important;                  /* No padding, matches standard sidebar-panel-header */
+    margin: -4px 0 0 0 !important;          /* Shift up by -4px to touch the top edge, matches standard */
+    gap: 0 !important;                      /* No flex gap, spacing is handled by padding/margins */
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
+    background: transparent !important;
+    border: none !important;
+}
+.downloads-sidebar-title-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    height: 28px !important;                /* Matches standard sidebar-panel-header height */
+    min-height: 28px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.downloads-sidebar-title-row h4 {
+    font-size: 12px !important;             /* Matches standard h4 size */
+    font-weight: 700 !important;            /* Matches standard h4 weight (bold) */
+    color: var(--sidebar-text-color, currentColor) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 28px !important;           /* Centers text vertically in the 28px header */
+    height: 28px !important;
+    flex: 1 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+#downloads-sidebar-close {
+    appearance: none !important;
+    border: none !important;
+    background: transparent !important;
+    width: 24px !important;                 /* Round like every other close button */
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    cursor: pointer !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    opacity: 0.7 !important;
+}
+#downloads-sidebar-close:hover {
+    background: var(--button-bgcolor-hover, rgba(255,255,255,0.1)) !important;
+    opacity: 1 !important;
+}
+#downloads-sidebar-close image,
+#downloads-sidebar-close img {
+    width: 16px !important;
+    height: 16px !important;
+    -moz-context-properties: fill !important;
+    fill: currentColor !important;
+}
+
+/* Compact downloads list for sidebar */
+#contentAreaDownloadsView {
+    padding: 4px !important;                 /* Matches Bookmarks root padding of 4px on all sides */
+    font-size: 12px !important;
+    background-color: transparent !important; /* Blends into sidebar background */
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 100% !important;
+    box-sizing: border-box !important;
+}
+#downloadsListBox.allDownloadsListBox {
+    padding: 0 !important;
+    margin: 0 !important;
+    background-color: transparent !important; /* Blends into sidebar background */
+    border: none !important;                  /* Removes the distinct inner frame/border */
+    flex-grow: 1 !important;
+}
+richlistitem.download {
+    min-height: 40px !important;
+    max-height: 40px !important;
+    height: 40px !important;
+    padding: 2px 0 !important;
+    margin: 0 !important;
+    outline: none !important;
+    border-radius: var(--myfox-radius) !important;
+}
+
+/* Neutral hover state: subtle grey background */
+richlistitem.download:hover {
+    background-color: var(--toolbarbutton-hover-background, rgba(255, 255, 255, 0.08)) !important;
+    outline: none !important;
+}
+
+/* Neutral selected/focused state: matching bookmarks selection (dotted outline, very light background) */
+richlistitem.download[selected="true"] {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    outline: 1px dotted color-mix(in srgb, currentColor 50%, transparent) !important;
+    outline-offset: -1px !important;
+}
+
+/* Ensure text inside selected item remains light and readable */
+richlistitem.download[selected="true"] .downloadTarget {
+    color: var(--sidebar-text-color, currentColor) !important;
+}
+
+richlistitem.download[selected="true"] .downloadDetails {
+    color: var(--sidebar-text-color, currentColor) !important;
+    opacity: 0.65 !important;
+}
+
+/* Active focus ring removal */
+richlistitem.download:focus,
+richlistitem.download:focus-visible {
+    outline: none !important;
+}
+.downloadMainArea {
+    min-height: 36px !important;
+    max-height: 36px !important;
+    height: 36px !important;
+    padding: 0 4px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+.downloadTypeIcon {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    min-height: 16px !important;
+    margin: 0 4px 0 2px !important;
+    padding: 0 !important;
+}
+.downloadContainer {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    margin-inline-end: 4px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.downloadTarget {
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+}
+/* Show progress bar and details in compact format */
+.downloadProgress {
+    height: 3px !important;
+    min-height: 3px !important;
+    margin: 2px 0 !important;
+    border: none !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 2px !important;
+}
+.downloadProgress::-moz-progress-bar {
+    background-color: var(--toolbarbutton-active-background, #0a84ff) !important;
+    border-radius: 2px !important;
+}
+.downloadDetails {
+    font-size: 9px !important;
+    opacity: 0.6 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+}
+.downloadBlockedBadge {
+    width: 12px !important;
+    height: 12px !important;
+    min-width: 12px !important;
+    min-height: 12px !important;
+    margin: 0 4px !important;
+}
+.downloadButton {
+    min-height: 24px !important;
+    max-height: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    max-width: 24px !important;
+    width: 24px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.downloadButton[hidden] {
+    display: none !important;
+}
+.downloadButton > .button-box {
+    padding: 2px !important;
+    margin: 0 !important;
+}
+.downloadButton .button-icon {
+    width: 14px !important;
+    height: 14px !important;
+}
+
+/* Custom search input styling for downloads sidebar */
+#downloads-sidebar-search-container {
+    padding: 4px 0px !important;
+    display: flex !important;
+    align-items: center !important;
+    height: 34px !important;                /* Matches standard sidebar-search-container height */
+    box-sizing: border-box !important;
+}
+#downloads-sidebar-search {
+    width: 100% !important;
+    height: 26px !important;
+    border-radius: var(--myfox-radius) !important;
+    border: 1px solid color-mix(in srgb, currentColor 45%, transparent) !important;
+    background-color: var(--input-text-background-color, Field) !important;
+    background-image: url("chrome://global/skin/icons/search-textbox.svg") !important;
+    background-repeat: no-repeat !important;
+    background-position: 8px center !important;
+    background-size: 13px !important;
+    -moz-context-properties: fill !important;
+    fill: var(--toolbar-field-color, currentColor) !important;
+    color: var(--toolbar-field-color, currentColor) !important;
+    padding: 0 8px 0 28px !important;
+    font-size: 12px !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+}
+#downloads-sidebar-search:focus {
+    border: 1.5px solid var(--toolbar-field-border-color-focus, rgb(91, 110, 139)) !important;
+    background-color: var(--toolbar-field-background-color-focus, rgba(60, 64, 67, 1)) !important;
+    fill: var(--toolbar-field-color-focus, currentColor) !important;
+}
+
+/* Custom clear downloads footer styling for downloads sidebar */
+#downloads-sidebar-footer {
+    margin-top: auto !important;
+    padding: 8px !important;
+    display: flex !important;
+    justify-content: center !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+#downloads-sidebar-clear-btn {
+    appearance: none !important;
+    background-color: var(--button-hover-background, rgba(255, 255, 255, 0.08)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: currentColor !important;
+    padding: 6px 12px !important;
+    border-radius: var(--myfox-radius) !important;
+    cursor: pointer !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    width: 100% !important;
+    text-align: center !important;
+}
+
+#downloads-sidebar-clear-btn:hover {
+    background-color: var(--button-active-background, rgba(255, 255, 255, 0.15)) !important;
+}
+
+/* Hide Clear Downloads footer when there are no download items */
+#contentAreaDownloadsView:not(:has(richlistitem.download)) #downloads-sidebar-footer {
+    display: none !important;
+}

@@ -1,0 +1,46 @@
+/* Vertical tabs; tab close button on hover.
+   User sheet, imported by ../userChrome.css. */
+
+/* Vertical Tabs Styling (matches Sidebery look: cards with rounded corners, no selected "ears", close button on hover only) */
+
+/* Hide the curved "ears" on selected tabs when in vertical mode */
+#tabbrowser-tabs[orient="vertical"] .tab-background::before,
+#tabbrowser-tabs[orient="vertical"] .tab-background::after {
+    display: none !important;
+}
+
+/* Style the tab backgrounds as neat cards with margins and rounded corners */
+#tabbrowser-tabs[orient="vertical"] .tab-background {
+    border-radius: 4px !important;
+    margin-inline: 4px !important;
+}
+
+/* Tighter spacing between the tab cards: Firefox pads each vertical tab
+   3px above / 2px below and our card adds a 1px top margin, leaving a 6px
+   gutter; keep just 2px. */
+#tabbrowser-tabs[orient="vertical"] .tabbrowser-tab {
+    padding-block: 1px !important;
+}
+#tabbrowser-tabs[orient="vertical"] .tab-background {
+    margin-block: 0 !important;
+}
+
+/* Hide tab close button by default and show it only when hovering over the tab */
+.tabbrowser-tab .tab-close-button {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.15s ease !important;
+}
+
+.tabbrowser-tab:hover .tab-close-button {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+/* Once the tabs get narrow, Firefox sets closebuttons="activetab" on the
+   strip and display:none's the close button of every tab but the selected
+   one — so hover-to-close silently stopped working past a certain tab count
+   (which depends on window width). Keep it available on hover. */
+#tabbrowser-tabs[closebuttons="activetab"][orient="horizontal"] .tabbrowser-tab:not([selected]):hover .tab-close-button {
+    display: flex !important;
+}
