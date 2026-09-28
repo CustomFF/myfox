@@ -71,3 +71,10 @@
     width: auto !important;
     justify-self: stretch !important;
 }
+
+/* "New tab" row, vertical tabs expanded: a text label next to the icon reads
+   oddly for a plain "add" action (unlike every other row, which is a real
+   tab). Icon only, centered — same idea as the collapsed strip. */
+#tabbrowser-tabs[expanded] > #tabbrowser-arrowscrollbox[orient="vertical"] > #tabbrowser-arrowscrollbox-periphery > #tabs-newtab-button .toolbarbutton-text {
+    display: none !important;
+}
