@@ -29,7 +29,7 @@
                       order: -1 !important;
                       display: flex !important;
                       flex-direction: row !important;
-                      flex-wrap: wrap !important;
+                      flex-wrap: nowrap !important;
                       align-items: center !important;
                       justify-content: start !important;
                       width: 100% !important;
@@ -41,14 +41,17 @@
                       padding: 2px 30px 2px 5px !important;
                       box-sizing: border-box !important;
                       position: relative !important;
-                      overflow: visible !important;
+                      /* One row of a fixed height whatever the width: what does not
+                         fit goes into the overflow menu (52-launcher-overflow.js). */
+                      height: 32px !important;
+                      overflow: hidden !important;
                   }
                   :host([custom-launcher="true"]) .actions-list {
                       gap: 0 !important;
                       padding-block: 0 !important;
                       display: flex !important;
                       flex-direction: row !important;
-                      flex-wrap: wrap !important;
+                      flex-wrap: nowrap !important;
                       align-items: center !important;
                       width: 100% !important;
                       height: auto !important;
@@ -63,7 +66,7 @@
                       padding-block: 0 !important;
                       display: flex !important;
                       flex-direction: row !important;
-                      flex-wrap: wrap !important;
+                      flex-wrap: nowrap !important;
                       align-items: center !important;
                       width: 100% !important;
                       height: auto !important;
@@ -75,6 +78,21 @@
                       overflow: visible !important;
                   }
                   :host([custom-launcher="true"]) .overflow-button {
+                      display: none !important;
+                  }
+                  /* When the buttons don't fit (52-launcher-overflow.js marks the
+                     host [myfox-overflow]) the stock "more tools" button takes the
+                     pinned corner and the overflowed buttons get hidden. */
+                  :host([custom-launcher="true"][myfox-overflow]) .overflow-button {
+                      display: flex !important;
+                      position: absolute !important;
+                      inset-inline-end: 4px !important;
+                      inset-block-start: 4px !important;
+                      width: auto !important;
+                      padding: 0 !important;
+                      margin: 0 !important;
+                  }
+                  :host([custom-launcher="true"]) .buttons-wrapper moz-button[myfox-overflowed] {
                       display: none !important;
                   }
                   /* The vertical launcher keeps "customize sidebar" at the bottom
