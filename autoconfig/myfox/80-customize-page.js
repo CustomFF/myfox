@@ -33,11 +33,18 @@
                 checkbox.setAttribute("name", "launcherAboveSidebar");
                 checkbox.setAttribute("label", t("customize.launcherAbove"));
 
-                let vtCheckbox = shadow.getElementById("vertical-tabs");
-                if (vtCheckbox && vtCheckbox.nextSibling) {
-                  fieldset.insertBefore(checkbox, vtCheckbox.nextSibling);
+                // Its own group right under "open tools from the sidebar", which
+                // it depends on (with that off the buttons are gone altogether).
+                // Not nested in that group: a nested control inherits its
+                // "disabled" and this one stays usable with vertical tabs.
+                let toolsGroup = shadow.getElementById("open-tools-from-sidebar")?.closest("moz-fieldset");
+                let group = this.ownerDocument.createElement("moz-fieldset");
+                group.className = "customize-group medium-top-margin no-label";
+                group.appendChild(checkbox);
+                if (toolsGroup) {
+                  toolsGroup.after(group);
                 } else {
-                  fieldset.appendChild(checkbox);
+                  fieldset.after(group);
                 }
               }
 
@@ -50,8 +57,12 @@
 
               checkbox.checked = enabled;
               checkbox.toggleAttribute("checked", enabled);
-              checkbox.disabled = expandOnHover;
-              checkbox.toggleAttribute("disabled", expandOnHover);
+              // Same rule as the stock "open tools" checkbox: always on with
+              // vertical tabs, otherwise on unless the launcher is hidden.
+              let toolsShown = this.verticalTabsEnabled || this.visibility !== "hide-launcher";
+              let unavailable = expandOnHover || !toolsShown;
+              checkbox.disabled = unavailable;
+              checkbox.toggleAttribute("disabled", unavailable);
 
               if (!checkbox.hasListener) {
                 checkbox.hasListener = true;

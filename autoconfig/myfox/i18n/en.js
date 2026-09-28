@@ -28,7 +28,7 @@
     "addons.empty.button": "Find your first extension",
     "addons.amo": "Search “{0}” on addons.mozilla.org",
 
-    "customize.launcherAbove": "Show button panel above sidebar",
+    "customize.launcherAbove": "Tools bar above the sidebar",
 
     "bookmarks.advanced": "Advanced settings",
     "bookmarks.gallery": "Add bookmarklets",
