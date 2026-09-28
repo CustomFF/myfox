@@ -289,9 +289,12 @@ sidebar-tab-row:hover {
 
 /* The scrollable content wrapper around the synced-tabs empty-state card
    had 3px of its own padding stacked on top of our 4px .sidebar-panel
-   padding, so that card sat 3px narrower than the search box above it. */
+   padding, so that card sat 3px narrower than the search box above it.
+   The stock end margin (negative, paired with the end padding zeroed here)
+   would push the wrapper past the panel and make the page scroll sideways. */
 .sidebar-panel-scrollable-content {
     padding: 4px 0 0 !important;
+    margin-inline-end: 0 !important;
 }
 
 /* Sidebar customize panel: same 12px text and tight rows as the other panels
