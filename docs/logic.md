@@ -4,29 +4,65 @@
 
 MyFox — набор твиков для браузера **Firefox** (интерфейс, сайдбар, вкладки, панель закладок) плюс инсталлер, который:
 
-1. устанавливает последний стабильный Firefox прямо из официального тарбола Mozilla;
+1. устанавливает Firefox (stable или beta) прямо из официального тарбола Mozilla;
 2. применяет на него твики;
-3. опционально подключает твики для букмарклетов.
+3. ставит обе темы (тёмную/светлую) и включает выбранную; по сессии/флагу — интеграцию с KDE Plasma;
+4. подключает твики для букмарклетов (входят в «твики: да»).
 
-Букмарклеты — отдельный проект **ddbml** (отдельный каталог, **НЕ submodule** myfox). Инсталлер только копирует готовые твики (CSS + иконки) из него — локально при тестировании (`MYFOX_DDBLM_LOCAL`) или с raw.githubusercontent.com.
+Букмарклеты — отдельный проект **ddblm** (отдельный каталог, **НЕ submodule** myfox). Инсталлер только копирует готовые твики (CSS + иконки) из него — локально при тестировании (`MYFOX_DDBLM_LOCAL`) или с raw.githubusercontent.com.
+
+## Точки входа
+
+```
+get.sh                публичный вход, две роли:
+                        1) bootstrap: curl … | bash — качает дистрибутив-тарбол во временный каталог
+                           и запускает из него bin/myfox-core
+                        2) установленный лаунчер ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox
+bin/myfox-core        диспетчер: install | update | uninstall | help (внутренний интерфейс)
+```
+
+Команды лаунчера: `myfox` (статус + справка, браузер не запускает), `myfox browser|ff [args]`
+(exec `<install>/firefox-myfox` — тот же wrapper, что в `.desktop`), `myfox update`, `myfox uninstall`,
+`myfox help [команда]`. `update` качает тарбол заново; `uninstall`/`help` работают офлайн из
+`~/.local/share/myfox/`.
+
+`bin/myfox-core` устроен как `main()` первой функцией и `main "$@"` последней строкой. Флаги разбираются
+по таблицам на подкоманду (`INSTALL_OPTS`/`UPDATE_OPTS`/`UNINSTALL_OPTS` + общие `GLOBAL_OPTS`; принимаются
+`--flag value` и `--flag=value`); чужой для подкоманды флаг — ошибка, а не молчаливое игнорирование.
+Ошибки разбора флагов печатаются по-английски: язык интерфейса (он сам зависит от `--lang`) ещё не известен.
 
 ## Модель установки
 
 ```
-install.sh --default
+myfox-core install
    ├─ [браузер]  скачать download.mozilla.org → распаковать в install_dir
-   │              install_dir = --prefix | из маркера | ~/.local/share/firefox
-   ├─ [профиль]  первый раз: детекция existing / создание нового
-   │              далее: из маркера (profile_dir)
-   ├─ [твики]    autoconfig.js → <install>/defaults/pref/
-   │              firefox.cfg  → <install>/
-   │              userChrome.css, agent_overrides.css → <profile>/chrome/
-   │              префы ставятся самим firefox.cfg при старте
+   │              install_dir = --prefix | из state | ~/.local/share/firefox
+   │              чужой непустой каталог без нашего маркера — НЕ трогаем (ошибка)
+   ├─ [профиль]  --profile | мастер / автосоздание нового myfox-N
+   │              каталог профилей — по правилу самого Firefox (см. ниже)
+   ├─ [твики]    autoconfig.js → <install>/defaults/pref/ ; firefox.cfg → <install>/
+   │              userChrome.css + user/ + agent/ → <profile>/chrome/ ; маркер <profile>/.myfox
+   │              префы ставит сам firefox.cfg при старте
+   ├─ [темы]     обе XPI → <profile>/extensions/ ; выбор → <profile>/user.js (myfox.theme)
+   ├─ [plasma?]  (по сессии/флагу) plasma-browser-integration → <profile>/extensions/
+   ├─ [bl]       blm_panel.css + все иконки ddblm → <profile>/chrome/ (если не --nobl)
    ├─ [desktop]  «Firefox (myfox)» → ~/.local/share/applications/firefox-myfox.desktop
-   └─ [bl?]     (опц.) букмарклет-твики: blm_panel.css + все иконки ddblm в профиль
+   └─ [launcher] ~/.local/share/myfox/{bin,lib,i18n,assets} + симлинк ~/.local/bin/myfox
 ```
 
 **Навеска на существующий браузер** НЕ реализована в скриптах. Она описана в README (секция «Applying to an existing Firefox») как ручные шаги.
+
+### Мастер (первая интерактивная установка)
+
+На tty шаги идут в одном alt-экране (`dialog`, либо `whiptail`, либо обычные вопросы):
+приветствие → каталог установки → канал (stable/beta) → язык Firefox → профиль (только свои `myfox-*`;
+если их нет — шаг пропускается) → твики (да/нет) → оформление (только при «твики: да») → сводка.
+На каждом шаге, кроме первого, есть «Назад». Шаги-«проходники» помнят направление (`GOING_BACK`), чтобы
+«Назад» не отскакивал вперёд. «Твики: нет» — чистый профиль: браузер и ярлык, без стилей/тем/пиннинга.
+Без tty или с `-y` мастера нет: язык/канал берутся из флагов, сохранённого состояния или умолчаний.
+
+Долгие шаги идут под `tui_spin` (спиннер `[⠋] Название` → `[✔]`/`[✗]`; вне tty — просто строка).
+Всё сетевое (список языков) качается ДО входа в alt-экран — иначе экраны мигают.
 
 ## Ключевые решения (и почему)
 
@@ -37,75 +73,98 @@ install.sh --default
 
 ### Почему префы ставятся через firefox.cfg, а не user.js
 - `firefox.cfg` (Autoconfig) выполняется при каждом старте с привилегиями и уже используется твиками — это надёжная точка для префов.
-- `toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`, `sidebar.verticalTabs` выставляются один раз (маркер `myfox.corePreferencesInitialized`).
-- Это избавляет пользователя от ручного шага в about:config.
+- Всё, что пользователь может поменять штатно, ставится ОДИН раз на профиль под собственным guard-префом
+  (`myfox.corePreferencesInitialized`, `myfox.firstRunPreferencesInitialized`, `myfox.themeApplied`,
+  `myfox.galleryBookmarkAdded`, `sidebar.launcherAboveSidebar.initialized`) и не перезаписывается позже.
+- Единственное, что идёт через `user.js`: `myfox.theme` — сигнал от инсталлера свежему, ещё не стартовавшему
+  профилю (у него нет `prefs.js`, куда писать). Сам `myfox.theme` — не настройка Firefox, ничто кроме `firefox.cfg` её не читает.
 
-### Маркер (state)
-Файл `~/.local/state/myfox/install.json` хранит `install_dir`, `profile_dir`, версию и дату. Назначение:
-- повторный `install.sh` понимает, что установка наша — не качает заново, не переспрашивает профиль;
-- `uninstall.sh` знает, что удалять;
-- флаг `<install>/.myfox-installed` (а также `<install>/.myfox-version`) отличает нашу инсталляцию от вручную поставленной.
+### Профиль-локальность
+`firefox.cfg` первым делом проверяет маркер `<profile>/.myfox` и иначе бросает исключение — ниже ничего не
+исполняется. Политик (`distribution/policies.json`) нет; аддоны — в `<profile>/extensions/`. Чужой/новый профиль
+в той же инсталляции — обычный Firefox.
 
-### Чужая занятая директория
-Если по целевому пути уже что-то стоит, а маркера myfox нет — инсталлятор предупреждает и устанавливает начисто (бэкапы не делаются: в install-каталоге только скачиваемые бинарники, а профиль пользователя лежит отдельно и не трогается).
+### Стили: два механизма
+- `userChrome.css` — user-лист, читается один раз при старте; сам только `@import`-ит `user/*.css`
+  (относительные `url()` внутри импортируемых файлов считаются от них самих).
+- `agent/*.css` — **agent-листы**: регистрируются `firefox.cfg` через `nsIStyleSheetService.AGENT_SHEET`, по имени файла
+  (числовые префиксы = порядок каскада). Только агентский origin достаёт внутрь shadow DOM
+  (`moz-button`, `panel-list`, …) и перекрывает стили самих документов; user-лист так не умеет. Правила с общими
+  именами классов обёрнуты в `@-moz-document url-prefix("about:"), url-prefix("chrome://")` (в agent-листе честны только
+  голые схемы), чтобы не задеть сайты.
 
-### Почему три `lib/*.sh`
-- `common.sh` — инфраструктура (логирование в stderr, работа с state, подтверждения) — переиспользуется и install, и uninstall.
-- `firefox.sh` — тарбол-установка (адаптация идей старого `mozinst.sh`: arch/lang, URL, версия, desktop entry; убран Thunderbird).
-- `profile.sh` — работа с profiles.ini (detect/create), отдельно для тестируемости.
-- `apply.sh` — перенос артефактов и букмарклет-твиков, отдельно для тестируемости.
+### Каталог профилей
+Профили лежат в `~/.mozilla/firefox`, если каталог `~/.mozilla/firefox` уже существует, иначе (Firefox 147+ на
+свежей системе) — в `$XDG_CONFIG_HOME/mozilla/firefox`; плюс flatpak/snap. Правило повторяет то, что делает сам Firefox
+(`profile_native_dir()`). Store общий с обычным Firefox: правим ТОЛЬКО свои секции (`[Install<HASH>]`, `[ProfileN] Name=myfox`).
+
+### State
+Плоский `key=value` файл `~/.local/state/myfox/state` (без jq/python): `install_dir`, `profile_dir`, `firefox_version`,
+`install_hash`, `installed_at` и сохранённые выборы `opt_*` (`browser_only`, `lang`, `channel`, `bl`, `theme`, `plasma`),
+которые переиспользует `update`. Флаг `<install>/.myfox-installed` отличает нашу инсталляцию от чужой по тому же пути.
+
+### Единый каталог `~/.local/share/myfox`
+`bin/myfox` (лаунчер), `bin/myfox-core`, `lib/`, `i18n/`, `assets/` — всё, что нужно `myfox-core` офлайн.
+`~/.local/bin/myfox` — симлинк на `bin/myfox`. `install_launcher` сносит каталог целиком и наполняет заново; `uninstall`
+удаляет симлинк только если он резолвится в наш каталог, и затем сам каталог (самоудаление безопасно — bash уже прочитал скрипт).
+
+### i18n
+`i18n/en.sh` — база, `i18n/ru.sh` — переопределения поверх; отсутствующий ключ остаётся английским. Язык интерфейса:
+`--lang` → сохранённый `opt_lang` → `$LANG` → en. Строки через `t key [args…]` (printf-формат; позиционные `%1$s`
+bash-printf не поддерживает — повторяющийся аргумент передаётся дважды).
+
+### Вывод
+`cprintf "[bold]…[/bold]"` (`lib/common.sh`) — разметка тегами вместо сырых ANSI; цвет отключается вне tty, при `NO_COLOR`
+и `TERM=dumb`. `log`/`success` молчат без `-v`, `warn`/`error` — всегда; всё в stderr.
 
 ### Роль ddblm (отдельный проект)
-- Репозиторий ddblm — самостоятельный проект букмарклетов (исходники в `src/`, иконки, генерация галереи в `docs/index.html`).
-- Галерея публикуется на GitHub Pages (drag&drop закладок).
-- Installer копирует из ddblm готовые твики: `docs/blm_panel.css` → `chrome/blm_panel.css` и ВСЕ `icons/*.svg` → `chrome/panel-icons/`. Источник: локальная копия (`MYFOX_DDBLM_LOCAL`) при тестировании, иначе raw.githubusercontent.com. Сам ddblm myfox не устанавливает и не собирает.
+- ddblm — самостоятельный проект букмарклетов (исходники в `src/`, иконки, генерация галереи в `docs/index.html`).
+- Галерея на GitHub Pages (drag&drop закладок).
+- Инсталлер копирует готовые твики: `docs/blm_panel.css` → `chrome/blm_panel.css` и ВСЕ `icons/*.svg` → `chrome/panel-icons/`.
+  Источник: локальная копия (`MYFOX_DDBLM_LOCAL`) при тестировании, иначе raw.githubusercontent.com (404 — предупреждение и пропуск).
 
-## Поток установки по шагам (install.sh)
-
-1. Парсинг флагов (`--prefix`, `--reinstall`, `--profile`, `--nobl`, `--noaddons`, `--plasma-integration`, `--noplasma`, `-y/--yes`, `-h/--help`).
-2. Загрузка `lib/*.sh`, `check_deps` (curl, tar, grep, awk).
-3. `INSTALL_DIR` = `--prefix` ? так : (из state ? так : `~/.local/share/firefox`).
-4. Браузерная часть (`lib/firefox.sh`):
-   - наш маркер → обновляем только твики (если не `--reinstall`);
-   - чужая занятая директория → предупреждение, очистка, установка начисто;
-   - иначе → `firefox_install_tarball` (скачивание, распаковка, запись версии).
-5. Профиль (`lib/profile.sh`):
-   - из `--profile` → использовать;
-   - из state → использовать (проверить существование);
-   - первый запуск → existing/default → спросить; нет → создать `myfox-N`.
-6. `apply_autoconfig`, `apply_chrome` (копирование файлов).
-7. `firefox_create_desktop_entry` (имя «Firefox (myfox)»).
-8. Запись state (`install_dir`, `installed_at`, `firefox_version`).
-9. Букмарклеты — если не `--nobl` и пользователь согласен → `apply_bookmarklets` (копирует blm_panel.css + все иконки из локального ddblm или raw github).
-10. Дополнения: uBlock, тема Chrome Dark, plasma-integration (см. `--plasma-integration`/`--noplasma`).
-11. Сводка.
-
-## Поток удаления (uninstall.sh)
-
-1. Нет state → предупреждение и выход (твики ставились вручную → см. README).
-2. Подтверждение.
-3. Удаление autoconfig (`defaults/pref/autoconfig.js`, `firefox.cfg`, `.myfox-installed`), chrome CSS, файлов букмарклет-твиков (blm_panel.css, panel-icons/).
-4. Удаление desktop entry.
-5. Браузер (сам install_dir) — спросить, оставляем или удаляем.
-6. Очистка state.
-
-## Ключевые файлы
+## Модули
 
 | Файл | Роль |
 |---|---|
-| `autoconfig/firefox.cfg` | privileged JS твики: agent sheet, sidebar/downloads, префы |
-| `autoconfig/autoconfig.js` | включение Autoconfig (defaults/pref/) |
-| `chrome/userChrome.css` | user-sheet стили |
-| `chrome/agent_overrides.css` | agent-sheet стили (регистрируется firefox.cfg) |
-| `lib/common.sh` | логика, state, helpers |
-| `lib/firefox.sh` | тарбол-установка (адаптация mozinst) |
-| `lib/profile.sh` | профили |
-| `lib/apply.sh` | применение твиков + букмарклет-твики (ddblm) |
-| `install.sh` / `uninstall.sh` | точки входа |
+| `get.sh` | bootstrap + установленный лаунчер (без `lib/*`, только bash/curl/tar/awk) |
+| `bin/myfox-core` | диспетчер, мастер, install/update/uninstall |
+| `lib/common.sh` | пути, `cprintf`/логи, state (`state_*`, `opts_*`), проверка зависимостей |
+| `lib/i18n.sh`, `i18n/*.sh` | каталог сообщений и `t()` |
+| `lib/tui.sh` | обёртки над dialog/whiptail + bash-фолбэк, `tui_spin`, alt-экран |
+| `lib/firefox.sh` | тарбол, язык, версия, desktop entry, wrapper `firefox-myfox` |
+| `lib/profile.sh` | `profiles.ini`/`installs.ini`, пиннинг `[Install<HASH>]`, создание профилей |
+| `lib/apply.sh` | autoconfig, `chrome/`, тема (`user.js`), букмарклеты (ddblm) |
+| `lib/addons.sh` | XPI с AMO (`addon_guid`/`addon_fetch`), детект Plasma и системного пакета |
+| `autoconfig/firefox.cfg`, `autoconfig/autoconfig.js` | privileged JS твики / включение Autoconfig |
+| `chrome/userChrome.css`, `chrome/user/*.css`, `chrome/agent/*.css` | стили |
+| `scripts/build-dist.sh`, `scripts/dev-serve.sh` | сборка дистрибутива / локальная раздача |
+| `scratch/sandbox.sh` | безопасный прогон в изолированном `$HOME` |
+
+## Поток install
+
+1. `parse_args` (по таблице подкоманды) → `common.sh`/`i18n` → `check_deps` (curl, tar, awk).
+2. `INSTALL_DIR` = `--prefix` | из state | `~/.local/share/firefox`.
+3. Уже установлено и нет `--force`: интерактивно — вопрос «переустановить?», с `-y` — ошибка.
+4. Мастер (tty и не `-y`) либо `resolve_lang`/`resolve_channel`.
+5. Браузер: `install_browser_tarball` (наш каталог — переиспользуем; чужой — ошибка; `--reinstall` — чистая перекачка).
+6. Профиль: `--profile` | выбор мастера | `profile_resolve` (в `-y` чужой профиль не берём никогда — создаём `myfox-N`).
+7. Чистый профиль → только ярлык + лаунчер. Иначе `resolve_theme`, `resolve_plasma`, `resolve_bookmarklets`, и под одним спиннером
+   `_setup_profile`: пиннинг `[Install<HASH>]` (headless-прогон Firefox, потом уборка мусорного first-run профиля),
+   autoconfig, chrome, `user.js` темы, XPI, букмарклеты.
+8. Ярлык, `install_launcher`, сводка (+ заметка про системный пакет Plasma, если его нет).
+
+## Поток update / uninstall
+
+- `update`: из state берёт `install_dir`/`profile_dir`/`opt_*`; без `--reinstall` браузер не трогает; переприменяет
+  autoconfig, chrome, букмарклеты; обновляет `~/.local/share/myfox`. Тему НЕ трогает (guard `myfox.themeApplied`).
+- `uninstall` (мастер: удалить приложение? → удалить профиль? → сводка; `-y` — всё): останавливает наш запущенный Firefox,
+  снимает пиннинг, удаляет autoconfig и ярлык; созданный установщиком профиль — целиком (или оставляет, убрав только запись
+  `[ProfileN]`); чужой (`--profile`) — только `chrome/agent`, `chrome/user`, `userChrome.css` (с возвратом бэкапа), маркер и
+  наши XPI по фиксированным ID; затем симлинк и `~/.local/share/myfox`.
 
 ## Известные ограничения
 
-- Linux only (bash 4+).
-- Только двигатель Release (стабильный) Firefox.
+- Linux only (bash 4+), x86_64/aarch64.
 - Нельзя ставить твики автоматически на системный/уже установленный браузер (только ручная инструкция в README).
-- При изменении пути `--prefix` вниз маркер используется от первого указанного (переопределить можно `--prefix` явно).
+- Публичного адреса дистрибутива пока нет (`DIST_URL` в `get.sh` — заглушка; `MYFOX_DIST_URL` переопределяет).
