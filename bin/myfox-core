@@ -1058,16 +1058,13 @@ run_uninstall() {
             profile_remove_myfox_section "$PROFILE_DIR"
         fi
     elif [[ "$profile_type" == "existing" && "$del_profile" == "yes" && -d "$PROFILE_DIR/chrome" ]]; then
-        local f
-        for f in userChrome.css agent_overrides.css; do
-            if [[ -f "$PROFILE_DIR/chrome/$f.myfox-backup" ]]; then
-                rm -f "$PROFILE_DIR/chrome/$f"
-                mv -f "$PROFILE_DIR/chrome/$f.myfox-backup" "$PROFILE_DIR/chrome/$f"
-                success "$(t style_restored "$f" "$f")"
-            else
-                rm -f "$PROFILE_DIR/chrome/$f"
-            fi
-        done
+        local f=userChrome.css
+        rm -f "$PROFILE_DIR/chrome/$f"
+        if [[ -f "$PROFILE_DIR/chrome/$f.myfox-backup" ]]; then
+            mv -f "$PROFILE_DIR/chrome/$f.myfox-backup" "$PROFILE_DIR/chrome/$f"
+            success "$(t style_restored "$f" "$f")"
+        fi
+        rm -rf "$PROFILE_DIR/chrome/agent" "$PROFILE_DIR/chrome/user" 2>/dev/null || true
         rm -f "$PROFILE_DIR/chrome/blm_panel.css" 2>/dev/null || true
         rm -rf "$PROFILE_DIR/chrome/panel-icons" 2>/dev/null || true
         rm -f "$PROFILE_DIR/.myfox" 2>/dev/null || true

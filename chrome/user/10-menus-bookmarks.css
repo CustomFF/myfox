@@ -1,0 +1,57 @@
+/* Firefox View spacer, icon-only bookmark entries, popup menu rows.
+   User sheet, imported by ../userChrome.css. */
+
+/* The Firefox View button itself is not present, but its 40px titlebar-spacer
+   slot at the left edge stays and acts as a gutter that lets the raised first
+   tab's left "ear" fit inside the window. We only hide the (absent) button,
+   keeping the spacer. */
+#firefox-view-button {
+    display: none !important;
+}
+
+/* Bookmarks-toolbar entries that show only an icon (label hidden). Matched by
+   label, so it depends on the bookmark's title — the titles are the ones
+   firefox.cfg creates. */
+.bookmark-item[label="Расширенные настройки"] {
+    & .toolbarbutton-text {
+        display: none !important;
+    }
+
+    & image {
+        width: 0 !important;
+        height: 0 !important;
+        padding: 0 0 16px 16px !important;
+        background-size: contain !important;
+        background-repeat: no-repeat !important;
+    }
+}
+
+.bookmark-item[label="Расширенные настройки"] image {
+    background-image: url("chrome://global/skin/icons/settings.svg") !important;
+}
+
+.bookmark-item[label="Добавить букмарклеты"] {
+    & .toolbarbutton-text {
+        display: none !important;
+    }
+
+    & image {
+        width: 0 !important;
+        height: 0 !important;
+        padding: 0 0 16px 16px !important;
+        background-size: contain !important;
+        background-repeat: no-repeat !important;
+    }
+}
+
+.bookmark-item[label="Добавить букмарклеты"] image {
+    background-image: url("panel-icons/import-bookmarklets.svg") !important;
+}
+
+
+/* Tighter drop-down/context/popup menu rows. */
+menupopup:not(.in-menulist)>menuitem,
+menupopup:not(.in-menulist)>menu {
+    padding-block: 4px !important;
+    min-height: unset !important;
+}
