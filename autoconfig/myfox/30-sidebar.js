@@ -25,37 +25,38 @@
   ];
   MyFox.EXTRA_SIDEBARS = EXTRA_SIDEBARS;
 
-  // The extra panels must stay in the sidebar tools list: they hang off it,
-  // and whenever Firefox adds any new sidebar panel it rewrites
-  // sidebar.main.tools and drops them — so put them back at startup and on
-  // every change of the pref.
-  try {
-    function ensureExtraToolsInPref() {
-      let val = prefs.getStringPref("sidebar.main.tools", "");
-      if (!val) return;
-      let names = val.split(",");
-      let missing = EXTRA_SIDEBARS.map(p => p.name).filter(n => !names.includes(n));
-      if (missing.length) {
-        prefs.setStringPref("sidebar.main.tools", names.concat(missing).join(","));
-      }
+  // The extra panels need to be in the sidebar tools list once, to start
+  // enabled like Firefox's own tools — sidebar.main.tools is Firefox's own
+  // enabled-tools list, so it IS the on/off state the customize panel's
+  // checkbox writes to. Restoring a name on every change (as this used to
+  // do) silently undid that checkbox: it looked unchecked but the panel
+  // stayed enabled underneath. Seed it once per profile, like every other
+  // pref here (oncePerProfile in 00-common.js), but not via oncePerProfile
+  // itself: at myfox.cfg's own load time the pref's default isn't
+  // populated yet (empty string), so a plain one-shot would consume the
+  // guard before ever adding our names. Retry until the list is actually
+  // there, still only ever committing once.
+  function seedSidebarTools(win) {
+    if (prefs.getBoolPref("myfox.sidebarToolsInitialized", false)) return;
+    let val = prefs.getStringPref("sidebar.main.tools", "");
+    if (!val) {
+      win.setTimeout(() => seedSidebarTools(win), 500);
+      return;
     }
-    ensureExtraToolsInPref();
-    if (!globalThis.myExtraToolsObserver) {
-      globalThis.myExtraToolsObserver = {
-        observe() {
-          try {
-            ensureExtraToolsInPref();
-          } catch(e) {}
-        }
-      };
-      prefs.addObserver("sidebar.main.tools", globalThis.myExtraToolsObserver);
+    let names = val.split(",");
+    let missing = EXTRA_SIDEBARS.map(p => p.name).filter(n => !names.includes(n));
+    if (missing.length) {
+      prefs.setStringPref("sidebar.main.tools", names.concat(missing).join(","));
     }
-  } catch(e) {}
+    prefs.setBoolPref("myfox.sidebarToolsInitialized", true);
+  }
 
   function initWindow(win) {
     const doc = win.document;
     const sbCtrl = win.SidebarController;
     const CustomizableUI = win.CustomizableUI;
+
+    seedSidebarTools(win);
 
     // Give the extra panels' buttons in the sidebar launcher a tooltip (they
     // have no l10n label of their own here).
