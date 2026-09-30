@@ -206,6 +206,20 @@ moz-visual-picker-item {
     .search-wrapper content-search-handoff-ui {
         --content-search-handoff-ui-border-radius: var(--myfox-radius) !important;
     }
+    /* The engine icon's stock left inset (16px) is wider than its top/bottom
+       gap, off-center in the 40px-tall button — match it. Reaches into the
+       content-search-handoff-ui shadow root like the button-radius rule
+       above (agent sheet, not scoped by the light-DOM host selector). A
+       rounded-square backdrop behind the icon was tried and dropped: the
+       icon is a plain background-image, so the backdrop can only be a flat
+       tint, not the icon's own colors/shape — wrong for engines whose icon
+       already has its own background (Bing, DuckDuckGo, Yandex, …). Doing
+       that properly needs sampling the icon's actual pixels, which means a
+       content-process frame-script injection into about:newtab, re-run per
+       engine change — a real subsystem, not a CSS tweak. */
+    button.search-handoff-button {
+        background-position: 5px center !important;
+    }
     .open-customization-button {
         --button-border-radius: 9999px !important;
     }
