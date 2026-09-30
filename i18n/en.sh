@@ -161,6 +161,7 @@ MYFOX_MSG=(
 
     [warn_addon_invalid]="Downloaded file for '%s' is not a valid XPI — skipping."
     [warn_addon_guid_unresolved]="Could not resolve add-on ID for '%s' — skipping."
+    [warn_theme_asset_missing]="Theme file missing: %s — skipping."
     [plasma_pkg_present]="System package 'plasma-browser-integration' already installed."
     [warn_plasma_pkg_missing]="System package 'plasma-browser-integration' is missing (native-messaging host)."
     [plasma_pkg_manual]="Install 'plasma-browser-integration' manually to enable KDE integration."

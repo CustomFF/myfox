@@ -14,6 +14,7 @@ MYFOX_STATE_FILE="$MYFOX_STATE_DIR/state"
 
 MYFOX_AUTOCONFIG_DIR="$MYFOX_ROOT/autoconfig"
 MYFOX_CHROME_DIR="$MYFOX_ROOT/chrome"
+MYFOX_THEMES_DIR="$MYFOX_ROOT/assets/themes"
 
 # Твики букмарклетов — отдельный проект DayDve/ddblm, копируем готовые файлы.
 MYFOX_DDBLM_REPO="DayDve/ddblm"

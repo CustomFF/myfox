@@ -3,9 +3,14 @@
 # (<profile_dir>/extensions/<addon-id>.xpi — Firefox ставит их тихо при первом
 # старте профиля). Требует common.sh, i18n.sh. Только curl+awk, без python3.
 
-MYFOX_ADDON_THEME_DARK="google-chrome-dark"
-MYFOX_ADDON_THEME_LIGHT="google-chrome-light"
 MYFOX_ADDON_PLASMA="plasma-integration"
+
+# Свои форкнутые темы (assets/themes/*.xpi, подписаны через AMO unlisted —
+# см. themes/README.md) — не AMO-слаги: ставятся из уже собранного XPI,
+# без сетевого похода. ID должны совпадать с THEME_IDS в
+# autoconfig/myfox/75-theme.js.
+MYFOX_THEME_DARK_ID="myfox-dark-theme@daydve.github.io"
+MYFOX_THEME_LIGHT_ID="myfox-light-theme@daydve.github.io"
 
 # ─── Детект KDE Plasma ────────────────────────────────────────────────────────
 
@@ -102,4 +107,27 @@ addons_apply() {  # <profile_dir> <slug>...
 
     [[ -z "$(ls -A "$addon_dir" 2>/dev/null)" ]] && rmdir "$addon_dir" 2>/dev/null
     return 0
+}
+
+# addons_install_themes <profile_dir> — both theme add-ons, always (instant
+# switching later; see resolve_theme). Unlike addons_apply, the XPIs are
+# already built and signed (assets/themes/), so this is a plain copy, no
+# network, no addon_guid lookup — the ID is ours, not resolved from AMO.
+addons_install_themes() {
+    local profile_dir="$1"
+    local addon_dir="$profile_dir/extensions"
+    mkdir -p "$addon_dir"
+
+    local id file
+    for id in "$MYFOX_THEME_DARK_ID" "$MYFOX_THEME_LIGHT_ID"; do
+        case "$id" in
+            "$MYFOX_THEME_DARK_ID") file="$MYFOX_THEMES_DIR/myfox-dark.xpi" ;;
+            "$MYFOX_THEME_LIGHT_ID") file="$MYFOX_THEMES_DIR/myfox-light.xpi" ;;
+        esac
+        if [[ ! -f "$file" ]]; then
+            warn "$(t warn_theme_asset_missing "$file")"
+            continue
+        fi
+        install -m 0644 "$file" "$addon_dir/$id.xpi"
+    done
 }
