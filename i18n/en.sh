@@ -187,6 +187,9 @@ MYFOX_MSG=(
     [summary_update_hint]="To update tweaks: myfox update"
     [summary_uninstall_hint]="To remove: myfox uninstall"
     [tweaks_updated]="Tweaks updated."
+    [confirm_restart_now]="Most tweaks only take effect after a restart. MyFox Firefox is running — restart it now?"
+    [restart_needed_hint]="Restart Firefox (myfox browser) to see the updated tweaks."
+    [restarted_firefox]="Firefox restarted."
 
     [warn_no_install_record]="No MyFox installation record found (%s)."
     [warn_manual_removal_hint]="If you installed tweaks manually, remove autoconfig files and chrome styles by hand."
