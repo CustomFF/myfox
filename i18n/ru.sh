@@ -185,6 +185,9 @@ MYFOX_MSG[summary_run_hint]="Запусти «myfox browser» (или «myfox ff
 MYFOX_MSG[summary_update_hint]="Обновить твики: myfox update"
 MYFOX_MSG[summary_uninstall_hint]="Удалить: myfox uninstall"
 MYFOX_MSG[tweaks_updated]="Твики обновлены."
+MYFOX_MSG[confirm_restart_now]="Большинство твиков применяются только после перезапуска. Firefox (myfox) сейчас запущен — перезапустить сейчас?"
+MYFOX_MSG[restart_needed_hint]="Перезапусти Firefox (myfox browser), чтобы увидеть обновлённые твики."
+MYFOX_MSG[restarted_firefox]="Firefox перезапущен."
 
 MYFOX_MSG[warn_no_install_record]="Запись об установке MyFox не найдена (%s)."
 MYFOX_MSG[warn_manual_removal_hint]="Если твики ставились вручную — удали файлы autoconfig и стили chrome вручную."

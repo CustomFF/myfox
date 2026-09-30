@@ -873,27 +873,78 @@ run_update() {
     install_launcher
     success "$(t tweaks_updated)"
     print_summary
+    _update_offer_restart "$INSTALL_DIR"
 }
-
-# ─── uninstall ───────────────────────────────────────────────────────────────
 
 # Prints PIDs of the *parent* firefox process(es) running from install_dir
 # (never the -contentproc children — killing those directly instead of the
-# parent just makes Firefox respawn them).
-_uninstall_running_pids() {  # <install_dir>
+# parent just makes Firefox respawn them). Shared by run_update (offering a
+# restart) and run_uninstall (closing it before touching its files).
+# Checks both candidates, not just the first that exists: on the real tarball
+# layout firefox-bin is the actual ELF but the running process's cmdline
+# (argv0) reads as the small "firefox" launcher stub that exec'd it, so
+# returning after the first (always-present) firefox-bin candidate — even
+# when it matched nothing — used to miss every real run entirely.
+_running_pids() {  # <install_dir>
     local install_dir="$1" bin
     for bin in "$install_dir/firefox-bin" "$install_dir/firefox"; do
         [[ -x "$bin" ]] || continue
         local pid cmd
         for pid in $(pgrep -f "$bin" 2>/dev/null || true); do
-            cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null) || continue
+            # A process can exit between pgrep listing it and this read
+            # (common while we're the ones killing it, a few lines down in
+            # callers) — the redirect's own "no such file" would otherwise
+            # print past the `tr` command's own 2>/dev/null.
+            cmd=$({ tr '\0' ' ' < "/proc/$pid/cmdline"; } 2>/dev/null) || continue
             [[ "$cmd" == "$bin "* || "$cmd" == "$bin" ]] || continue
             [[ "$cmd" == *-contentproc* ]] && continue
             echo "$pid"
         done
-        return 0
     done
 }
+
+# _update_offer_restart <install_dir> — most tweaks (JS modules, agent
+# sheets) only load once at process startup, so `myfox
+# update` alone doesn't make them visible in an already-running Firefox. If
+# one is running for this install, ask to restart it; non-interactively (or
+# on "no") just print a hint instead — killing someone's open browser
+# without asking is not something to do quietly.
+_update_offer_restart() {  # <install_dir>
+    local install_dir="$1" pids
+    pids=$(_running_pids "$install_dir")
+    [[ -z "$pids" ]] && return 0
+
+    local restart=no
+    if [[ -z "$MYFOX_NONINTERACTIVE" ]]; then
+        tui_session_begin
+        tui_confirm "$(t confirm_restart_now)" no && restart=yes
+        tui_session_end
+    fi
+    if [[ "$restart" != "yes" ]]; then
+        warn "$(t restart_needed_hint)"
+        return 0
+    fi
+
+    local pid
+    for pid in $pids; do kill "$pid" 2>/dev/null || true; done
+    local waited=0
+    while [[ $waited -lt 10 ]]; do
+        [[ -z "$(_running_pids "$install_dir")" ]] && break
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    local wrapper="$install_dir/firefox-myfox"
+    [[ -x "$wrapper" ]] || wrapper="$install_dir/firefox"
+    # setsid+redirect: fully detached from this terminal, or Firefox's own
+    # stdout/stderr chatter (GTK warnings etc.) would spam the shell myfox
+    # update was run from, long after the command itself returned.
+    setsid nohup "$wrapper" >/dev/null 2>&1 </dev/null &
+    disown
+    success "$(t restarted_firefox)"
+}
+
+# ─── uninstall ───────────────────────────────────────────────────────────────
 
 # Removing profile/chrome files or unpinning the install while our own
 # Firefox is still running is unsafe: it holds prefs.js/sessionstore open
@@ -903,7 +954,7 @@ _uninstall_running_pids() {  # <install_dir>
 _uninstall_stop_running() {  # <install_dir>
     local install_dir="$1"
     local pids
-    pids=$(_uninstall_running_pids "$install_dir")
+    pids=$(_running_pids "$install_dir")
     [[ -z "$pids" ]] && return 0
 
     if [[ -z "$MYFOX_NONINTERACTIVE" ]]; then
@@ -924,7 +975,7 @@ _uninstall_stop_running() {  # <install_dir>
 
     local waited=0
     while [[ $waited -lt 10 ]]; do
-        pids=$(_uninstall_running_pids "$install_dir")
+        pids=$(_running_pids "$install_dir")
         [[ -z "$pids" ]] && return 0
         sleep 1
         waited=$((waited + 1))
