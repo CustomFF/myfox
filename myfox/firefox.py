@@ -47,47 +47,30 @@ def _mozilla_arch(arch: str) -> str:
     return {"amd64": "linux64", "arm64": "linux-aarch64"}[arch]
 
 
-def detect_lang(env_lang: str | None = None) -> str:
-    """Full locale (e.g. $LANG) -> Mozilla language code for the download
-    URL. Faithful port of firefox_detect_lang's case table: most languages
-    just drop the region, a handful (pt, zh, en, nb/no) keep it because
-    Mozilla ships region-specific builds for those."""
+def pick_lang(catalog: dict[str, str], env_lang: str | None = None) -> str:
+    """Full locale (e.g. $LANG) -> Mozilla language code, matched against
+    `catalog` (fetch_lang_catalog()'s result) — never a hardcoded guess.
+    Mozilla renames/adds/drops regional codes over time (checked live: 40
+    of them right now, e.g. 4 Spanish variants, 6 English ones) — a fixed
+    table drifts out of sync with that; the catalog is the only thing that
+    can't."""
     import os
 
     lang = env_lang if env_lang is not None else os.environ.get("LANG", "en_US.UTF-8")
     base = lang.split("@", 1)[0].split(".", 1)[0]  # strip @modifier, then encoding
-    low = base.lower()
-
-    if low.startswith("pt_br"):
-        return "pt-BR"
-    if low.startswith("pt"):
-        return "pt-PT"
-    if low == "zh" or low.startswith(("zh_cn", "zh_sg")):
-        return "zh-CN"
-    if low.startswith(("zh_tw", "zh_hk")):
-        return "zh-TW"
-    if low.startswith("en_gb"):
-        return "en-GB"
-    if low.startswith(("nb", "no")):
-        return "nb-NO"
-    if low.startswith("nn"):
-        return "nn-NO"
-    if low.startswith("hi"):
-        return "hi-IN"
-    if low.startswith("sv"):
-        return "sv-SE"
-    if low.startswith("es"):
-        return "es-ES"
-
-    simple = {
-        "ru": "ru", "de": "de", "fr": "fr", "it": "it", "uk": "uk", "ja": "ja",
-        "pl": "pl", "nl": "nl", "cs": "cs", "sk": "sk", "hu": "hu", "tr": "tr",
-        "he": "he", "ar": "ar", "fi": "fi", "da": "da", "el": "el", "bg": "bg",
-        "hr": "hr", "ro": "ro", "sl": "sl", "sr": "sr", "vi": "vi", "th": "th",
-        "ko": "ko", "id": "id", "en": "en-US",
-    }
-    prefix = low.split("_", 1)[0]
-    return simple.get(prefix, "en-US")
+    # POSIX locales are "language_REGION" (region already uppercase);
+    # Mozilla's codes are "language-REGION" — same string, "_" for "-".
+    # Try the specific region first ("es_AR" -> "es-AR"), then the bare
+    # language ("es") — some languages have one, some don't.
+    candidates = [base.replace("_", "-"), base.partition("_")[0]]
+    lower_catalog = {code.lower(): code for code in catalog}
+    for candidate in candidates:
+        if candidate.lower() in lower_catalog:
+            return lower_catalog[candidate.lower()]
+    # No match at all, or a bare language ("zh", "pt", "no") that only
+    # exists in region-specific flavors Mozilla doesn't otherwise
+    # disambiguate for us — the honest fallback, not a guessed region.
+    return "en-US"
 
 
 def local_version(install_dir: Path) -> str | None:

@@ -24,8 +24,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _PROFILE_SECTION_RE = re.compile(r"^Profile\d+$")
-_INSTALL_SECTION_RE = re.compile(r"^\[Install[0-9A-F]{1,16}\]$")
-_HASH_SECTION_RE = re.compile(r"^\[[0-9A-F]{1,16}\]$")
+# Both capture just the inner name (no brackets) — callers only ever want
+# the bare "Install<HASH>" or "<HASH>", never the bracket punctuation.
+_INSTALL_SECTION_RE = re.compile(r"^\[(Install[0-9A-F]{1,16})\]$")
+_HASH_SECTION_RE = re.compile(r"^\[([0-9A-F]{1,16})\]$")
 
 
 def _read_ini(ini: Path) -> ConfigParser:
@@ -141,6 +143,15 @@ def _next_profile_section(cp: ConfigParser) -> str:
     return f"Profile{(max(nums, default=-1) + 1)}"
 
 
+def _append_profile_entry(ini: Path, path_value: str, is_relative: str) -> str:
+    """Appends a new [ProfileN] Name=myfox section, returns its name."""
+    section = _next_profile_section(_read_ini(ini))
+    prefix = "\n" if ini.is_file() and ini.stat().st_size > 0 else ""
+    with ini.open("a", encoding="utf-8") as f:
+        f.write(f"{prefix}[{section}]\nName=myfox\nIsRelative={is_relative}\nPath={path_value}\n")
+    return section
+
+
 def create_new() -> Path:
     ini = find_ini()
     if ini:
@@ -158,12 +169,7 @@ def create_new() -> Path:
     profile_dir.mkdir(parents=True)
     (profile_dir / ".myfox-created").write_text("", encoding="utf-8")
 
-    cp = _read_ini(ini)
-    section = _next_profile_section(cp)
-    prefix = "\n" if ini.is_file() and ini.stat().st_size > 0 else ""
-    with ini.open("a", encoding="utf-8") as f:
-        f.write(f"{prefix}[{section}]\nName=myfox\nIsRelative=1\nPath={ppath}\n")
-
+    _append_profile_entry(ini, ppath, "1")
     return profile_dir
 
 
@@ -203,20 +209,20 @@ def write_install_section(ini: Path, section_name: str, profile_path: str) -> No
 
 # ─── Registering a profile directory as a [ProfileN] entry ──────────────
 
-def _entry_path_for(ini: Path, target_dir: Path) -> str | None:
+def _find_entry_for_dir(ini: Path, target_dir: Path) -> ProfileEntry | None:
     ini_dir = ini.parent
     for entry in parse_profiles(ini):
         if resolve_dir(ini_dir, entry) == target_dir:
-            return entry.path
+            return entry
     return None
 
 
 def register_entry(ini: Path, profile_abs: Path) -> str:
     """Idempotent: reusing an existing [ProfileN] for this exact directory
     instead of piling up a duplicate on every repeated install/reinstall."""
-    existing = _entry_path_for(ini, profile_abs)
+    existing = _find_entry_for_dir(ini, profile_abs)
     if existing is not None:
-        return existing
+        return existing.path
 
     ini_dir = ini.parent
     try:
@@ -226,20 +232,8 @@ def register_entry(ini: Path, profile_abs: Path) -> str:
         path_value = str(profile_abs)
         is_relative = "0"
 
-    cp = _read_ini(ini)
-    section = _next_profile_section(cp)
-    prefix = "\n" if ini.is_file() and ini.stat().st_size > 0 else ""
-    with ini.open("a", encoding="utf-8") as f:
-        f.write(f"{prefix}[{section}]\nName=myfox\nIsRelative={is_relative}\nPath={path_value}\n")
+    _append_profile_entry(ini, path_value, is_relative)
     return path_value
-
-
-def _section_for_dir(ini: Path, target_dir: Path) -> str | None:
-    ini_dir = ini.parent
-    for entry in parse_profiles(ini):
-        if resolve_dir(ini_dir, entry) == target_dir:
-            return entry.section
-    return None
 
 
 def remove_myfox_section(profile_dir: Path) -> None:
@@ -248,23 +242,28 @@ def remove_myfox_section(profile_dir: Path) -> None:
     ini = find_ini()
     if not ini:
         return
-    section = _section_for_dir(ini, profile_dir)
-    if section:
-        remove_ini_section(ini, section)
+    entry = _find_entry_for_dir(ini, profile_dir)
+    if entry:
+        remove_ini_section(ini, entry.section)
 
 
 # ─── Headless pinning ────────────────────────────────────────────────────
 
-def _install_sections(ini: Path | None) -> set[str]:
+def _matching_sections(ini: Path | None, pattern: re.Pattern) -> set[str]:
+    """Section names matching `pattern`, brackets and any fixed prefix
+    already stripped by the pattern's own capture group."""
     if ini is None or not ini.is_file():
         return set()
-    return {ln.strip() for ln in ini.read_text(encoding="utf-8").splitlines() if _INSTALL_SECTION_RE.match(ln.strip())}
+    matches = (pattern.match(ln.strip()) for ln in ini.read_text(encoding="utf-8").splitlines())
+    return {m.group(1) for m in matches if m}
+
+
+def _install_sections(ini: Path | None) -> set[str]:
+    return _matching_sections(ini, _INSTALL_SECTION_RE)
 
 
 def _hash_sections(ini: Path | None) -> set[str]:
-    if ini is None or not ini.is_file():
-        return set()
-    return {ln.strip() for ln in ini.read_text(encoding="utf-8").splitlines() if _HASH_SECTION_RE.match(ln.strip())}
+    return _matching_sections(ini, _HASH_SECTION_RE)
 
 
 def _store_profile_dirs(store_dir: Path) -> set[str]:
@@ -281,9 +280,9 @@ def _purge_headless_strays(store_dir: Path | None, ini: Path | None, our_dir: Pa
         if abs_path == our_dir or name in before_names:
             continue
         if ini is not None and ini.is_file():
-            section = _section_for_dir(ini, abs_path)
-            if section:
-                remove_ini_section(ini, section)
+            entry = _find_entry_for_dir(ini, abs_path)
+            if entry:
+                remove_ini_section(ini, entry.section)
         shutil.rmtree(abs_path, ignore_errors=True)
 
 
@@ -305,7 +304,7 @@ def headless_once(install_dir: Path, our_profile: Path) -> str | None:
     store_dir = ini.parent if ini else (search_dirs()[0] if search_dirs() else None)
     before_names = _store_profile_dirs(store_dir) if store_dir else set()
 
-    found_token: str | None = None
+    found_hash: str | None = None
     for _attempt in range(2):
         with tempfile.NamedTemporaryFile(suffix=".myfox-shot.png") as shot:
             try:
@@ -316,32 +315,24 @@ def headless_once(install_dir: Path, our_profile: Path) -> str | None:
             except (subprocess.SubprocessError, OSError):
                 break
 
-        ini_after = _install_sections(ini)
-        new_install = sorted(ini_after - ini_before)
+        new_install = sorted(n[len("Install"):] for n in (_install_sections(ini) - ini_before))
         if new_install:
-            found_token = new_install[0]
+            found_hash = new_install[0]
             break
-        inst_after = _hash_sections(inst_ini)
-        new_hash = sorted(inst_after - inst_before)
+        new_hash = sorted(_hash_sections(inst_ini) - inst_before)
         if new_hash:
-            found_token = new_hash[0]
+            found_hash = new_hash[0]
             break
 
     if store_dir:
         _purge_headless_strays(store_dir, ini, our_profile, before_names)
-
-    if not found_token:
-        return None
-    inner = found_token[1:-1]  # strip [ ]
-    return inner[len("Install"):] if inner.startswith("Install") else inner
+    return found_hash
 
 
 def install_hash_fresh(install_dir: Path) -> str | None:
     """Fallback for headless_once: runs Firefox with a throwaway $HOME so
-    whatever hash it computes lands in a profiles.ini we can just read,
-    no diffing needed — used when the real profile store already had
-    exactly this [Install<HASH>] from some earlier run headless_once
-    didn't catch (see profile_pin_install's adoption fallbacks)."""
+    whatever hash it computes lands in a profiles.ini we can just read, no
+    diffing needed."""
     binary = install_dir / "firefox"
     if not os.access(binary, os.X_OK):
         return None
@@ -360,8 +351,7 @@ def install_hash_fresh(install_dir: Path) -> str | None:
         for candidate in (tmp / ".mozilla" / "firefox" / "profiles.ini", tmp / ".config" / "mozilla" / "firefox" / "profiles.ini"):
             sections = _install_sections(candidate)
             if sections:
-                inner = sorted(sections)[0][1:-1]
-                return inner[len("Install"):]
+                return sorted(sections)[0][len("Install"):]
     return None
 
 
@@ -374,29 +364,22 @@ def pin_install(install_dir: Path, profile_abs: Path, saved_hash: str | None) ->
     if not ini:
         return None
 
-    section: str | None = None
-    if saved_hash and f"[Install{saved_hash}]" in _install_sections(ini):
-        section = f"Install{saved_hash}"
-
-    if not section:
-        hash_ = headless_once(install_dir, profile_abs)
+    if saved_hash and f"Install{saved_hash}" in _install_sections(ini):
+        hash_ = saved_hash
+    else:
+        hash_ = headless_once(install_dir, profile_abs) or install_hash_fresh(install_dir)
         if not hash_:
-            hash_ = install_hash_fresh(install_dir)
-            if not hash_:
-                existing = _install_sections(ini)
-                if len(existing) == 1:
-                    hash_ = next(iter(existing))[len("[Install"):-1]
-                else:
-                    return None
-        section = f"Install{hash_}"
+            existing = _install_sections(ini)
+            if len(existing) != 1:
+                return None
+            hash_ = next(iter(existing))[len("Install"):]
 
-    hash_out = section[len("Install"):]
-    profile_path = _entry_path_for(ini, profile_abs) or register_entry(ini, profile_abs)
+    existing_entry = _find_entry_for_dir(ini, profile_abs)
+    profile_path = existing_entry.path if existing_entry else register_entry(ini, profile_abs)
 
-    write_install_section(ini, section, profile_path)
-    installs_ini = ini.parent / "installs.ini"
-    write_install_section(installs_ini, hash_out, profile_path)
-    return hash_out
+    write_install_section(ini, f"Install{hash_}", profile_path)
+    write_install_section(ini.parent / "installs.ini", hash_, profile_path)
+    return hash_
 
 
 def unpin_install(hash_: str) -> None:
