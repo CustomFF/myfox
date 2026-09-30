@@ -19,8 +19,9 @@ import re
 import urllib.error
 import urllib.request
 
+from . import net
+
 GITHUB_REPO = "DayDve/myfox"
-_UA = "myfox"
 
 CORE_TAG_RE = re.compile(r"^core-")
 TWEAKS_TAG_RE = re.compile(r"^\d+\.\d+$")
@@ -28,7 +29,7 @@ TWEAKS_TAG_RE = re.compile(r"^\d+\.\d+$")
 
 def _fetch_releases(repo: str = GITHUB_REPO) -> list[dict]:
     url = f"https://api.github.com/repos/{repo}/releases?per_page=100"
-    req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept": "application/vnd.github+json"})
+    req = net.request(url, headers={"Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
