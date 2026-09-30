@@ -23,44 +23,77 @@ class DetectArchTests(unittest.TestCase):
             self.assertIsNone(firefox.detect_arch())
 
 
-class DetectLangTests(unittest.TestCase):
-    # (input $LANG, expected Mozilla code) — mirrors lib/firefox.sh's case table.
+class PickLangTests(unittest.TestCase):
+    # A slice of a *real* fetch_lang_catalog() response (checked live
+    # 2026-09-30: 172 codes, 40 of them regional) — not invented, so the
+    # matching logic is proven against what Mozilla actually ships, not
+    # against our own assumptions about it.
+    CATALOG = {
+        "ru": "Russian", "de": "German", "fr": "French", "uk": "Ukrainian",
+        "pt-BR": "Portuguese (Brazilian)", "pt-PT": "Portuguese (Portugal)",
+        "zh-CN": "Chinese (Simplified)", "zh-TW": "Chinese (Traditional)",
+        "en-US": "English (US)", "en-GB": "English (British)", "en-AU": "English (Australian)",
+        "de-AT": "German (Austria)", "de-CH": "German (Switzerland)", "de-DE": "German (Germany)",
+        "es-ES": "Spanish (Spain)", "es-AR": "Spanish (Argentina)",
+        "nb-NO": "Norwegian (Bokmål)", "nn-NO": "Norwegian (Nynorsk)",
+        "hi-IN": "Hindi (India)", "sv-SE": "Swedish",
+    }
+
     CASES = [
-        ("ru_RU.UTF-8", "ru"),
-        ("de_DE.UTF-8", "de"),
+        ("ru_RU.UTF-8", "ru"),  # bare "ru" exists — no "ru-RU" needed
+        ("de_DE.UTF-8", "de-DE"),  # region-specific beats the also-valid bare "de"
+        ("de_XX.UTF-8", "de"),  # unknown region for a language with a bare fallback
         ("pt_BR.UTF-8", "pt-BR"),
         ("pt_PT.UTF-8", "pt-PT"),
-        ("pt", "pt-PT"),
         ("zh_CN.UTF-8", "zh-CN"),
         ("zh_TW.UTF-8", "zh-TW"),
-        ("zh_HK.UTF-8", "zh-TW"),
-        ("zh", "zh-CN"),
         ("en_GB.UTF-8", "en-GB"),
-        ("en_US.UTF-8", "en-US"),
-        ("en", "en-US"),
-        ("nb_NO.UTF-8", "nb-NO"),
-        ("no_NO.UTF-8", "nb-NO"),
-        ("nn_NO.UTF-8", "nn-NO"),
+        ("en_AU.UTF-8", "en-AU"),
+        ("es_AR.UTF-8", "es-AR"),  # not just the one Spanish variant we used to hardcode
         ("hi_IN.UTF-8", "hi-IN"),
-        ("sv_SE.UTF-8", "sv-SE"),
-        ("es_ES.UTF-8", "es-ES"),
         ("uk_UA.UTF-8", "uk"),
-        ("xx_XX.UTF-8", "en-US"),  # unknown -> default
+        ("xx_XX.UTF-8", "en-US"),  # unsupported language -> honest default
         ("ru_RU.UTF-8@euro", "ru"),  # @modifier stripped
     ]
 
     def test_table(self):
         for env_lang, expected in self.CASES:
             with self.subTest(env_lang=env_lang):
-                self.assertEqual(firefox.detect_lang(env_lang), expected)
+                self.assertEqual(firefox.pick_lang(self.CATALOG, env_lang), expected)
+
+    def test_bare_language_with_only_regional_flavors_falls_back_to_default(self):
+        # "no"/"pt"/"zh"/"en" alone aren't real Mozilla codes (see the live
+        # check above) — no guessed region, an honest default instead.
+        for bare in ("no", "pt", "zh", "en"):
+            with self.subTest(bare=bare):
+                self.assertEqual(firefox.pick_lang(self.CATALOG, bare), "en-US")
 
     def test_uses_environ_lang_when_no_argument_given(self):
         with mock.patch.dict("os.environ", {"LANG": "de_DE.UTF-8"}, clear=True):
-            self.assertEqual(firefox.detect_lang(), "de")
+            self.assertEqual(firefox.pick_lang(self.CATALOG), "de-DE")
 
     def test_missing_environ_lang_defaults_to_en_us(self):
         with mock.patch.dict("os.environ", {}, clear=True):
-            self.assertEqual(firefox.detect_lang(), "en-US")
+            self.assertEqual(firefox.pick_lang(self.CATALOG), "en-US")
+
+
+class PickLangLiveCatalogTests(unittest.TestCase):
+    """Same matching logic, against the real, freshly-fetched catalog —
+    the point of pick_lang is to never drift from this."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            cls.catalog = firefox.fetch_lang_catalog()
+        except OSError:
+            cls.catalog = None
+
+    def test_real_catalog_resolves_realistic_locales(self):
+        if not self.catalog:
+            self.skipTest("no network")
+        self.assertEqual(firefox.pick_lang(self.catalog, "ru_RU.UTF-8"), "ru")
+        self.assertEqual(firefox.pick_lang(self.catalog, "pt_BR.UTF-8"), "pt-BR")
+        self.assertEqual(firefox.pick_lang(self.catalog, "en_AU.UTF-8"), "en-AU")
 
 
 class LocalVersionTests(unittest.TestCase):

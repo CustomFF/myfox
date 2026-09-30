@@ -77,14 +77,15 @@ def main(argv: list[str] | None = None) -> int:
         argv = sys.argv[1:]
 
     state = State()
-    i18n.load(state.get("opt_lang"))
+    # Always from the system locale, never saved — no state key for it,
+    # and no coupling with --lang (that picks Firefox's own language,
+    # a completely different, much larger code space; see firefox.pick_lang).
+    i18n.load()
 
-    # Handed off before argparse ever sees it: Firefox's own flags (e.g.
-    # --new-window) can start with "-" as the very first token, which
-    # argparse.REMAINDER fails to capture (a known CPython argparse
-    # limitation, confirmed independent of this parser's own setup) — and
-    # "browser" needs to pass them through completely untouched anyway,
-    # exactly like get.sh's `exec "$install_dir/firefox-myfox" "$@"` did.
+    # Bypasses argparse entirely: Firefox's own flags (e.g. --new-window)
+    # can start with "-", which argparse.REMAINDER fails to capture as the
+    # first token (confirmed CPython limitation) — and these need passing
+    # through untouched anyway.
     if argv and argv[0] == "browser":
         ui = get_backend(noninteractive=True)
         return cmd_browser(argv[1:], state, ui)
