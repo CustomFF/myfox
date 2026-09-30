@@ -17,6 +17,9 @@ scratch/refactor-baseline/
 
 # === stray files never meant for this repo ===
 Office.conf
+.amo-api-key
+build/
+themes/*/.amo-upload-uuid
 
 # bookmarklet tweaks (docs/blm_panel.css, icons/*.svg) are copied from the separate
 # ddblm project into the profile at install time — never committed here.

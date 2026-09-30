@@ -639,8 +639,8 @@ maybe_add_plasma() {  # <array-name>
 
 # resolve_theme — flag → wizard choice → saved choice → default (dark).
 # Only called for a tweaked profile; a fresh profile always gets both theme
-# add-ons (see ADDONS_LIST in run_install), this just decides which one
-# myfox.cfg activates (apply_theme_pref writes it into the new profile).
+# add-ons (addons_install_themes in _setup_profile), this just decides which
+# one myfox.cfg activates (apply_theme_pref writes it into the new profile).
 resolve_theme() {
     if [[ -n "$THEME_ARG" ]]; then
         case "$THEME_ARG" in
@@ -656,7 +656,8 @@ resolve_theme() {
 }
 
 # resolve_plasma — детект Plasma и наполнение глобального ADDONS_LIST
-# (который уже содержит оба слага тем, см. run_install) плагином интеграции.
+# (AMO-слаги; темы туда больше не входят, см. addons_install_themes) плагином
+# интеграции.
 # Без tui_spin: сама загрузка аддонов выполняется позже, вместе с
 # пиннингом профиля, под одним общим спиннером — пользователю всё равно,
 # что это технически два разных шага.
@@ -697,6 +698,7 @@ _setup_profile() {  # <install_dir> <profile_dir> [addon-slug...]
     apply_autoconfig "$install_dir"
     apply_chrome "$profile_dir"
     apply_theme_pref "$profile_dir" "$THEME_CHOICE"
+    addons_install_themes "$profile_dir"
     [[ $# -gt 0 ]] && addons_apply "$profile_dir" "$@"
     [[ "$BL_APPLY" == 1 ]] && apply_bookmarklets "$profile_dir" >/dev/null
     return "$rc"
@@ -823,7 +825,10 @@ run_install() {
         return 0
     fi
 
-    local -a ADDONS_LIST=("$MYFOX_ADDON_THEME_DARK" "$MYFOX_ADDON_THEME_LIGHT")
+    # AMO-fetched add-ons only (Plasma integration, see resolve_plasma) — the
+    # two themes are our own bundled XPIs, installed unconditionally by
+    # _setup_profile via addons_install_themes.
+    local -a ADDONS_LIST=()
     local BL_APPLY=0
     resolve_theme
     resolve_plasma
@@ -1074,9 +1079,14 @@ run_uninstall() {
 
     # Аддоны (темы/plasma) удаляются только по фиксированным ID —
     # остальные *.xpi в extensions/ могут быть пользовательскими (existing-профиль).
+    # Старые brace-GUID — от AMO-тем Stylefox (профили, установленные до
+    # форка тем); новые "myfox-*-theme@..." — наши собственные, см.
+    # lib/addons.sh (MYFOX_THEME_DARK_ID/MYFOX_THEME_LIGHT_ID).
     local -a addon_ids=(
         "{9631ec37-35f2-4719-815e-2f84ff28b901}"
         "{1fd1213e-dcb2-48d9-806f-c0a8a7d0a8e7}"
+        "myfox-dark-theme@daydve.github.io"
+        "myfox-light-theme@daydve.github.io"
         "plasma-browser-integration@kde.org"
     )
     if [[ "$profile_type" == "existing" && "$del_profile" == "yes" \

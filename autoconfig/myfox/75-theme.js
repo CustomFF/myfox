@@ -2,11 +2,14 @@
 (function (MyFox) {
   const { prefs, wm, whenPlacesReady } = MyFox;
 
-  // Theme add-on IDs (AMO google-chrome-dark / google-chrome-light); the
-  // installer puts both .xpi files into <profile>/extensions/.
+  // Theme add-on IDs — our own fork (themes/, signed through AMO's unlisted
+  // channel; see themes/README.md), not a third-party AMO listing anymore.
+  // The installer puts both .xpi files into <profile>/extensions/ (see
+  // lib/addons.sh's addons_install_themes) — must match MYFOX_THEME_DARK_ID/
+  // MYFOX_THEME_LIGHT_ID there.
   const THEME_IDS = {
-    dark: "{9631ec37-35f2-4719-815e-2f84ff28b901}",
-    light: "{1fd1213e-dcb2-48d9-806f-c0a8a7d0a8e7}",
+    dark: "myfox-dark-theme@daydve.github.io",
+    light: "myfox-light-theme@daydve.github.io",
   };
 
   function applyTheme() {

@@ -159,6 +159,7 @@ MYFOX_MSG[bl_skipped]="Твики букмарклетов пропущены."
 
 MYFOX_MSG[warn_addon_invalid]="Скачанный файл для «%s» — не валидный XPI, пропускаем."
 MYFOX_MSG[warn_addon_guid_unresolved]="Не удалось определить ID дополнения «%s» — пропускаем."
+MYFOX_MSG[warn_theme_asset_missing]="Файл темы не найден: %s — пропускаем."
 MYFOX_MSG[plasma_pkg_present]="Системный пакет «plasma-browser-integration» уже установлен."
 MYFOX_MSG[warn_plasma_pkg_missing]="Системный пакет «plasma-browser-integration» отсутствует (native-messaging host)."
 MYFOX_MSG[plasma_pkg_manual]="Установи «plasma-browser-integration» вручную, чтобы включить интеграцию с KDE."
