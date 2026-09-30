@@ -44,6 +44,7 @@ def t(key: str, *args: object) -> str:
 
 
 # Loaded with the system default on import so t() works even if a caller
-# forgets load() (e.g. early error messages before state is read) — main()
-# calls load() again once it knows the saved language choice.
+# forgets load() (e.g. early error messages before argv is parsed) —
+# main() calls load() again too, redundant in a real one-shot process but
+# needed so tests can change $LANG between calls within one test run.
 load()

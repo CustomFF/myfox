@@ -11,7 +11,9 @@ bash-specific, and carry over almost line for line.
 from __future__ import annotations
 
 import json
+import os
 import platform
+import re
 import tarfile
 import tempfile
 import urllib.error
@@ -19,8 +21,9 @@ import urllib.request
 from configparser import ConfigParser
 from pathlib import Path
 
+from . import net
+
 LANGUAGES_URL = "https://product-details.mozilla.org/1.0/languages.json"
-_UA = "myfox"  # Mozilla's CDN doesn't care, but an empty/default UA is rude.
 
 
 class InstallDirError(ValueError):
@@ -54,8 +57,6 @@ def pick_lang(catalog: dict[str, str], env_lang: str | None = None) -> str:
     of them right now, e.g. 4 Spanish variants, 6 English ones) — a fixed
     table drifts out of sync with that; the catalog is the only thing that
     can't."""
-    import os
-
     lang = env_lang if env_lang is not None else os.environ.get("LANG", "en_US.UTF-8")
     base = lang.split("@", 1)[0].split(".", 1)[0]  # strip @modifier, then encoding
     # POSIX locales are "language_REGION" (region already uppercase);
@@ -126,7 +127,6 @@ def validate_install_dir(raw: str) -> Path:
 
 
 def os_access_w_x(path: Path) -> bool:
-    import os
     return os.access(path, os.W_OK | os.X_OK)
 
 
@@ -141,9 +141,7 @@ def dir_claim_state(path: Path) -> str:
 
 def fetch_lang_catalog() -> dict[str, str]:
     """code -> English name, straight from Mozilla's own JSON — no scraping."""
-    with urllib.request.urlopen(
-        urllib.request.Request(LANGUAGES_URL, headers={"User-Agent": _UA}), timeout=30
-    ) as resp:
+    with urllib.request.urlopen(net.request(LANGUAGES_URL), timeout=30) as resp:
         raw = json.loads(resp.read().decode("utf-8"))
     return {code: info["English"] for code, info in raw.items()}
 
@@ -161,13 +159,11 @@ def resolve_download(arch: str, lang: str, channel: str) -> tuple[str, str]:
     """Follows the download.mozilla.org redirect without downloading the
     tarball — gives the real file URL and the version parsed out of it,
     the same trick the bash version used (curl -w '%{url_effective}')."""
-    req = urllib.request.Request(_download_url(arch, lang, channel), headers={"User-Agent": _UA}, method="HEAD")
+    req = net.request(_download_url(arch, lang, channel), method="HEAD")
     with urllib.request.urlopen(req, timeout=30) as resp:
         effective_url = resp.geturl()
     if arch == "arm64":
         effective_url = effective_url.replace("linux-x86_64", "linux-aarch64")
-    import re
-
     m = re.search(r"firefox-([^/]+)\.tar", effective_url)
     version = m.group(1) if m else "unknown"
     return effective_url, version
@@ -183,8 +179,7 @@ def download_and_extract(url: str, install_dir: Path, progress=None) -> None:
     with tempfile.NamedTemporaryFile(suffix=".tar.xz", delete=False) as tmp:
         tmp_path = Path(tmp.name)
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": _UA})
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            with urllib.request.urlopen(net.request(url), timeout=60) as resp:
                 written = 0
                 while chunk := resp.read(1024 * 1024):
                     tmp.write(chunk)

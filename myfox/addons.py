@@ -17,13 +17,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from . import paths
+from . import net, paths
 
 MYFOX_THEME_DARK_ID = "myfox-dark-theme@daydve.github.io"
 MYFOX_THEME_LIGHT_ID = "myfox-light-theme@daydve.github.io"
 MYFOX_ADDON_PLASMA = "plasma-integration"
-
-_UA = "myfox"
 
 _THEME_FILES = {
     MYFOX_THEME_DARK_ID: "myfox-dark.xpi",
@@ -90,8 +88,7 @@ def pkg_install_hint() -> str | None:
 def addon_guid(slug: str) -> str | None:
     url = f"https://addons.mozilla.org/api/v5/addons/addon/{slug}/"
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": _UA})
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(net.request(url), timeout=30) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, json.JSONDecodeError):
         return None
@@ -103,8 +100,7 @@ def addon_fetch(slug: str, out: Path) -> bool:
     doing here, same as the bash version."""
     url = f"https://addons.mozilla.org/firefox/downloads/latest/{slug}/addon-latest.xpi"
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": _UA})
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(net.request(url), timeout=60) as resp:
             data = resp.read()
     except (urllib.error.URLError, OSError):
         return False

@@ -12,14 +12,12 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from . import paths
+from . import net, paths
 
 DDBLM_REPO = "DayDve/ddblm"
 DDBLM_BRANCH = "master"
 DDBLM_RAW = f"https://raw.githubusercontent.com/{DDBLM_REPO}/{DDBLM_BRANCH}"
 DDBLM_GALLERY = "https://daydve.github.io/ddblm/"
-
-_UA = "myfox"
 
 
 def apply_autoconfig(install_dir: Path) -> None:
@@ -85,8 +83,7 @@ def _ddblm_fetch(rel: str, out: Path, local_dir: str | None) -> bool:
             shutil.copy2(src, out)
             return True
     try:
-        req = urllib.request.Request(f"{DDBLM_RAW}/{rel}", headers={"User-Agent": _UA})
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(net.request(f"{DDBLM_RAW}/{rel}"), timeout=30) as resp:
             out.write_bytes(resp.read())
         return True
     except (urllib.error.URLError, OSError):
