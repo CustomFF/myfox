@@ -24,12 +24,12 @@ CORE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/myfox"
 _lang() { case "${LANG:-en}" in ru*) echo ru ;; *) echo en ;; esac; }
 
 if [[ "$(_lang)" == ru ]]; then
-    MSG_ALREADY="MyFox уже установлен. «myfox browser» запускает браузер, «myfox» — справка, «myfox update» / «myfox uninstall» — обновить/удалить."
+    MSG_ALREADY_UPDATING="MyFox уже установлен — обновляю твики (как «myfox update»). Для чистой переустановки: --force."
     MSG_NOT_INSTALLED="MyFox не установлен."
     MSG_NEED_CURL="Нужен curl."
     MSG_NEED_TAR="Нужен tar."
 else
-    MSG_ALREADY="MyFox is already installed. 'myfox browser' launches it, 'myfox' shows help, 'myfox update' / 'myfox uninstall' update or remove it."
+    MSG_ALREADY_UPDATING="MyFox is already installed — refreshing tweaks (same as 'myfox update'). For a clean reinstall: --force."
     MSG_NOT_INSTALLED="MyFox is not installed."
     MSG_NEED_CURL="curl is required."
     MSG_NEED_TAR="tar is required."
@@ -152,8 +152,15 @@ case "$SUB" in
                 fi
                 exit 0
             fi
-            echo "$MSG_ALREADY" >&2
-            exit 0
+            # Genuine bootstrap re-run (curl|bash again), not the installed
+            # launcher: treat it like `myfox update` — install-only flags
+            # (--prefix, --lang, …) wouldn't mean anything to an existing
+            # install anyway, and silently doing nothing here was more
+            # confusing than just refreshing the tweaks. A real from-scratch
+            # reinstall still needs --force.
+            echo "$MSG_ALREADY_UPDATING" >&2
+            _fetch_and_run update
+            exit $?
         fi
         _fetch_and_run install "$@"
         ;;
