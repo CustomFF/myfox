@@ -1,0 +1,13 @@
+{
+    "usage_title": "MyFox — Firefox from the official tarball with a set of tweaks.",
+    "usage_usage": "Usage:",
+    "cmd_browser": "Launch the installed browser (extra arguments go to Firefox)",
+    "cmd_refresh": "Re-apply tweaks, or reinstall them unconditionally with --force",
+    "cmd_reinstall": "Redownload the browser unconditionally, then re-apply tweaks",
+    "cmd_uninstall": "Remove MyFox",
+    "cmd_help": "Show this help",
+    "err_not_installed": "MyFox is not installed.",
+    "not_implemented": "'{0}' isn't built yet — coming in a later pass of the rewrite.",
+    "confirm_yes_no": "[Y/n]",
+    "prompt_choice": "Choice: "
+}

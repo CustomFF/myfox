@@ -1,18 +1,20 @@
 # Makefile — для тех, кто работает с клоном репозитория (не curl|bash).
-# TUI — dialog/whiptail (обычно уже в системе) с примитивным bash-фолбэком,
-# ничего скачивать/готовить заранее не требуется.
+# Идёт переход на Python (docs/python-rewrite-plan.md) — цели ниже дёргают
+# новый python3 -m myfox прямо из рабочей копии, без сборки архивов (та
+# нужна только для настоящего релиза). `install` пока недоступна: мастер
+# первой установки живёт в bootstrap.py (проход 5), которого ещё нет —
+# см. план.
 
-SHELL := /usr/bin/env bash
-ROOT  := $(CURDIR)
-ARGS  ?=
+ROOT := $(CURDIR)
+ARGS ?=
 
-.PHONY: install update uninstall
+.PHONY: refresh reinstall uninstall
 
-install:
-	"$(ROOT)/bin/myfox-core" install $(ARGS)
+refresh:
+	cd "$(ROOT)" && python3 -m myfox refresh $(ARGS)
 
-update:
-	"$(ROOT)/bin/myfox-core" update $(ARGS)
+reinstall:
+	cd "$(ROOT)" && python3 -m myfox reinstall $(ARGS)
 
 uninstall:
-	"$(ROOT)/bin/myfox-core" uninstall $(ARGS)
+	cd "$(ROOT)" && python3 -m myfox uninstall $(ARGS)
