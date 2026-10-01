@@ -16,11 +16,11 @@ MYFOX_AUTOCONFIG_DIR="$MYFOX_ROOT/autoconfig"
 MYFOX_CHROME_DIR="$MYFOX_ROOT/chrome"
 MYFOX_THEMES_DIR="$MYFOX_ROOT/assets/themes"
 
-# Твики букмарклетов — отдельный проект DayDve/ddblm, копируем готовые файлы.
-MYFOX_DDBLM_REPO="DayDve/ddblm"
+# Твики букмарклетов — отдельный проект CustomFF/ddblm, копируем готовые файлы.
+MYFOX_DDBLM_REPO="CustomFF/ddblm"
 MYFOX_DDBLM_BRANCH="master"
 MYFOX_DDBLM_RAW="https://raw.githubusercontent.com/${MYFOX_DDBLM_REPO}/${MYFOX_DDBLM_BRANCH}"
-MYFOX_DDBLM_GALLERY="https://daydve.github.io/ddblm/"
+MYFOX_DDBLM_GALLERY="https://customff.github.io/ddblm/"
 MYFOX_DDBLM_LOCAL="${MYFOX_DDBLM_LOCAL:-}"
 
 MYFOX_DEFAULT_PREFIX="$HOME/.local/share/firefox"

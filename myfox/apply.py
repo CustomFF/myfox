@@ -14,10 +14,10 @@ from pathlib import Path
 
 from . import net, paths
 
-DDBLM_REPO = "DayDve/ddblm"
+DDBLM_REPO = "CustomFF/ddblm"
 DDBLM_BRANCH = "master"
 DDBLM_RAW = f"https://raw.githubusercontent.com/{DDBLM_REPO}/{DDBLM_BRANCH}"
-DDBLM_GALLERY = "https://daydve.github.io/ddblm/"
+DDBLM_GALLERY = "https://customff.github.io/ddblm/"
 
 
 def apply_autoconfig(install_dir: Path) -> None:

@@ -73,7 +73,7 @@ myfox/
 - KDE Plasma integration: молча в сессии Plasma или с `--plasma-integration` (`--noplasma` гасит). Нужен системный пакет `plasma-browser-integration` (native host): инсталлер проверяет (`addons_pkg_installed`, каталоги переопределяются `MYFOX_NMH_DIRS` — для тестов) и печатает заметку с командой в конце, без sudo-промптов.
 
 ### Букмарклеты (bl)
-- Входят в «твики: да»; `--nobl` отключает, `opts.bl` запоминается. `apply_bookmarklets()` копирует `docs/blm_panel.css` → `<profile>/chrome/blm_panel.css` и иконки → `panel-icons/`. Источник: `MYFOX_DDBLM_LOCAL=<dir>` либо raw.githubusercontent.com (`DayDve/ddblm`, master); 404 — предупреждение и пропуск.
+- Входят в «твики: да»; `--nobl` отключает, `opts.bl` запоминается. `apply_bookmarklets()` копирует `docs/blm_panel.css` → `<profile>/chrome/blm_panel.css` и иконки → `panel-icons/`. Источник: `MYFOX_DDBLM_LOCAL=<dir>` либо raw.githubusercontent.com (`CustomFF/ddblm`, master); 404 — предупреждение и пропуск.
 - Галерея двуязычная (EN по умолчанию, RU по `?lang=ru`, клиентским JS). Закладка «Добавить букмарклеты» для русскоязычного Firefox — на `…/ddblm/?lang=ru`; при миграции с base-URL закладка переносится, а не дублируется.
 - Иконка этой закладки подключена `url("../panel-icons/…")` из `chrome/user/10-menus-bookmarks.css`: **относительные `url()` в импортируемом файле считаются от него самого**, не от `userChrome.css`.
 - Термин «blm» в myfox не используется — только «bl»/букмарклеты (имя файла `blm_panel.css` сохранено как в ddblm).

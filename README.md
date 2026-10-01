@@ -8,7 +8,7 @@ aligned sidebar, Downloads and Extensions as sidebar views, compact search field
 and applies the tweaks to it.
 
 This repository only contains the **tweaks and the installer**. Bookmarklets live in a
-separate project — **[ddblm](https://github.com/DayDve/ddblm)** (DayDve BookmarkLet Manager). MyFox
+separate project — **[ddblm](https://github.com/CustomFF/ddblm)** (DayDve BookmarkLet Manager). MyFox
 downloads the ready-made tweak files (CSS + icons) from ddblm over raw.githubusercontent.com;
 you do not need to build or clone ddblm yourself.
 
@@ -38,7 +38,7 @@ you do not need to build or clone ddblm yourself.
 From a clone:
 
 ```bash
-git clone https://github.com/DayDve/myfox.git
+git clone https://github.com/CustomFF/myfox.git
 cd myfox
 ./bin/myfox-core install          # or: make install ARGS="-y"
 ```
@@ -146,7 +146,7 @@ command is printed at the end of the setup — no `sudo` prompts interrupting th
 
 ## Bookmarklets (ddblm)
 
-Bookmarklets are a [separate project](https://github.com/DayDve/ddblm). The tweaks (custom icons +
+Bookmarklets are a [separate project](https://github.com/CustomFF/ddblm). The tweaks (custom icons +
 hidden labels on the Bookmarks Toolbar, from ddblm) come with "tweaks: yes"; `--nobl` skips them.
 The installer copies `docs/blm_panel.css` and **all** `icons/*.svg` from ddblm
 (raw.githubusercontent.com for the published ddblm; a local checkout via
