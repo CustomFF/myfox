@@ -45,25 +45,28 @@ class UrwidBackend:
         return answer["value"]
 
     def choose(self, header: str, options: Sequence[tuple[str, str]], default: str | None = None) -> str | None:
+        """ListBox, not Pile+Filler: options can run into the hundreds
+        (the Firefox language picker is ~170) and a Pile doesn't scroll —
+        it would just overflow the screen past terminal height."""
         answer: dict[str, str | None] = {"value": default}
 
         def pick(value: str) -> None:
             answer["value"] = value
             raise urwid.ExitMainLoop()
 
-        body = [urwid.Text(header), urwid.Divider()]
+        buttons = []
         for value, label in options:
             button = urwid.Button(label)
             urwid.connect_signal(button, "click", lambda _b, v=value: pick(v))
-            body.append(urwid.AttrMap(button, None, "selected"))
+            buttons.append(urwid.AttrMap(button, None, "selected"))
+        listbox = urwid.ListBox(urwid.SimpleFocusListWalker(buttons))
+        frame = urwid.Frame(listbox, header=urwid.Pile([urwid.Text(header), urwid.Divider()]))
 
         def unhandled(key: str) -> None:
             if key == "esc":
                 raise urwid.ExitMainLoop()
 
-        urwid.MainLoop(
-            urwid.Filler(urwid.Pile(body), valign="top"), palette=_PALETTE, unhandled_input=unhandled
-        ).run()
+        urwid.MainLoop(frame, palette=_PALETTE, unhandled_input=unhandled).run()
         return answer["value"]
 
     def input_dir(self, prompt: str, initial: str) -> str | None:
