@@ -206,11 +206,11 @@ scratch/sandbox.sh /tmp/mf -- ./bin/myfox-core uninstall -y
 `http://127.0.0.1:8787`.
 
 Горячая перезагрузка стилей без рестарта браузера возможна через RDP-прокси
-(`firefox_rdp_proxy.py`, живёт в проекте ddblm):
+(`firefox_rdp_proxy.py`, живёт в [CustomFF/tweaks](https://github.com/CustomFF/tweaks)):
 
 ```bash
-python3 firefox_rdp_proxy.py 34423     # из клона ddblm
-python3 scratch/reload_userchrome.py
+python3 firefox_rdp_proxy.py 34423     # из клона tweaks
+python3 reload_userchrome.py           # там же, в scripts/
 ```
 
 Архитектура: [docs/logic.md](docs/logic.md).

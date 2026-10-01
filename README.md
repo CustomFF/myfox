@@ -207,11 +207,11 @@ To exercise the real `curl | bash` path locally: `scripts/dev-serve.sh` builds `
 and serves it (with a `get.sh` pointing at itself) on `http://127.0.0.1:8787`.
 
 Hot-reload of styles without restarting the browser is possible via the RDP proxy
-(`firefox_rdp_proxy.py`, lives in the ddblm project):
+(`firefox_rdp_proxy.py`, lives in [CustomFF/tweaks](https://github.com/CustomFF/tweaks)):
 
 ```bash
-python3 firefox_rdp_proxy.py 34423     # from a ddblm checkout
-python3 scratch/reload_userchrome.py
+python3 firefox_rdp_proxy.py 34423     # from a tweaks checkout
+python3 reload_userchrome.py           # also there, in scripts/
 ```
 
 Architecture details: [docs/logic.md](docs/logic.md).
