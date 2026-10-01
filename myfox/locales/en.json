@@ -9,5 +9,14 @@
     "err_not_installed": "MyFox is not installed.",
     "not_implemented": "'{0}' isn't built yet — coming in a later pass of the rewrite.",
     "confirm_yes_no": "[Y/n]",
-    "prompt_choice": "Choice: "
+    "prompt_choice": "Choice: ",
+    "confirm_uninstall": "Remove the Firefox install at {0}? Your profile (bookmarks, history) is kept.",
+    "uninstall_done": "MyFox removed.",
+    "reinstalling_firefox": "Downloading Firefox...",
+    "reinstall_done": "Reinstalled Firefox {0}; tweaks re-applied.",
+    "refresh_forced_tweaks_done": "Tweaks re-applied from the local package.",
+    "refresh_tweaks_up_to_date": "Tweaks are up to date.",
+    "refresh_tweaks_update_found_not_wired": "Tweaks update found ({0}) — downloading it isn't wired up yet (coming in a later pass); re-run with --force to re-apply what's already local.",
+    "refresh_core_up_to_date": "MyFox itself is up to date.",
+    "refresh_core_update_found_not_wired": "MyFox itself has an update ({0}) — self-updating isn't wired up yet (coming in a later pass)."
 }

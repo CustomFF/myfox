@@ -9,5 +9,14 @@
     "err_not_installed": "MyFox не установлен.",
     "not_implemented": "«{0}» ещё не реализовано — будет в одном из следующих проходов.",
     "confirm_yes_no": "[Y/n]",
-    "prompt_choice": "Выбор: "
+    "prompt_choice": "Выбор: ",
+    "confirm_uninstall": "Удалить установку Firefox в {0}? Профиль (закладки, история) сохранится.",
+    "uninstall_done": "MyFox удалён.",
+    "reinstalling_firefox": "Скачивание Firefox...",
+    "reinstall_done": "Firefox {0} переустановлен; твики применены заново.",
+    "refresh_forced_tweaks_done": "Твики заново применены из локального пакета.",
+    "refresh_tweaks_up_to_date": "Твики уже свежие.",
+    "refresh_tweaks_update_found_not_wired": "Найдено обновление твиков ({0}) — скачивание ещё не реализовано (будет в одном из следующих проходов); --force заново применит то, что уже есть локально.",
+    "refresh_core_up_to_date": "Сам MyFox уже свежий.",
+    "refresh_core_update_found_not_wired": "У самого MyFox есть обновление ({0}) — самообновление ещё не реализовано (будет в одном из следующих проходов)."
 }

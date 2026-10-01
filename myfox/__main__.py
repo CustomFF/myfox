@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sys
+from pathlib import Path
 
-from . import i18n
+from . import addons, apply, firefox, i18n, profiles, version
 from .state import State
 from .ui import get_backend
 
@@ -53,8 +55,89 @@ def cmd_browser(firefox_args: list[str], state: State, ui) -> int:
     os.execv(target, [target, *firefox_args])  # never returns on success
 
 
-def _not_implemented(name: str, ui) -> int:
-    ui.message(i18n.t("not_implemented", name))
+def _reapply_tweaks(install_dir: Path, profile_dir: Path | None, state: State) -> None:
+    """autoconfig/chrome/theme/themes/bookmarklets from this local copy —
+    never a network fetch of a *different* copy (that's refresh's job once
+    the tweaks-track download exists; see cmd_refresh)."""
+    apply.apply_autoconfig(install_dir)
+    if profile_dir is None:
+        return
+    apply.apply_chrome(profile_dir)
+    apply.apply_theme_pref(profile_dir, state.get("theme", "dark"))
+    addons.install_themes(profile_dir)
+    if state.get("opt_plasma") and addons.is_plasma_session():
+        addons.apply_amo_addons(profile_dir, [addons.MYFOX_ADDON_PLASMA])
+    if state.get("opt_bl", True):
+        apply.apply_bookmarklets(profile_dir, local_dir=os.environ.get("MYFOX_DDBLM_LOCAL"))
+
+
+def cmd_uninstall(state: State, ui, noninteractive: bool) -> int:
+    install_dir = state.get("install_dir")
+    if not install_dir:
+        ui.message(i18n.t("err_not_installed"))
+        return 0
+    if not noninteractive and not ui.confirm(i18n.t("confirm_uninstall", install_dir), default=False):
+        return 1
+
+    profile_dir = state.get("profile_dir")
+    if profile_dir:
+        profiles.remove_myfox_section(Path(profile_dir))
+    install_hash = state.get("install_hash")
+    if install_hash:
+        profiles.unpin_install(install_hash)
+    shutil.rmtree(install_dir, ignore_errors=True)
+
+    state.clear()
+    state.save()
+    ui.message(i18n.t("uninstall_done"))
+    return 0
+
+
+def cmd_reinstall(state: State, ui) -> int:
+    install_dir = state.get("install_dir")
+    if not install_dir:
+        ui.message(i18n.t("err_not_installed"))
+        return 1
+    install_dir = Path(install_dir)
+
+    with ui.spin(i18n.t("reinstalling_firefox")):
+        new_version = firefox.install_tarball(install_dir, state.get("lang", "en-US"), state.get("channel", "stable"))
+
+    profile_dir = state.get("profile_dir")
+    _reapply_tweaks(install_dir, Path(profile_dir) if profile_dir else None, state)
+
+    state.set("firefox_version", new_version)
+    state.save()
+    ui.message(i18n.t("reinstall_done", new_version))
+    return 0
+
+
+def cmd_refresh(state: State, ui, force: bool) -> int:
+    install_dir = state.get("install_dir")
+    if not install_dir:
+        ui.message(i18n.t("err_not_installed"))
+        return 1
+    install_dir = Path(install_dir)
+
+    if force:
+        profile_dir = state.get("profile_dir")
+        _reapply_tweaks(install_dir, Path(profile_dir) if profile_dir else None, state)
+        ui.message(i18n.t("refresh_forced_tweaks_done"))
+    else:
+        new_tweaks = version.tweaks_update_available(state.get("tweaks_version"))
+        ui.message(
+            i18n.t("refresh_tweaks_update_found_not_wired", new_tweaks)
+            if new_tweaks else i18n.t("refresh_tweaks_up_to_date")
+        )
+
+    # Self-update (replacing ~/.local/share/myfox) isn't wired up yet either
+    # way — building that now means inventing pass 5's release format early
+    # (see docs/python-rewrite-plan.md); the tag check itself is already real.
+    new_core = version.core_update_available(state.get("core_version"))
+    ui.message(
+        i18n.t("refresh_core_update_found_not_wired", new_core)
+        if new_core else i18n.t("refresh_core_up_to_date")
+    )
     return 0
 
 
@@ -101,13 +184,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     args = parser.parse_args(argv)
-    ui = get_backend(force_gui=getattr(args, "gui", False), noninteractive=getattr(args, "noninteractive", False))
+    noninteractive = getattr(args, "noninteractive", False)
+    ui = get_backend(force_gui=getattr(args, "gui", False), noninteractive=noninteractive)
 
     if args.command in (None, "help"):
         print_top_help(parser)
         return 0
-    if args.command in ("refresh", "reinstall", "uninstall"):
-        return _not_implemented(args.command, ui)
+    if args.command == "refresh":
+        return cmd_refresh(state, ui, force=args.force)
+    if args.command == "reinstall":
+        return cmd_reinstall(state, ui)
+    if args.command == "uninstall":
+        return cmd_uninstall(state, ui, noninteractive)
 
     print_top_help(parser)
     return 1
