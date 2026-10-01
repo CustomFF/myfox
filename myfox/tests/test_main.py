@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -122,12 +123,14 @@ class ReinstallTests(IsolatedStateCase):
             state.set("channel", "beta")
             state.save()
 
-            with mock.patch("myfox.firefox.install_tarball", return_value="158.0") as install, \
+            with mock.patch.dict("os.environ", {}, clear=False), \
+                 mock.patch("myfox.firefox.install_tarball", return_value="158.0") as install, \
                  mock.patch("myfox.apply.apply_autoconfig") as autoconfig, \
                  mock.patch("myfox.apply.apply_chrome") as chrome, \
                  mock.patch("myfox.apply.apply_theme_pref") as theme, \
-                 mock.patch("myfox.addons.install_themes", return_value=[]) as themes, \
+                 mock.patch("myfox.addons.fetch_themes", return_value=[]) as themes, \
                  mock.patch("myfox.apply.apply_bookmarklets", return_value=None):
+                os.environ.pop("MYFOX_TWEAKS_LOCAL", None)
                 rc = cli.cmd_reinstall(state, _FakeUI())
 
             self.assertEqual(rc, 0)
@@ -135,7 +138,7 @@ class ReinstallTests(IsolatedStateCase):
             autoconfig.assert_called_once_with(install_dir)
             chrome.assert_called_once_with(profile_dir)
             theme.assert_called_once_with(profile_dir, "dark")
-            themes.assert_called_once_with(profile_dir)
+            themes.assert_called_once_with(profile_dir, local_dir=None)
             self.assertEqual(State().get("firefox_version"), "158.0")
 
     def test_skips_profile_steps_when_no_profile_is_recorded(self):

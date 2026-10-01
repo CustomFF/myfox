@@ -56,15 +56,18 @@ def cmd_browser(firefox_args: list[str], state: State, ui) -> int:
 
 
 def _reapply_tweaks(install_dir: Path, profile_dir: Path | None, state: State) -> None:
-    """autoconfig/chrome/theme/themes/bookmarklets from this local copy —
-    never a network fetch of a *different* copy (that's refresh's job once
-    the tweaks-track download exists; see cmd_refresh)."""
+    """autoconfig/chrome/theme-pref from this local copy — never a network
+    fetch of a *different* copy (that's refresh's job once the tweaks-track
+    download exists; see cmd_refresh). Themes are the one exception: they're
+    built+signed in CustomFF/tweaks' own CI, not bundled here, so
+    fetch_themes() always goes to its releases (or a local tweaks checkout
+    via MYFOX_TWEAKS_LOCAL, dev use)."""
     apply.apply_autoconfig(install_dir)
     if profile_dir is None:
         return
     apply.apply_chrome(profile_dir)
     apply.apply_theme_pref(profile_dir, state.get("theme", "dark"))
-    addons.install_themes(profile_dir)
+    addons.fetch_themes(profile_dir, local_dir=os.environ.get("MYFOX_TWEAKS_LOCAL"))
     if state.get("opt_plasma") and addons.is_plasma_session():
         addons.apply_amo_addons(profile_dir, [addons.MYFOX_ADDON_PLASMA])
     if state.get("opt_bl", True):

@@ -1,10 +1,11 @@
-"""Installs the (already-signed) bundled themes and, optionally, the AMO
-Plasma integration add-on.
+"""Installs the (already-signed) themes built by CustomFF/tweaks and,
+optionally, the AMO Plasma integration add-on.
 
-Port of lib/addons.sh. Theme install is a plain file copy — no network,
-no addon_guid lookup: the two XPIs are already built and signed (see
-themes/README.md), our own IDs, not resolved from AMO. Only Plasma
-integration still goes through AMO (urllib + json instead of curl + awk).
+Port of lib/addons.sh. Theme XPIs used to be bundled in this repo and
+just copied; autoconfig/chrome/themes have since moved to their own
+CustomFF/tweaks repo (see docs/python-rewrite-plan.md), so this fetches
+the signed build from its releases instead. Only Plasma integration goes
+through AMO directly (urllib + json instead of curl + awk).
 """
 
 from __future__ import annotations
@@ -17,11 +18,14 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from . import net, paths
+from . import net, version
 
 MYFOX_THEME_DARK_ID = "myfox-dark-theme@daydve.github.io"
 MYFOX_THEME_LIGHT_ID = "myfox-light-theme@daydve.github.io"
 MYFOX_ADDON_PLASMA = "plasma-integration"
+
+TWEAKS_REPO = "CustomFF/tweaks"
+THEMES_TAG_RE = re.compile(r"^themes-")
 
 _THEME_FILES = {
     MYFOX_THEME_DARK_ID: "myfox-dark.xpi",
@@ -29,19 +33,53 @@ _THEME_FILES = {
 }
 
 
-def install_themes(profile_dir: Path) -> list[str]:
-    """Returns the theme IDs whose bundled .xpi was missing (a warning for
-    the caller, not a hard failure) — both themes are always installed,
-    instant switching later (see resolve_theme in the old bin/myfox-core)."""
+def _release_assets(repo: str, tag: str) -> dict[str, str]:
+    """name -> browser_download_url for every asset of a tagged release."""
+    url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
+    with urllib.request.urlopen(net.request(url), timeout=15) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    return {a["name"]: a["browser_download_url"] for a in data.get("assets", [])}
+
+
+def fetch_themes(profile_dir: Path, local_dir: str | None = None) -> list[str]:
+    """Returns the theme IDs that couldn't be installed (a warning for the
+    caller, never a hard failure) — both themes are always installed,
+    instant switching later (see resolve_theme in the old bin/myfox-core).
+
+    Fetched from CustomFF/tweaks' latest `themes-*` release, or from a
+    local tweaks checkout's `build/signed/` when `local_dir` is given (dev
+    use, same shape as apply.py's MYFOX_DDBLM_LOCAL)."""
     ext_dir = profile_dir / "extensions"
     ext_dir.mkdir(parents=True, exist_ok=True)
+
+    assets: dict[str, str] = {}
+    if not local_dir:
+        tag = version.latest_tag(THEMES_TAG_RE, repo=TWEAKS_REPO)
+        if tag:
+            try:
+                assets = _release_assets(TWEAKS_REPO, tag)
+            except (urllib.error.URLError, OSError, json.JSONDecodeError):
+                assets = {}
+
     missing = []
     for addon_id, filename in _THEME_FILES.items():
-        src = paths.themes_dir() / filename
-        if not src.is_file():
+        dest = ext_dir / f"{addon_id}.xpi"
+        if local_dir:
+            src = Path(local_dir) / "build" / "signed" / filename
+            if not src.is_file():
+                missing.append(addon_id)
+                continue
+            shutil.copy2(src, dest)
+            continue
+        url = assets.get(filename)
+        if not url:
             missing.append(addon_id)
             continue
-        shutil.copy2(src, ext_dir / f"{addon_id}.xpi")
+        try:
+            with urllib.request.urlopen(net.request(url), timeout=60) as resp:
+                dest.write_bytes(resp.read())
+        except (urllib.error.URLError, OSError):
+            missing.append(addon_id)
     return missing
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,20 +9,91 @@ from unittest import mock
 from myfox import addons
 
 
-class InstallThemesTests(unittest.TestCase):
-    def test_copies_both_bundled_xpis_using_the_fixed_ids(self):
+class FetchThemesTests(unittest.TestCase):
+    def _fake_response(self, body: bytes):
+        cm = mock.MagicMock()
+        cm.__enter__.return_value.read.return_value = body
+        return cm
+
+    def test_local_dir_copies_both_signed_xpis(self):
         with tempfile.TemporaryDirectory() as d:
-            profile_dir = Path(d)
-            missing = addons.install_themes(profile_dir)
+            local = Path(d) / "tweaks-checkout" / "build" / "signed"
+            local.mkdir(parents=True)
+            (local / "myfox-dark.xpi").write_bytes(b"dark")
+            (local / "myfox-light.xpi").write_bytes(b"light")
+
+            profile_dir = Path(d) / "profile"
+            missing = addons.fetch_themes(profile_dir, local_dir=str(Path(d) / "tweaks-checkout"))
+
             self.assertEqual(missing, [])
             ext = profile_dir / "extensions"
-            self.assertTrue((ext / f"{addons.MYFOX_THEME_DARK_ID}.xpi").is_file())
-            self.assertTrue((ext / f"{addons.MYFOX_THEME_LIGHT_ID}.xpi").is_file())
+            self.assertEqual((ext / f"{addons.MYFOX_THEME_DARK_ID}.xpi").read_bytes(), b"dark")
+            self.assertEqual((ext / f"{addons.MYFOX_THEME_LIGHT_ID}.xpi").read_bytes(), b"light")
 
-    def test_reports_missing_bundled_assets_instead_of_raising(self):
-        with tempfile.TemporaryDirectory() as d, \
-             mock.patch("myfox.paths.themes_dir", return_value=Path(d) / "nowhere"):
-            missing = addons.install_themes(Path(d) / "profile")
+    def test_local_dir_reports_missing_files_instead_of_raising(self):
+        with tempfile.TemporaryDirectory() as d:
+            missing = addons.fetch_themes(Path(d) / "profile", local_dir=str(Path(d) / "nowhere"))
+        self.assertCountEqual(missing, [addons.MYFOX_THEME_DARK_ID, addons.MYFOX_THEME_LIGHT_ID])
+
+    def test_fetches_both_xpis_from_the_latest_themes_release(self):
+        release_json = {
+            "assets": [
+                {"name": "myfox-dark.xpi", "browser_download_url": "https://example/dark"},
+                {"name": "myfox-light.xpi", "browser_download_url": "https://example/light"},
+            ]
+        }
+        responses = {
+            "https://api.github.com/repos/CustomFF/tweaks/releases/tags/themes-20261001": self._fake_response(
+                json.dumps(release_json).encode("utf-8")
+            ),
+            "https://example/dark": self._fake_response(b"dark"),
+            "https://example/light": self._fake_response(b"light"),
+        }
+
+        def fake_urlopen(req, timeout=None):
+            return responses[req.full_url]
+
+        with mock.patch("myfox.version.latest_tag", return_value="themes-20261001"), \
+             mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            with tempfile.TemporaryDirectory() as d:
+                profile_dir = Path(d)
+                missing = addons.fetch_themes(profile_dir)
+
+                self.assertEqual(missing, [])
+                ext = profile_dir / "extensions"
+                self.assertEqual((ext / f"{addons.MYFOX_THEME_DARK_ID}.xpi").read_bytes(), b"dark")
+                self.assertEqual((ext / f"{addons.MYFOX_THEME_LIGHT_ID}.xpi").read_bytes(), b"light")
+
+    def test_no_themes_release_found_reports_both_missing(self):
+        with mock.patch("myfox.version.latest_tag", return_value=None):
+            with tempfile.TemporaryDirectory() as d:
+                missing = addons.fetch_themes(Path(d))
+        self.assertCountEqual(missing, [addons.MYFOX_THEME_DARK_ID, addons.MYFOX_THEME_LIGHT_ID])
+
+    def test_release_missing_one_asset_reports_only_that_one(self):
+        release_json = {"assets": [{"name": "myfox-dark.xpi", "browser_download_url": "https://example/dark"}]}
+        responses = {
+            "https://api.github.com/repos/CustomFF/tweaks/releases/tags/themes-20261001": self._fake_response(
+                json.dumps(release_json).encode("utf-8")
+            ),
+            "https://example/dark": self._fake_response(b"dark"),
+        }
+
+        def fake_urlopen(req, timeout=None):
+            return responses[req.full_url]
+
+        with mock.patch("myfox.version.latest_tag", return_value="themes-20261001"), \
+             mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            with tempfile.TemporaryDirectory() as d:
+                missing = addons.fetch_themes(Path(d))
+
+        self.assertEqual(missing, [addons.MYFOX_THEME_LIGHT_ID])
+
+    def test_release_lookup_network_failure_reports_both_missing(self):
+        with mock.patch("myfox.version.latest_tag", return_value="themes-20261001"), \
+             mock.patch("urllib.request.urlopen", side_effect=OSError("down")):
+            with tempfile.TemporaryDirectory() as d:
+                missing = addons.fetch_themes(Path(d))
         self.assertCountEqual(missing, [addons.MYFOX_THEME_DARK_ID, addons.MYFOX_THEME_LIGHT_ID])
 
 
