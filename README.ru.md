@@ -8,7 +8,7 @@ MyFox — набор твиков интерфейса Firefox (плавающа
 и применяет на него твики.
 
 В этом репозитории — **твики и инсталлер**. Букмарклеты живут в отдельном проекте
-**[ddblm](https://github.com/DayDve/ddblm)** (DayDve BookmarkLet Manager). MyFox скачивает
+**[ddblm](https://github.com/CustomFF/ddblm)** (DayDve BookmarkLet Manager). MyFox скачивает
 готовые твик-файлы (CSS + иконки) из ddblm через raw.githubusercontent.com — клонировать
 или собирать ddblm самостоятельно не нужно.
 
@@ -37,7 +37,7 @@ MyFox — набор твиков интерфейса Firefox (плавающа
 Из клона:
 
 ```bash
-git clone https://github.com/DayDve/myfox.git
+git clone https://github.com/CustomFF/myfox.git
 cd myfox
 ./bin/myfox-core install          # или: make install ARGS="-y"
 ```
@@ -145,7 +145,7 @@ host). Инсталлер проверяет его наличие: если п�
 
 ## Букмарклеты (ddblm)
 
-Букмарклеты — [отдельный проект](https://github.com/DayDve/ddblm). Твики (кастомные иконки и
+Букмарклеты — [отдельный проект](https://github.com/CustomFF/ddblm). Твики (кастомные иконки и
 скрытые подписи на панели закладок — из ddblm) идут вместе с «твики: да»; `--nobl` их пропускает.
 Инсталлер копирует `docs/blm_panel.css` и **все** `icons/*.svg` из ddblm (raw.githubusercontent.com
 для опубликованного ddblm; локальная копия через `MYFOX_DDBLM_LOCAL=/path` при разработке) в

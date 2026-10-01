@@ -21,7 +21,7 @@ import urllib.request
 
 from . import net
 
-GITHUB_REPO = "DayDve/myfox"
+GITHUB_REPO = "CustomFF/myfox"
 
 CORE_TAG_RE = re.compile(r"^core-")
 TWEAKS_TAG_RE = re.compile(r"^\d+\.\d+$")
