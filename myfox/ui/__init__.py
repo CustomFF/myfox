@@ -1,7 +1,7 @@
 """One interface, several backends — replaces lib/tui.sh's dialog/whiptail/
 read three-way branching inside every widget function.
 
-plain_backend (input()/print()) needs nothing; urwid_backend (pass 3,
+plain_backend (input()/print()) needs nothing; picotui_backend (pass 3,
 vendored) renders real dialogs on a tty; dearpygui_backend (pass 4, fetched
 on demand) will add a GUI — all behind the same Backend interface, so
 callers never branch on which one is active.
@@ -42,7 +42,7 @@ def get_backend(force_gui: bool = False, noninteractive: bool = False) -> Backen
     -y (noninteractive) always gets plain: nothing it does asks a real
     question, so there's nothing for a heavier backend to buy here.
     force_gui or a tty-less run with a display goes to dearpygui once pass 4
-    lands (plain until then); an interactive tty gets urwid; anything else
+    lands (plain until then); an interactive tty gets picotui; anything else
     (piped, no tty, no display — e.g. a cron job) falls back to plain.
     """
     from . import plain_backend  # local import: keeps this module dependency-free
@@ -54,7 +54,7 @@ def get_backend(force_gui: bool = False, noninteractive: bool = False) -> Backen
         # plain for now rather than pretending a GUI it can't yet show.
         return plain_backend.PlainBackend()
     if _has_tty():
-        from . import urwid_backend
+        from . import picotui_backend
 
-        return urwid_backend.UrwidBackend()
+        return picotui_backend.PicotuiBackend()
     return plain_backend.PlainBackend()
