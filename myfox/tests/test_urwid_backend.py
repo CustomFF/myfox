@@ -80,6 +80,14 @@ class ChooseTests(unittest.TestCase):
         with _drive(["esc"]):
             self.assertEqual(UrwidBackend().choose("Pick one", self.OPTIONS, default="a"), "a")
 
+    def test_a_list_longer_than_the_screen_scrolls_instead_of_overflowing(self):
+        # Regression: the first cut used Filler(Pile(...)), which has no
+        # concept of scrolling — a 170-option list (the real Firefox
+        # language picker) would just run off the bottom of the terminal.
+        options = [(str(i), f"Option {i}") for i in range(200)]
+        with _drive(["down"] * 150 + ["enter"]):
+            self.assertEqual(UrwidBackend().choose("Pick one", options), "150")
+
 
 class InputDirTests(unittest.TestCase):
     def test_typing_appends_at_the_cursor_after_the_prefilled_value(self):

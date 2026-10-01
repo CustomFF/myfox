@@ -1,12 +1,163 @@
 """First-install wizard: welcome -> dir -> channel -> lang -> profile ->
-tweaks -> theme -> summary, with Back.
+tweaks -> theme -> summary, with Back. Runs only from bootstrap.py's own
+"not installed yet" branch (see docs/python-rewrite-plan.md: there's no
+`install` subcommand) — wizard.run(ui) returns an Answers, or None if
+cancelled.
 
-TODO(pass 3): an explicit stack of screens (append on forward, pop on Back)
-over the ui.Backend interface — replaces bin/myfox-core's install_wizard,
-a step-string state machine driven by tui_choose_kv/tui_confirm return codes
-0/1/3 meaning next/cancel/back. Not invoked as a `myfox` subcommand at all
-(see docs/python-rewrite-plan.md: there's no `install` command) — only from
-bootstrap.py's own "not installed yet" branch.
+An explicit stack of (page index, how we arrived) pairs — Back pops it,
+Next pushes the next index — replaces bin/myfox-core's install_wizard, a
+step-name string driven by tui_choose_kv/tui_confirm return codes 0/1/3
+(next/cancel/back). Every page function takes the direction it was
+entered from and returns where to go next; pages with no precondition
+(most of them) just ignore it. This exists for the two pages that can be
+skipped (profile, theme): skipping must continue in whichever direction
+the wizard was already travelling, or hitting Back from the page right
+after a skipped one would silently re-skip forward instead of actually
+going back.
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+
+from . import firefox, i18n
+from . import profiles as profiles_mod
+from .ui import Backend
+
+NEXT, BACK, CANCEL = "next", "back", "cancel"
+
+_DEFAULT_INSTALL_DIR = str(Path.home() / ".local" / "share" / "firefox")
+
+
+@dataclass
+class Answers:
+    install_dir: str = _DEFAULT_INSTALL_DIR
+    channel: str = "stable"
+    lang: str = "en-US"
+    profile_dir: str | None = None  # None = create a new one
+    tweaks: bool = True
+    theme: str = "dark"
+
+
+def _page_welcome(answers: Answers, ui: Backend, direction: str) -> str:
+    return NEXT if ui.confirm(i18n.t("wizard_welcome"), default=True) else CANCEL
+
+
+def _page_dir(answers: Answers, ui: Backend, direction: str) -> str:
+    while True:
+        raw = ui.input_dir(i18n.t("wizard_dir_prompt"), answers.install_dir)
+        if raw is None:
+            return BACK
+        try:
+            path = firefox.validate_install_dir(raw)
+        except firefox.InstallDirError as exc:
+            ui.message(i18n.t(exc.key, *exc.args_for_message))
+            continue
+        answers.install_dir = str(path)
+        return NEXT
+
+
+def _page_channel(answers: Answers, ui: Backend, direction: str) -> str:
+    options = [("stable", i18n.t("wizard_channel_stable")), ("beta", i18n.t("wizard_channel_beta"))]
+    value = ui.choose(i18n.t("wizard_channel_prompt"), options, default=answers.channel)
+    if value is None:
+        return BACK
+    answers.channel = value
+    return NEXT
+
+
+def _page_lang(answers: Answers, ui: Backend, direction: str) -> str:
+    with ui.spin(i18n.t("wizard_lang_fetching")):
+        try:
+            catalog = firefox.fetch_lang_catalog()
+        except OSError:
+            catalog = {}
+    if not catalog:
+        ui.message(i18n.t("wizard_lang_fetch_failed"))
+        answers.lang = "en-US"
+        return NEXT
+
+    options = sorted(((code, f"{name} ({code})") for code, name in catalog.items()), key=lambda pair: pair[1])
+    value = ui.choose(i18n.t("wizard_lang_prompt"), options, default=firefox.pick_lang(catalog))
+    if value is None:
+        return BACK
+    answers.lang = value
+    return NEXT
+
+
+def _page_profile(answers: Answers, ui: Backend, direction: str) -> str:
+    existing = profiles_mod.list_myfox()
+    if not existing:
+        answers.profile_dir = None
+        return direction  # nothing to ask — pass through, see module docstring
+
+    options = [("", i18n.t("wizard_profile_new"))]
+    options += [(str(path), name or path.name) for path, name in existing]
+    value = ui.choose(i18n.t("wizard_profile_prompt"), options, default="")
+    if value is None:
+        return BACK
+    answers.profile_dir = value or None
+    return NEXT
+
+
+def _page_tweaks(answers: Answers, ui: Backend, direction: str) -> str:
+    answers.tweaks = ui.confirm(i18n.t("wizard_tweaks_prompt"), default=True)
+    return NEXT
+
+
+def _page_theme(answers: Answers, ui: Backend, direction: str) -> str:
+    if not answers.tweaks:
+        return direction  # nothing to ask — pass through, see module docstring
+
+    options = [("dark", i18n.t("wizard_theme_dark")), ("light", i18n.t("wizard_theme_light"))]
+    value = ui.choose(i18n.t("wizard_theme_prompt"), options, default=answers.theme)
+    if value is None:
+        return BACK
+    answers.theme = value
+    return NEXT
+
+
+def _page_summary(answers: Answers, ui: Backend, direction: str) -> str:
+    lines = [
+        i18n.t("wizard_summary_dir", answers.install_dir),
+        i18n.t("wizard_summary_channel", answers.channel),
+        i18n.t("wizard_summary_lang", answers.lang),
+        i18n.t("wizard_summary_tweaks", i18n.t("wizard_yes") if answers.tweaks else i18n.t("wizard_no")),
+    ]
+    if answers.tweaks:
+        lines.append(i18n.t("wizard_summary_theme", answers.theme))
+    text = i18n.t("wizard_summary_title") + "\n\n" + "\n".join(lines)
+    return NEXT if ui.confirm(text, default=True) else BACK
+
+
+_PAGES: list[Callable[[Answers, Backend, str], str]] = [
+    _page_welcome,
+    _page_dir,
+    _page_channel,
+    _page_lang,
+    _page_profile,
+    _page_tweaks,
+    _page_theme,
+    _page_summary,
+]
+
+
+def run(ui: Backend) -> Answers | None:
+    answers = Answers()
+    stack = [0]
+    direction = NEXT
+    while stack:
+        index = stack[-1]
+        if index >= len(_PAGES):
+            return answers
+        outcome = _PAGES[index](answers, ui, direction)
+        if outcome == CANCEL:
+            return None
+        direction = outcome
+        if outcome == NEXT:
+            stack.append(index + 1)
+        else:
+            stack.pop()
+    return None
