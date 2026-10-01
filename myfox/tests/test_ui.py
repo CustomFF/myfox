@@ -47,11 +47,11 @@ class GetBackendTests(unittest.TestCase):
              mock.patch("myfox.ui._has_display", return_value=False):
             self.assertIsInstance(get_backend(), PlainBackend)
 
-    def test_interactive_tty_gets_urwid(self):
+    def test_interactive_tty_gets_picotui(self):
         with mock.patch("myfox.ui._has_tty", return_value=True):
-            from myfox.ui.urwid_backend import UrwidBackend
+            from myfox.ui.picotui_backend import PicotuiBackend
 
-            self.assertIsInstance(get_backend(), UrwidBackend)
+            self.assertIsInstance(get_backend(), PicotuiBackend)
 
 
 if __name__ == "__main__":

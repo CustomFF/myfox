@@ -1,21 +1,29 @@
 """Vendored third-party source, committed to git instead of fetched from
 PyPI at install time (see docs/python-rewrite-plan.md — no pip/venv in the
-shipped product). Pinned to the last release of each that still supports
-the project's Python 3.8 floor (confirmed live: their next releases all
-require >=3.9):
+shipped product).
 
-- urwid 2.6.16 (LGPL-2.1, licenses/urwid.COPYING) — terminal UI toolkit.
-- wcwidth 0.8.5 (MIT, licenses/wcwidth.LICENSE) — urwid's own dependency
-  for East-Asian/combining-character column widths.
-- typing_extensions 4.13.2 (PSF, licenses/typing_extensions.LICENSE) —
-  urwid imports `Literal`/`Protocol`/etc. from it unconditionally at
-  module level in several files, not just under TYPE_CHECKING, so this is
-  a genuine runtime dependency, confirmed by import failing without it.
+- picotui 1.2.1 (MIT, licenses/picotui.LICENSE) — terminal UI widgets
+  (Dialog/WButton/WListBox/WTextEntry/...). No dependencies of its own, no
+  python_requires floor (just a `sys.version_info < (3, 0)` guard), so no
+  Python-floor conflict the way urwid+wcwidth+typing_extensions had
+  (tried first — see git history on this branch: urwid alone pulled in
+  wcwidth's ~2MB of Unicode tables plus typing_extensions as a genuine
+  runtime dependency, and its own Filler/Pile layout model made a dialog
+  that actually looked like a dialog — bordered, centered, contrasting
+  from the terminal behind it — real work to build, not the default).
+  Known rough edges worth remembering if picotui itself needs debugging:
+  Widget.loop() treats a literal `True` return as "nothing happened yet,
+  keep looping", not "finished" — use ACTION_OK/ACTION_CANCEL (plain ints)
+  for finish_dialog, never True/False. dialog_box()'s title placement and
+  box fill color are also not centered/contrasting by default — see
+  ui/picotui_backend.py's BoxDialog for the override.
 
-Unmodified upstream source. urwid's own imports expect to find these as
-top-level packages (`import urwid`, `import wcwidth`), not nested under
-`myfox._vendor` — so callers prepend this directory to sys.path via
-ensure_on_path() instead of importing through this package.
+Unmodified upstream source (+ the LICENSE file, missing from the PyPI
+sdist — fetched from the GitHub repo instead). picotui's own imports
+expect to find it as a top-level package (`from picotui.widgets import
+...`), not nested under `myfox._vendor` — so callers prepend this
+directory to sys.path via ensure_on_path() instead of importing through
+this package.
 """
 
 from __future__ import annotations
