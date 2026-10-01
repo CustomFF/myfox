@@ -1,10 +1,10 @@
 """One interface, several backends — replaces lib/tui.sh's dialog/whiptail/
 read three-way branching inside every widget function.
 
-Pass 1: only plain_backend exists (input()/print(), no dependency at all).
-Later passes add urwid_backend (terminal, vendored) and dearpygui_backend
-(GUI, fetched on demand) behind the same Backend interface — callers never
-branch on which one is active.
+plain_backend (input()/print()) needs nothing; urwid_backend (pass 3,
+vendored) renders real dialogs on a tty; dearpygui_backend (pass 4, fetched
+on demand) will add a GUI — all behind the same Backend interface, so
+callers never branch on which one is active.
 """
 
 from __future__ import annotations
@@ -40,9 +40,10 @@ def get_backend(force_gui: bool = False, noninteractive: bool = False) -> Backen
     """Picks a backend without the caller needing to know why.
 
     -y (noninteractive) always gets plain: nothing it does asks a real
-    question, so there's nothing for a heavier backend to buy here. Real
-    urwid/dearpygui selection lands in passes 3-4 — this only fixes the
-    decision point so call sites never need to change later.
+    question, so there's nothing for a heavier backend to buy here.
+    force_gui or a tty-less run with a display goes to dearpygui once pass 4
+    lands (plain until then); an interactive tty gets urwid; anything else
+    (piped, no tty, no display — e.g. a cron job) falls back to plain.
     """
     from . import plain_backend  # local import: keeps this module dependency-free
 
@@ -52,5 +53,8 @@ def get_backend(force_gui: bool = False, noninteractive: bool = False) -> Backen
         # TODO(pass 4): dearpygui_backend, fetched on demand. Falls back to
         # plain for now rather than pretending a GUI it can't yet show.
         return plain_backend.PlainBackend()
-    # TODO(pass 3): urwid_backend when _has_tty().
+    if _has_tty():
+        from . import urwid_backend
+
+        return urwid_backend.UrwidBackend()
     return plain_backend.PlainBackend()

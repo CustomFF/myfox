@@ -32,10 +32,9 @@ class HasDisplayTests(unittest.TestCase):
 
 
 class GetBackendTests(unittest.TestCase):
-    """Pass 1: every branch resolves to PlainBackend (urwid/dearpygui are
-    pass 3/4). These lock in the call contract now so that wiring in a real
-    backend later is a deliberate, visible change to these assertions, not
-    a silent one."""
+    """dearpygui is pass 4 — force_gui and a tty-less run with a display
+    still fall back to plain until then; that assertion will need a
+    deliberate update once pass 4 lands, not a silent behavior change."""
 
     def test_noninteractive_always_gets_plain(self):
         self.assertIsInstance(get_backend(noninteractive=True), PlainBackend)
@@ -43,8 +42,16 @@ class GetBackendTests(unittest.TestCase):
     def test_force_gui_currently_falls_back_to_plain(self):
         self.assertIsInstance(get_backend(force_gui=True), PlainBackend)
 
-    def test_default_currently_falls_back_to_plain(self):
-        self.assertIsInstance(get_backend(), PlainBackend)
+    def test_no_tty_no_display_falls_back_to_plain(self):
+        with mock.patch("myfox.ui._has_tty", return_value=False), \
+             mock.patch("myfox.ui._has_display", return_value=False):
+            self.assertIsInstance(get_backend(), PlainBackend)
+
+    def test_interactive_tty_gets_urwid(self):
+        with mock.patch("myfox.ui._has_tty", return_value=True):
+            from myfox.ui.urwid_backend import UrwidBackend
+
+            self.assertIsInstance(get_backend(), UrwidBackend)
 
 
 if __name__ == "__main__":
