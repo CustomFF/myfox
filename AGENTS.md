@@ -134,7 +134,6 @@ myfox/
 6. **Тесты**: автотестов нет — чек-листы в `tests/README.md`. Минимум перед сдачей:
    - `bash -n get.sh bin/myfox-core lib/*.sh scripts/*.sh`
    - `shellcheck -S error get.sh bin/myfox-core lib/*.sh scripts/*.sh`
-   - `python3 -m py_compile scratch/*.py` (если трогали dev-скрипты)
 7. **Не трогай чужие файлы**: другие клоны репозитория (вроде `~/dev/myfox`) не изменяй — правь только копию, над которой работаешь.
 8. **Осторожно с реальной установкой**: инсталлер качает большие тарболы и меняет `~/.mozilla`/профили/desktop entry. Только песочница: `scratch/sandbox.sh <dir> [--fresh] -- ./bin/myfox-core <cmd> …` (изолирует HOME и все XDG; `--prefix` подставляет сам, только для `install`). Реальный профиль пользователя не трогай.
 9. **Проверка стилей вживую**: через RDP-прокси (см. README, «Development»); `--headless --screenshot` для проверки JS `myfox.cfg` не годится — процесс завершается раньше асинхронной логики; нужен настоящий запуск.

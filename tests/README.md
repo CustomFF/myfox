@@ -1,6 +1,8 @@
 # Тесты MyFox
 
-Автотестов нет — здесь чек-листы и команды для проверки инсталлера и твиков.
+Автотестов нет — здесь чек-листы и команды для проверки инсталлера. Чек-лист для
+самих твиков (CSS/JS в `autoconfig/`/`chrome/`) переехал в
+[CustomFF/tweaks](https://github.com/CustomFF/tweaks/blob/master/TESTING.md) вместе с ними.
 
 Все прогоны инсталлера — только в песочнице (`scratch/sandbox.sh` подставляет свой `$HOME` и все `$XDG_*`,
 для `install` сам добавляет `--prefix <sandbox>/install`). Реальный профиль и `$HOME` не трогать.
@@ -16,8 +18,6 @@ scratch/sandbox.sh /tmp/mf -- ./bin/myfox-core uninstall -y
 ```bash
 bash -n get.sh bin/myfox-core lib/*.sh scripts/*.sh
 shellcheck -S error get.sh bin/myfox-core lib/*.sh scripts/*.sh
-python3 -m py_compile scratch/*.py        # если трогали dev-скрипты
-for f in autoconfig/myfox.cfg autoconfig/myfox/*.js; do cp $f /tmp/fc.js && node --check /tmp/fc.js; done   # синтаксис privileged JS
 ```
 
 ## 1. Справка и разбор флагов (без сети)
@@ -108,49 +108,11 @@ $L ; $L help ; $L browser --version ; $L ff --version ; $L update -y ; $L uninst
 - [ ] запущенный наш Firefox: `uninstall` просит закрыть (SIGTERM, через 10 с SIGKILL)
 - [ ] деградация пиннинга: сломать тарбол (`libxul.so`) и `--reinstall -y` → предупреждение «headless failed», установка завершается, `install_hash` пуст, uninstall не падает
 
-## 5. Твики в браузере (ручная проверка после `myfox update` + рестарта)
+## 5. Регрессия после правок
 
-### 5.1 Свежий профиль, первый старт
-- [ ] на панели закладок две закладки: «Расширенные настройки» (about:config) и «Добавить букмарклеты» (ddblm; для русского Firefox — `?lang=ru`); **обе видны с иконками** и не пропадают после второго запуска
-- [ ] кнопки «Импорт закладок» и кнопки профиля нет; about:welcome не показывается
-- [ ] панель закладок видна на любой вкладке (`browser.toolbars.bookmarks.visibility=always`)
-- [ ] компактный интерфейс; ИИ/Pocket/спонсоры/телеметрия выключены (см. `freshProfilePrefs`)
-- [ ] префы: `toolkit.legacyUserProfileCustomizations.stylesheets`, `sidebar.revamp`, guard-префы `myfox.*`
-- [ ] активна выбранная тема; «внешний вид веб-сайтов» ей соответствует
-
-### 5.2 Стили
-- [ ] вкладки-карточки с «ушками», страница и сайдбар — карточки; один радиус везде; нет фиолетового (новая вкладка, about:preferences, кнопки)
-- [ ] сайдбар: закладки, история, синхронизированные вкладки (ряды сдвинуты под заголовок, без «пилюль», плотные), загрузки (свой заголовок, поиск, «Очистить»), пароли (фон как у других панелей)
-- [ ] ✕ круглые и на вкладках при наведении, в том числе когда вкладок много; кнопка закрытия сайдбара
-- [ ] about:preferences/logins/addons/processes — 12px, без «пилюль»
-- [ ] светлая тема: выбранная вкладка отделена тенью; проверить и на stable, и на beta
-- [ ] `userChrome.css` подхватывается вместе с `@import user/*.css` (все семь файлов) и agent-листы регистрируются из `chrome/agent/` (проверять ПОСЛЕ перезапуска: content-процессы — about:newtab, about:preferences — динамическую подмену не подхватывают)
-
-### 5.3 Чужие профили — чистый Firefox
-- создать новый профиль в той же инсталляции (без инсталлера) и запустить `<prefix>/firefox -P <имя>`:
-- [ ] в `<profile>/chrome/` нет файлов, нет `.myfox`, префы `myfox.*` не выставлены, закладок нет, интерфейс — обычный Firefox
-
-### 5.4 Букмарклеты (ddblm)
-```bash
-… install -y --profile <p>                      # с сетью
-MYFOX_DDBLM_LOCAL=/home/daydve/development/ddblm … install -y --profile <p>   # локальные правки
-```
-- [ ] в `<profile>/chrome/` `blm_panel.css` и все `panel-icons/*.svg` (включая `import-bookmarklets.svg`)
-- [ ] иконки и скрытие подписей применились; drag&drop карточек из галереи работает
-- [ ] недоступный источник (404) — предупреждение и пропуск, не падение
-
-### 5.5 Навеска вручную (README, «Applying to an existing Firefox»)
-- [ ] шаги 1–6 (включая `touch <profile>/.myfox`) на временной инсталляции: твики работают; без `.myfox` — не работают
-
-## 6. Регрессия после правок
-
-- [ ] `myfox.cfg`: `node --check`; настоящий запуск в песочнице дважды подряд — те же `myfox.*` префы, закладки на месте; ошибок в Browser Console нет
-- [ ] CSS: относительные `url()` в `chrome/user/*.css` — только с `../` (`grep -rn 'url(' chrome/user chrome/agent | grep -v 'chrome://\|data:'`)
-- [ ] после разбиения/переноса стилей — сравнить computed-style до/после на живом Firefox (главное окно + сайдбары), одинаково для старого и нового набора
-- [ ] `scratch/reload_userchrome.py` (горячая перезагрузка) не развалился: склеивает `user/*.css` и `agent/*.css`
 - [ ] `scripts/dev-serve.sh` + реальный `curl | bash` в изолированном `$HOME`: install → `myfox` → `myfox browser --version` → `update` → `uninstall`
 
-## 7. Где смотреть результаты
+## 6. Где смотреть результаты
 
 - state: `~/.local/state/myfox/state`
 - инсталлер: `~/.local/share/myfox/`, `~/.local/bin/myfox`
