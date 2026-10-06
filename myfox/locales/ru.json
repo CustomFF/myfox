@@ -62,5 +62,6 @@
     "err_mozilla_unreachable": "Не удалось связаться с серверами Mozilla: {0}",
     "form_profile": "Профиль:",
     "err_gui_unavailable": "Графический интерфейс недоступен: {0}",
-    "form_lang_none": "Ничего не найдено."
+    "form_lang_none": "Ничего не найдено.",
+    "form_select": "Выбрать"
 }

@@ -62,5 +62,6 @@
     "err_mozilla_unreachable": "Could not reach Mozilla's servers: {0}",
     "form_profile": "Profile:",
     "err_gui_unavailable": "The graphical interface is unavailable: {0}",
-    "form_lang_none": "Nothing found."
+    "form_lang_none": "Nothing found.",
+    "form_select": "Select"
 }

@@ -6,14 +6,17 @@ install_form.InstallForm; this only draws it.
 
 from __future__ import annotations
 
+import os
 import textwrap
+import time
 import unicodedata
+from pathlib import Path
 
 from .. import i18n
 from ..install_form import Answers, Choice, InstallForm, Installer, Lang
-from .picotui_backend import BOX_BG, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen
+from .picotui_backend import BOX_BG, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
 
-from picotui.defs import KEYMAP, KEY_ENTER, C_B_BLUE, C_BLACK, C_GRAY, C_RED, C_WHITE  # noqa: E402 (picotui_backend put it on sys.path)
+from picotui.defs import KEYMAP, KEY_BACKSPACE, KEY_ENTER, C_B_BLUE, C_BLACK, C_GRAY, C_RED, C_WHITE  # noqa: E402 (picotui_backend put it on sys.path)
 from picotui.widgets import (  # noqa: E402
     ACTION_CANCEL, ACTION_NEXT, ACTION_OK, WCheckbox, WDropDown, WLabel, WListBox, WTextEntry,
 )
@@ -174,6 +177,111 @@ class _FormDialog(BoxDialog):
         return None, None
 
 
+ACTION_OPEN, ACTION_UP = 1100, 1101  # outside picotui's reserved 1000-1003
+
+
+class _DirList(WListBox):
+    """Subdirectories of one directory: Enter opens one, Backspace goes up,
+    typing jumps to the first name starting with what was typed."""
+
+    def __init__(self, w: int, h: int, names: list[str]):
+        self.names = names
+        super().__init__(w, h, [name if name == ".." else name + "/" for name in names])
+        self._typed, self._typed_at = "", 0.0
+
+    @property
+    def value(self) -> str | None:
+        return self.names[self.cur_line] if self.names else None
+
+    def select(self, index: int) -> None:
+        self.cur_line = self.choice = index
+        self.top_line = max(0, index - self.height // 2)
+        self.row = self.cur_line - self.top_line
+
+    def handle_key(self, key):
+        if key == KEY_ENTER:
+            return ACTION_OPEN if self.names else None
+        if key == KEY_BACKSPACE:
+            return ACTION_UP
+        if isinstance(key, bytes):
+            try:
+                ch = key.decode()
+            except UnicodeDecodeError:
+                ch = ""
+            if ch.isprintable():
+                now = time.monotonic()
+                self._typed = (self._typed if now - self._typed_at < 1 else "") + ch.lower()
+                self._typed_at = now
+                match = next((i for i, name in enumerate(self.names)
+                              if name != ".." and name.lower().startswith(self._typed)), None)
+                if match is not None:
+                    self.select(match)
+                    self.redraw()
+                return None
+        return super().handle_key(key)
+
+    def show_line(self, l, i):
+        if self.cur_line != i:
+            self.attr_color(*BOX_BG)
+        super().show_line(l, i)
+        self.attr_reset()
+
+
+def _subdirs(path: Path) -> list[str]:
+    """".." (unless at /), then subdirectories: plain ones, then hidden."""
+    try:
+        names = sorted(entry.name for entry in os.scandir(path) if entry.is_dir())
+    except OSError:
+        names = []
+    up = [".."] if path.parent != path else []
+    return up + [n for n in names if not n.startswith(".")] + [n for n in names if n.startswith(".")]
+
+
+def _nearest_dir(raw: str) -> Path:
+    path = Path(os.path.expanduser(raw.strip() or "~"))
+    if not path.is_absolute():
+        path = Path.home()
+    while not path.is_dir():
+        path = path.parent
+    return path
+
+
+def pick_dir(start: str, title: str) -> str | None:
+    """A directory chooser dialog, starting from the nearest existing
+    directory of `start`. Returns the chosen path, None on cancel."""
+    from picotui.screen import Screen
+
+    cur, came_from = _nearest_dir(start), None
+    cols, rows = Screen.screen_size()
+    w, h = min(_MAX_W - 8, cols - 4), min(_MAX_H - 4, rows - 2)
+    while True:
+        x, y = _centered(w, h)
+        d = _FormDialog(x, y, w, h, title=title)
+        shown = str(cur) if len(str(cur)) <= w - 4 else "…" + str(cur)[-(w - 5):]
+        d.add(2, 1, _Label(shown, w - 4))
+        names = _subdirs(cur)
+        dirs = _DirList(w - 4, h - 5, names)
+        d.add(2, 2, dirs)
+        if came_from in names:
+            dirs.select(names.index(came_from))
+        select_btn = ThemedButton(max(12, len(i18n.t("form_select")) + 4), i18n.t("form_select"))
+        select_btn.finish_dialog = ACTION_OK
+        cancel_btn = ThemedButton(max(12, len(i18n.t("ui_cancel")) + 4), i18n.t("ui_cancel"))
+        cancel_btn.finish_dialog = ACTION_CANCEL
+        _button_row(d, w, h - 2, [select_btn, cancel_btn])
+        _set_focus(d, dirs)
+
+        res = d.loop()
+        if res == ACTION_OK:
+            return str(cur)
+        if res == ACTION_OPEN and dirs.value != "..":
+            cur, came_from = cur / dirs.value, None
+        elif res in (ACTION_OPEN, ACTION_UP) and cur.parent != cur:
+            cur, came_from = cur.parent, cur.name
+        elif res not in (ACTION_OPEN, ACTION_UP):
+            return None
+
+
 def _bar(fraction: float, width: int) -> str:
     filled = round(fraction * (width - 7))
     return f"[{'#' * filled}{'-' * (width - 7 - filled)}] {round(fraction * 100):3d}%"
@@ -203,8 +311,12 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
         d.add(ctrl_x, row, widget)
         row += 1 + gap
 
-    dir_entry = _Entry(ctrl_w, a.install_dir)
+    browse_label = i18n.t("form_browse")
+    browse_btn = ThemedButton(len(browse_label) + 4, browse_label)
+    dir_entry = _Entry(ctrl_w - browse_btn.w - 1, a.install_dir)
+    dir_row = row
     add_row("form_dir", dir_entry, gap=1)
+    d.add(ctrl_x + ctrl_w - browse_btn.w, dir_row, browse_btn)
     channel = _Dropdown(form.channels, a.channel)
     add_row("form_channel", channel, gap=1)
     profile = None
@@ -256,7 +368,17 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
         theme.disabled = not form.theme_applies
         theme.redraw()
 
+    def on_browse(widget) -> None:
+        picked = pick_dir(dir_entry.get(), i18n.t("form_browse_title"))
+        if picked:
+            dir_entry.set(picked)
+            dir_entry.col = len(picked)
+            dir_entry.adjust_cursor_eol()
+        _clear()
+        d.redraw()
+
     tweaks.on("changed", on_tweaks)
+    browse_btn.on("click", on_browse)
     search.on("changed", lambda widget: langs.show(form.filter_langs(widget.get())))
 
     while True:
