@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable
 
-from . import i18n, version
+from . import gui_deps, i18n, version
 from .addons import TWEAKS_REPO
 from .install_form import Progress
 from .state import State
@@ -134,9 +134,15 @@ def run(state: State, gui: bool = False, noninteractive: bool = False, force: bo
         return 0 if refresh_plain.run(plan, update, ask=False) else 1
     if gui:
         try:
+            gui_deps.prepare()
             from .ui import refresh_gui
-        except ImportError as exc:
-            print(i18n.t("err_gui_unavailable", exc), file=sys.stderr)
+        except (ImportError, OSError, RuntimeError) as exc:
+            # Likely started from the menu: nobody would see a printed line.
+            text = i18n.t("err_gui_unavailable", exc)
+            from .ui import notify
+
+            if not notify.send(i18n.t("refresh_title"), text):
+                print(text, file=sys.stderr)
             return 1
         return 0 if refresh_gui.run(plan, update) else 1
     from .ui import _has_tty

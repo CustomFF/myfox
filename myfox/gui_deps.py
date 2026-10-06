@@ -3,6 +3,11 @@ architecture, not portable source, so it isn't in git: the install puts
 the matching one next to MyFox's own copy (share_dir()/dearpygui), from
 this project's own GitHub release — never PyPI/pip at runtime.
 
+The binary inside is a bare _dearpygui.so — no Python version in its
+name, so a newer Python would try to load an old one and may crash rather
+than fail to import. Hence the marker file naming the wheel it came from:
+ensure_current() compares it with the running Python before any import.
+
 MYFOX_DEARPYGUI_DIR=<dir with the wheels> replaces the release (dev use).
 """
 
@@ -41,6 +46,7 @@ _SHA256 = {
     "cp314-cp314-manylinux2014_aarch64": "43a561b5dc589944a3a2b469e5e68f1ab35ae38b3dcdf1f813ed9d6e024153f8",
 }
 _PLATFORM = {"amd64": "manylinux1_x86_64", "arm64": "manylinux2014_aarch64"}
+MARKER = ".myfox-wheel"
 
 
 def wheel_name(version_info=sys.version_info, arch: str | None = None) -> str | None:
@@ -51,18 +57,34 @@ def wheel_name(version_info=sys.version_info, arch: str | None = None) -> str | 
     return f"dearpygui-{VERSION}-{tag}.whl" if tag in _SHA256 else None
 
 
-def install_into(target: Path) -> None:
+def _current_tag() -> str | None:
+    name = wheel_name()
+    return name[len(f"dearpygui-{VERSION}-"):-len(".whl")] if name else None
+
+
+def ensure_current(target: Path) -> None:
+    """Before importing: if target/dearpygui wasn't made for this Python
+    (e.g. the distro upgraded it after the install), fetch the right one."""
+    marker = target / "dearpygui" / MARKER
+    installed = marker.read_text(encoding="utf-8").strip() if marker.is_file() else None
+    if installed is None or installed != _current_tag():
+        install_into(target, reuse_importable=False)
+
+
+def install_into(target: Path, reuse_importable: bool = True) -> None:
     """Puts the dearpygui package at target/dearpygui. One that is already
     importable here (bootstrap fetched it for a --gui install, or a dev
-    setup) is copied; otherwise the wheel is fetched and checked. Raises
-    OSError/RuntimeError on failure."""
+    setup) is copied unless reuse_importable is off; otherwise the wheel is
+    fetched and checked. Raises OSError/RuntimeError on failure."""
     dest = target / "dearpygui"
-    spec = importlib.util.find_spec("dearpygui")
+    spec = importlib.util.find_spec("dearpygui") if reuse_importable else None
     if spec and spec.submodule_search_locations:
         source = Path(next(iter(spec.submodule_search_locations)))
         if source.resolve() != dest.resolve():
             shutil.rmtree(dest, ignore_errors=True)
             shutil.copytree(source, dest, ignore=shutil.ignore_patterns("__pycache__"))
+        # Importable by this very Python, so it's this Python's wheel.
+        (dest / MARKER).write_text(f"{_current_tag()}\n", encoding="utf-8")
         return
 
     name = wheel_name()
@@ -87,4 +109,15 @@ def install_into(target: Path) -> None:
             zf.extractall(tmp, members)
         shutil.rmtree(dest, ignore_errors=True)
         shutil.move(str(Path(tmp) / "dearpygui"), str(dest))
+    (dest / MARKER).write_text(f"{tag}\n", encoding="utf-8")
 
+
+def prepare() -> None:
+    """Call before importing dearpygui. In the installed copy, makes sure its
+    dearpygui is the one for this Python (fetching it if not); a working
+    copy is left to whatever is on sys.path."""
+    from . import launcher, paths
+
+    share = launcher.share_dir()
+    if paths.myfox_root().resolve() == share.resolve():
+        ensure_current(share)

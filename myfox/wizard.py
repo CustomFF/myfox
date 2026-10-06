@@ -18,7 +18,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import i18n
+from . import gui_deps, i18n
 from .install_form import Answers, InstallForm, Installer, simulate_install
 from .installer import install as real_install
 from .ui import _has_tty
@@ -32,8 +32,9 @@ def run(gui: bool = False, noninteractive: bool = False, install: Installer = re
         return form_plain.run(form, install, noninteractive=True)
     if gui:
         try:
+            gui_deps.prepare()
             from .ui import form_gui
-        except ImportError as exc:
+        except (ImportError, OSError, RuntimeError) as exc:
             print(i18n.t("err_gui_unavailable", exc), file=sys.stderr)
             return None
         return form_gui.run(form, install)
