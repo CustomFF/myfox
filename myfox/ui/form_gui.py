@@ -340,11 +340,8 @@ class _Window:
                             self.form.profiles, a.profile_dir or "",
                             lambda v: setattr(a, "profile_dir", v or None),
                         )
-                with dpg.group(horizontal=True, xoffset=px(LABEL_W)):
-                    dpg.add_spacer()
-                    self.tweaks = dpg.add_checkbox(
-                        label=i18n.t("form_tweaks"), default_value=a.tweaks, callback=self._on_tweaks,
-                    )
+                with self._row(i18n.t("form_tweaks")):
+                    self.tweaks = dpg.add_checkbox(default_value=a.tweaks, callback=self._on_tweaks)
                 with self._row(i18n.t("form_theme")) as self.theme_row:
                     self.theme = _combo(self.form.themes, a.theme, lambda v: setattr(a, "theme", v))
                 dpg.add_spacer(height=px(4))

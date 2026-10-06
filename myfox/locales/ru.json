@@ -48,7 +48,7 @@
     "form_browse": "Обзор…",
     "form_browse_title": "Каталог установки Firefox",
     "form_channel": "Канал:",
-    "form_tweaks": "Применить твики MyFox",
+    "form_tweaks": "Твики MyFox:",
     "form_theme": "Оформление:",
     "form_lang_search": "Поиск языка…",
     "form_close": "Закрыть",
@@ -63,6 +63,5 @@
     "form_profile": "Профиль:",
     "err_gui_unavailable": "Графический интерфейс недоступен: {0}",
     "form_lang_none": "Ничего не найдено.",
-    "form_select": "Выбрать",
-    "form_tweaks_row": "Твики MyFox:"
+    "form_select": "Выбрать"
 }

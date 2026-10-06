@@ -319,7 +319,7 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     _clear()
     d = _FormDialog(x, y, w, h, title=i18n.t("form_title"))
 
-    labels = [i18n.t(k) for k in ("form_dir", "form_channel", "form_profile", "form_tweaks_row", "form_theme")]
+    labels = [i18n.t(k) for k in ("form_dir", "form_channel", "form_profile", "form_tweaks", "form_theme")]
     ctrl_x = 2 + max(len(label) for label in labels) + 2
     ctrl_w = w - ctrl_x - 2
     row = 1
@@ -345,7 +345,7 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
         profile = _Dropdown(form.profiles, a.profile_dir or "")
         add_row("form_profile", profile, gap=1)
     tweaks = _Checkbox("", choice=a.tweaks)
-    add_row("form_tweaks_row", tweaks)
+    add_row("form_tweaks", tweaks)
     theme = _Dropdown(form.themes, a.theme)
     theme_label = add_row("form_theme", theme)
     theme.hidden = theme_label.hidden = not form.theme_applies

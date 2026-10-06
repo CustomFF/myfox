@@ -48,7 +48,7 @@
     "form_browse": "Browse…",
     "form_browse_title": "Firefox installation folder",
     "form_channel": "Channel:",
-    "form_tweaks": "Apply MyFox tweaks",
+    "form_tweaks": "MyFox tweaks:",
     "form_theme": "Theme:",
     "form_lang_search": "Search language…",
     "form_close": "Close",
@@ -63,6 +63,5 @@
     "form_profile": "Profile:",
     "err_gui_unavailable": "The graphical interface is unavailable: {0}",
     "form_lang_none": "Nothing found.",
-    "form_select": "Select",
-    "form_tweaks_row": "MyFox tweaks:"
+    "form_select": "Select"
 }
