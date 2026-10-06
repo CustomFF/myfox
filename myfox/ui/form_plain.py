@@ -69,7 +69,7 @@ def _ask(form: InstallForm) -> None:
     _ask_lang(form)
 
 
-def _printer():
+def printer():
     """Prints a line per stage, not per progress tick."""
     last = {"stage": None}
 
@@ -93,7 +93,7 @@ def run(form: InstallForm, install: Installer, noninteractive: bool = False) -> 
         print(error, file=sys.stderr)
         return None
     try:
-        install(form.answers, _printer())
+        install(form.answers, printer())
     except Exception as exc:
         print(str(exc) or type(exc).__name__, file=sys.stderr)
         return None

@@ -34,13 +34,13 @@ def _fetch_releases(repo: str = GITHUB_REPO) -> list[dict]:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def latest_tag(pattern: re.Pattern, repo: str = GITHUB_REPO) -> str | None:
-    """None on any failure (network, rate limit, malformed response) — a
-    refresh that can't check is "nothing to report", never a crash."""
+def find_latest_tag(pattern: re.Pattern, repo: str = GITHUB_REPO) -> str | None:
+    """The newest tag matching `pattern`, None if there is none. Raises
+    OSError when GitHub can't be asked (network, rate limit, bad JSON)."""
     try:
         releases = _fetch_releases(repo)
-    except (urllib.error.URLError, OSError, json.JSONDecodeError, ValueError):
-        return None
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise OSError(f"bad response from GitHub: {exc}") from exc
     for rel in releases:
         tag = rel.get("tag_name", "")
         if pattern.match(tag):
@@ -48,13 +48,9 @@ def latest_tag(pattern: re.Pattern, repo: str = GITHUB_REPO) -> str | None:
     return None
 
 
-def tweaks_update_available(current: str | None) -> str | None:
-    """The new tag if it differs from `current`, else None. `current` is
-    whatever's recorded in state (see state.py's "tweaks_version" key)."""
-    latest = latest_tag(TWEAKS_TAG_RE)
-    return latest if latest and latest != current else None
-
-
-def core_update_available(current: str | None) -> str | None:
-    latest = latest_tag(CORE_TAG_RE)
-    return latest if latest and latest != current else None
+def latest_tag(pattern: re.Pattern, repo: str = GITHUB_REPO) -> str | None:
+    """find_latest_tag() with any failure folded into None."""
+    try:
+        return find_latest_tag(pattern, repo)
+    except OSError:
+        return None

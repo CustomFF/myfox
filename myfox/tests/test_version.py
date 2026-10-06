@@ -41,26 +41,16 @@ class LatestTagTests(unittest.TestCase):
         self.assertIsNone(version.CORE_TAG_RE.match("158.4"))
 
 
-class UpdateAvailableTests(unittest.TestCase):
-    def test_tweaks_update_available_when_tag_differs(self):
-        with mock.patch("myfox.version.latest_tag", return_value="158.4"):
-            self.assertEqual(version.tweaks_update_available("158.3"), "158.4")
+class FindLatestTagTests(unittest.TestCase):
+    def test_network_failure_raises(self):
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("down")), self.assertRaises(OSError):
+            version.find_latest_tag(version.CORE_TAG_RE)
 
-    def test_tweaks_no_update_when_tag_matches_current(self):
-        with mock.patch("myfox.version.latest_tag", return_value="158.4"):
-            self.assertIsNone(version.tweaks_update_available("158.4"))
-
-    def test_tweaks_no_update_when_nothing_found(self):
-        with mock.patch("myfox.version.latest_tag", return_value=None):
-            self.assertIsNone(version.tweaks_update_available("158.3"))
-
-    def test_core_update_available_when_tag_differs(self):
-        with mock.patch("myfox.version.latest_tag", return_value="core-3"):
-            self.assertEqual(version.core_update_available("core-2"), "core-3")
-
-    def test_first_run_with_no_recorded_version_reports_whatever_exists(self):
-        with mock.patch("myfox.version.latest_tag", return_value="158.4"):
-            self.assertEqual(version.tweaks_update_available(None), "158.4")
+    def test_bad_json_raises_oserror(self):
+        cm = mock.MagicMock()
+        cm.__enter__.return_value.read.return_value = b"not json"
+        with mock.patch("urllib.request.urlopen", return_value=cm), self.assertRaises(OSError):
+            version.find_latest_tag(version.CORE_TAG_RE)
 
 
 if __name__ == "__main__":

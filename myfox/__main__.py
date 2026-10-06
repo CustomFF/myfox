@@ -14,7 +14,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import addons, apply, firefox, i18n, profiles, version
+from . import addons, apply, firefox, i18n, profiles, refresh
 from .state import State
 from .ui import get_backend
 
@@ -35,8 +35,9 @@ def build_parser() -> argparse.ArgumentParser:
     # comment there) — not registered as a subparser, or --help would list
     # a command whose own flags argparse can never correctly describe.
 
-    sub.add_parser("refresh", parents=[common], help=i18n.t("cmd_refresh")) \
-        .add_argument("--force", action="store_true")
+    refresh_parser = sub.add_parser("refresh", parents=[common], help=i18n.t("cmd_refresh"))
+    refresh_parser.add_argument("--force", action="store_true")
+    refresh_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
 
     sub.add_parser("reinstall", parents=[common], help=i18n.t("cmd_reinstall"))
     sub.add_parser("uninstall", parents=[common], help=i18n.t("cmd_uninstall"))
@@ -114,33 +115,11 @@ def cmd_reinstall(state: State, ui) -> int:
     return 0
 
 
-def cmd_refresh(state: State, ui, force: bool) -> int:
-    install_dir = state.get("install_dir")
-    if not install_dir:
+def cmd_refresh(state: State, ui, force: bool, gui: bool, noninteractive: bool) -> int:
+    if not state.get("install_dir"):
         ui.message(i18n.t("err_not_installed"))
         return 1
-    install_dir = Path(install_dir)
-
-    if force:
-        profile_dir = state.get("profile_dir")
-        _reapply_tweaks(install_dir, Path(profile_dir) if profile_dir else None, state)
-        ui.message(i18n.t("refresh_forced_tweaks_done"))
-    else:
-        new_tweaks = version.tweaks_update_available(state.get("tweaks_version"))
-        ui.message(
-            i18n.t("refresh_tweaks_update_found_not_wired", new_tweaks)
-            if new_tweaks else i18n.t("refresh_tweaks_up_to_date")
-        )
-
-    # Self-update (replacing ~/.local/share/myfox) isn't wired up yet either
-    # way — building that now means inventing pass 5's release format early
-    # (see docs/python-rewrite-plan.md); the tag check itself is already real.
-    new_core = version.core_update_available(state.get("core_version"))
-    ui.message(
-        i18n.t("refresh_core_update_found_not_wired", new_core)
-        if new_core else i18n.t("refresh_core_up_to_date")
-    )
-    return 0
+    return refresh.run(state, gui=gui, noninteractive=noninteractive, force=force)
 
 
 def print_top_help(parser: argparse.ArgumentParser) -> None:
@@ -151,7 +130,7 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print()
     print(i18n.t("usage_usage"))
     print(f"  myfox browser [firefox args...]   {i18n.t('cmd_browser')}")
-    print(f"  myfox refresh [--force]           {i18n.t('cmd_refresh')}")
+    print(f"  myfox refresh [--force] [--gui]   {i18n.t('cmd_refresh')}")
     print(f"  myfox reinstall                   {i18n.t('cmd_reinstall')}")
     print(f"  myfox uninstall                   {i18n.t('cmd_uninstall')}")
     print(f"  myfox help                        {i18n.t('cmd_help')}")
@@ -193,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
         print_top_help(parser)
         return 0
     if args.command == "refresh":
-        return cmd_refresh(state, ui, force=args.force)
+        return cmd_refresh(state, ui, force=args.force, gui=args.gui, noninteractive=noninteractive)
     if args.command == "reinstall":
         return cmd_reinstall(state, ui)
     if args.command == "uninstall":

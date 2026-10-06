@@ -160,57 +160,14 @@ class ReinstallTests(IsolatedStateCase):
 
 class RefreshTests(IsolatedStateCase):
     def test_not_installed_returns_an_error(self):
-        self.assertEqual(cli.cmd_refresh(State(), _FakeUI(), force=False), 1)
+        self.assertEqual(cli.cmd_refresh(State(), _FakeUI(), force=False, gui=False, noninteractive=False), 1)
 
-    def test_force_reapplies_local_tweaks_without_checking_tags(self):
-        with tempfile.TemporaryDirectory() as d:
-            install_dir = Path(d) / "firefox"
-            install_dir.mkdir()
-            state = State()
-            state.set("install_dir", str(install_dir))
-            state.save()
-
-            with mock.patch("myfox.apply.apply_autoconfig") as autoconfig, \
-                 mock.patch("myfox.version.tweaks_update_available") as tweaks_check, \
-                 mock.patch("myfox.version.core_update_available", return_value=None):
-                rc = cli.cmd_refresh(state, _FakeUI(), force=True)
-
-            self.assertEqual(rc, 0)
-            autoconfig.assert_called_once()
-            tweaks_check.assert_not_called()
-
-    def test_without_force_reports_an_update_without_downloading_it(self):
-        with tempfile.TemporaryDirectory() as d:
-            install_dir = Path(d) / "firefox"
-            install_dir.mkdir()
-            state = State()
-            state.set("install_dir", str(install_dir))
-            state.save()
-
-            with mock.patch("myfox.apply.apply_autoconfig") as autoconfig, \
-                 mock.patch("myfox.version.tweaks_update_available", return_value="158.4"), \
-                 mock.patch("myfox.version.core_update_available", return_value=None):
-                ui = _FakeUI()
-                rc = cli.cmd_refresh(state, ui, force=False)
-
-            self.assertEqual(rc, 0)
-            autoconfig.assert_not_called()
-            self.assertTrue(any("158.4" in m for m in ui.messages))
-
-    def test_reports_up_to_date_when_nothing_changed(self):
-        with tempfile.TemporaryDirectory() as d:
-            install_dir = Path(d) / "firefox"
-            install_dir.mkdir()
-            state = State()
-            state.set("install_dir", str(install_dir))
-            state.save()
-
-            with mock.patch("myfox.version.tweaks_update_available", return_value=None), \
-                 mock.patch("myfox.version.core_update_available", return_value=None):
-                ui = _FakeUI()
-                cli.cmd_refresh(state, ui, force=False)
-
-            self.assertEqual(ui.messages, [i18n.t("refresh_tweaks_up_to_date"), i18n.t("refresh_core_up_to_date")])
+    def test_installed_hands_over_to_refresh_run(self):
+        state = State()
+        state.set("install_dir", "/opt/firefox")
+        with mock.patch("myfox.refresh.run", return_value=0) as run:
+            self.assertEqual(cli.cmd_refresh(state, _FakeUI(), force=True, gui=True, noninteractive=False), 0)
+        run.assert_called_once_with(state, gui=True, noninteractive=False, force=True)
 
 
 class DispatchWiringTests(IsolatedStateCase):
@@ -218,10 +175,10 @@ class DispatchWiringTests(IsolatedStateCase):
     directly above, this only checks main() calls the right one with the
     right arguments."""
 
-    def test_refresh_force_flag_is_forwarded(self):
+    def test_refresh_flags_are_forwarded(self):
         with mock.patch("myfox.__main__.cmd_refresh", return_value=0) as cmd:
-            cli.main(["refresh", "--force"])
-        cmd.assert_called_once_with(mock.ANY, mock.ANY, force=True)
+            cli.main(["refresh", "--force", "--gui", "-y"])
+        cmd.assert_called_once_with(mock.ANY, mock.ANY, force=True, gui=True, noninteractive=True)
 
     def test_reinstall_dispatches(self):
         with mock.patch("myfox.__main__.cmd_reinstall", return_value=0) as cmd:
