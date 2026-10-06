@@ -75,6 +75,13 @@ class FormTuiTests(unittest.TestCase):
         self.assertEqual(answers.lang, "ru")
         self.assertEqual(len(self.installed), 1)
 
+    def test_down_in_search_enters_the_list(self):
+        # Down from search -> list (English); Down -> Russian; Enter -> Install; Enter; Close.
+        keys = [KEY_TAB] * 5 + [KEY_DOWN, KEY_DOWN, KEY_ENTER, KEY_ENTER, KEY_ENTER]
+        with _drive(keys):
+            answers = form_tui.run(self.form, self.install)
+        self.assertEqual(answers.lang, "ru")
+
     def test_unticking_tweaks_hides_and_skips_the_theme(self):
         # dir -> browse -> channel -> tweaks, Space; then Tab must jump past theme to search.
         keys = [KEY_TAB] * 3 + [b" ", KEY_TAB, KEY_TAB, KEY_TAB, KEY_ENTER, KEY_ENTER]

@@ -283,6 +283,7 @@ class _Window:
         self._failure: str | None = None
         self._worker: threading.Thread | None = None
         self._search_was_active = False
+        self._was_typing = False
         # Where the keyboard is beyond ImGui's own text fields: None (the
         # form), "list", or a button item. dpg's ImGui keyboard navigation
         # proved unreliable here (focus_item landing on the next row), so
@@ -448,9 +449,11 @@ class _Window:
     def _on_key(self, key: int) -> None:
         enter = key in (dpg.mvKey_Return, dpg.mvKey_NumPadEnter)
         where = self._keyboard
-        if enter and self._search_was_active:
+        if (enter or key == dpg.mvKey_Down) and self._search_was_active:
             # Checked against the previous frame: Enter itself ends the edit.
+            # Down doesn't, so the field is defocused here.
             self._set_keyboard("list")
+            dpg.focus_item(self.langs.box)
         elif where == "list":
             if key in (dpg.mvKey_Up, dpg.mvKey_Down):
                 self.langs.move(-1 if key == dpg.mvKey_Up else 1)
@@ -469,9 +472,12 @@ class _Window:
 
     def tick(self) -> None:
         """Per-frame work dpg has no event for; runs on the UI thread."""
-        self._search_was_active = dpg.is_item_active(self.search)
-        if self._keyboard is not None and (self._search_was_active or dpg.is_item_active(self.dir_input)):
+        # Starting to edit a text field takes the keyboard back to the form.
+        typing = dpg.is_item_active(self.search) or dpg.is_item_active(self.dir_input)
+        if typing and not self._was_typing and self._keyboard is not None:
             self._set_keyboard(None)
+        self._was_typing = typing
+        self._search_was_active = dpg.is_item_active(self.search)
         for item in (self.dir_input, self.search):
             active = dpg.is_item_active(item)
             if active != (item in self._focused):

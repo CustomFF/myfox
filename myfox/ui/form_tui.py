@@ -16,7 +16,7 @@ from .. import i18n
 from ..install_form import Answers, Choice, InstallForm, Installer, Lang
 from .picotui_backend import BOX_BG, SGR_GRAY_ON_CYAN, SGR_WHITE_ON_GRAY, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
 
-from picotui.defs import KEYMAP, KEY_BACKSPACE, KEY_ENTER, C_B_BLUE, C_BLACK, C_RED, C_WHITE  # noqa: E402 (picotui_backend put it on sys.path)
+from picotui.defs import KEYMAP, KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, C_B_BLUE, C_BLACK, C_RED, C_WHITE  # noqa: E402 (picotui_backend put it on sys.path)
 from picotui.widgets import (  # noqa: E402
     ACTION_CANCEL, ACTION_NEXT, ACTION_OK, WCheckbox, WDropDown, WFrame, WLabel, WListBox, WTextEntry,
 )
@@ -71,16 +71,19 @@ class _Frame(WFrame):
 
 class _Entry(WTextEntry):
     """Emits "changed" on edits and shows a hint while empty and unfocused.
-    With next_on_enter, Enter moves on to the next widget."""
+    With moves_on, Enter or Down moves on to the next widget."""
 
-    def __init__(self, w: int, text: str, hint: str = "", next_on_enter: bool = False):
+    def __init__(self, w: int, text: str, hint: str = "", moves_on: bool = False):
         super().__init__(w, text)
         self.hint = hint
-        self.next_on_enter = next_on_enter
+        self.moves_on = moves_on
+
+    def handle_key(self, key):
+        if self.moves_on and key in (KEY_ENTER, KEY_DOWN):
+            return ACTION_NEXT
+        return super().handle_key(key)
 
     def handle_edit_key(self, key):
-        if key == KEY_ENTER and self.next_on_enter:
-            return ACTION_NEXT
         before = self.get()
         res = super().handle_edit_key(key)
         if self.get() != before:
@@ -348,7 +351,7 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     theme.hidden = theme_label.hidden = not form.theme_applies
     row += 1
 
-    search = _Entry(w - 4, "", hint=i18n.t("form_lang_search"), next_on_enter=True)
+    search = _Entry(w - 4, "", hint=i18n.t("form_lang_search"), moves_on=True)
     d.add(2, row, search)
     row += 1
     frame_h = max(5, h - row - 5)
