@@ -75,7 +75,7 @@ class FormTuiTests(unittest.TestCase):
         self.assertEqual(answers.lang, "ru")
         self.assertEqual(len(self.installed), 1)
 
-    def test_unticking_tweaks_disables_and_skips_the_theme(self):
+    def test_unticking_tweaks_hides_and_skips_the_theme(self):
         # dir -> browse -> channel -> tweaks, Space; then Tab must jump past theme to search.
         keys = [KEY_TAB] * 3 + [b" ", KEY_TAB, KEY_TAB, KEY_TAB, KEY_ENTER, KEY_ENTER]
         with _drive(keys):

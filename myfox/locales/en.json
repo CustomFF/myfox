@@ -63,5 +63,6 @@
     "form_profile": "Profile:",
     "err_gui_unavailable": "The graphical interface is unavailable: {0}",
     "form_lang_none": "Nothing found.",
-    "form_select": "Select"
+    "form_select": "Select",
+    "form_tweaks_row": "MyFox tweaks:"
 }

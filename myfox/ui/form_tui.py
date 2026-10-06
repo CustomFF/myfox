@@ -39,11 +39,12 @@ class _Label(WLabel):
     def __init__(self, text: str, w: int, fg: int = C_BLACK):
         super().__init__(text, w)
         self.fg = fg
+        self.hidden = False
 
     def redraw(self):
         self.goto(self.x, self.y)
         self.attr_color(self.fg, C_WHITE)
-        self.wr_fixedw(self.t, self.w)
+        self.wr_fixedw("" if self.hidden else self.t, self.w)
         self.attr_reset()
 
 
@@ -92,26 +93,27 @@ class _Dropdown(WDropDown):
         self.choices = choices
         self.choice = next(i for i, choice in enumerate(choices) if choice.value == value)
         self.disabled = False
+        self.hidden = False
 
     @property
     def value(self) -> str:
         return self.choices[self.choice].value
 
     def redraw(self):
-        if not self.disabled:
+        if not (self.disabled or self.hidden):
             super().redraw()
             return
         self.goto(self.x, self.y)
-        self.attr_color(C_WHITE, C_GRAY)
-        self.wr_fixedw(self.items[self.choice], self.w)
+        self.attr_color(*(BOX_BG if self.hidden else (C_WHITE, C_GRAY)))
+        self.wr_fixedw("" if self.hidden else self.items[self.choice], self.w)
         self.attr_reset()
 
     def handle_mouse(self, x, y):
-        if not self.disabled:
+        if not (self.disabled or self.hidden):
             super().handle_mouse(x, y)
 
     def handle_key(self, key):
-        if not self.disabled:
+        if not (self.disabled or self.hidden):
             super().handle_key(key)
 
 
@@ -167,11 +169,11 @@ class _FormDialog(BoxDialog):
         return super().get_input()
 
     def find_focusable_by_idx(self, from_idx, direction):
-        # Tab skips disabled widgets (the theme dropdown without tweaks).
+        # Tab skips disabled and hidden widgets (the theme without tweaks).
         sz = len(self.childs)
         for _ in range(sz):
             idx, widget = super().find_focusable_by_idx(from_idx, direction)
-            if widget is None or not getattr(widget, "disabled", False):
+            if widget is None or not (getattr(widget, "disabled", False) or getattr(widget, "hidden", False)):
                 return idx, widget
             from_idx = (idx + direction) % sz
         return None, None
@@ -300,16 +302,18 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     _clear()
     d = _FormDialog(x, y, w, h, title=i18n.t("form_title"))
 
-    labels = [i18n.t(k) for k in ("form_dir", "form_channel", "form_profile", "form_theme")]
+    labels = [i18n.t(k) for k in ("form_dir", "form_channel", "form_profile", "form_tweaks_row", "form_theme")]
     ctrl_x = 2 + max(len(label) for label in labels) + 2
     ctrl_w = w - ctrl_x - 2
     row = 1
 
-    def add_row(label_key: str, widget, gap: int = 0) -> None:
+    def add_row(label_key: str, widget, gap: int = 0) -> _Label:
         nonlocal row
-        d.add(2, row, _Label(i18n.t(label_key), ctrl_x - 2))
+        label = _Label(i18n.t(label_key), ctrl_x - 2)
+        d.add(2, row, label)
         d.add(ctrl_x, row, widget)
         row += 1 + gap
+        return label
 
     browse_label = i18n.t("form_browse")
     browse_btn = ThemedButton(len(browse_label) + 4, browse_label)
@@ -323,12 +327,11 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     if form.profiles:
         profile = _Dropdown(form.profiles, a.profile_dir or "")
         add_row("form_profile", profile, gap=1)
-    tweaks = _Checkbox(i18n.t("form_tweaks"), choice=a.tweaks)
-    d.add(ctrl_x, row, tweaks)
-    row += 1
+    tweaks = _Checkbox("", choice=a.tweaks)
+    add_row("form_tweaks_row", tweaks)
     theme = _Dropdown(form.themes, a.theme)
-    theme.disabled = not form.theme_applies
-    add_row("form_theme", theme)
+    theme_label = add_row("form_theme", theme)
+    theme.hidden = theme_label.hidden = not form.theme_applies
     row += 1
 
     search = _Entry(w - 4, "", hint=i18n.t("form_lang_search"), next_on_enter=True)
@@ -365,8 +368,9 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
 
     def on_tweaks(widget) -> None:
         a.tweaks = widget.choice
-        theme.disabled = not form.theme_applies
+        theme.hidden = theme_label.hidden = not form.theme_applies
         theme.redraw()
+        theme_label.redraw()
 
     def on_browse(widget) -> None:
         picked = pick_dir(dir_entry.get(), i18n.t("form_browse_title"))

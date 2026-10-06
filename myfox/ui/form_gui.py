@@ -294,9 +294,9 @@ class _Window:
     @contextlib.contextmanager
     def _row(self, label: str):
         # xoffset puts the control at LABEL_W, aligning every row's control.
-        with dpg.group(horizontal=True, xoffset=px(LABEL_W)):
+        with dpg.group(horizontal=True, xoffset=px(LABEL_W)) as group:
             dpg.add_text(label)
-            yield
+            yield group
 
     def _build(self, bold_font: int | None) -> None:
         a = self.answers
@@ -344,7 +344,7 @@ class _Window:
                     self.tweaks = dpg.add_checkbox(
                         label=i18n.t("form_tweaks"), default_value=a.tweaks, callback=self._on_tweaks,
                     )
-                with self._row(i18n.t("form_theme")):
+                with self._row(i18n.t("form_theme")) as self.theme_row:
                     self.theme = _combo(self.form.themes, a.theme, lambda v: setattr(a, "theme", v))
                 dpg.add_spacer(height=px(4))
                 self.search = dpg.add_input_text(
@@ -372,7 +372,7 @@ class _Window:
 
         for item in (self.dir_input, self.search):
             dpg.bind_item_theme(item, self._idle_input)
-        dpg.configure_item(self.theme, enabled=self.form.theme_applies)
+        dpg.configure_item(self.theme_row, show=self.form.theme_applies)
         if self.form.error:
             self._show_error(self.form.error)
             dpg.configure_item(self.install, enabled=False)
@@ -398,7 +398,7 @@ class _Window:
 
     def _on_tweaks(self, sender, checked: bool) -> None:
         self.answers.tweaks = checked
-        dpg.configure_item(self.theme, enabled=self.form.theme_applies)
+        dpg.configure_item(self.theme_row, show=self.form.theme_applies)
 
     def _on_browse(self) -> None:
         if self._picking:
