@@ -75,5 +75,9 @@
     "progress_tweaks_styles": "Applying tweaks: styles…",
     "progress_tweaks_bookmarklets": "Applying tweaks: bookmarklets…",
     "progress_shortcut": "Creating the shortcut…",
-    "progress_firefox_download_size_unknown": "Downloading Firefox… {0} MB"
+    "progress_firefox_download_size_unknown": "Downloading Firefox… {0} MB",
+    "progress_tweaks_plasma": "Applying tweaks: KDE Plasma integration…",
+    "note_plasma_pkg_missing": "KDE Plasma integration needs the system package «plasma-browser-integration». Install it: {0}",
+    "note_plasma_pkg_missing_manual": "KDE Plasma integration needs the system package «plasma-browser-integration»; install it with your package manager.",
+    "note_plasma_addon_failed": "Could not download the Plasma Integration add-on from addons.mozilla.org."
 }

@@ -75,5 +75,9 @@
     "progress_tweaks_styles": "Применение твиков: стили…",
     "progress_tweaks_bookmarklets": "Применение твиков: букмарклеты…",
     "progress_shortcut": "Создание ярлыка…",
-    "progress_firefox_download_size_unknown": "Скачивание Firefox… {0} МБ"
+    "progress_firefox_download_size_unknown": "Скачивание Firefox… {0} МБ",
+    "progress_tweaks_plasma": "Применение твиков: интеграция с KDE Plasma…",
+    "note_plasma_pkg_missing": "Для интеграции с KDE Plasma нужен системный пакет «plasma-browser-integration». Установите его: {0}",
+    "note_plasma_pkg_missing_manual": "Для интеграции с KDE Plasma нужен системный пакет «plasma-browser-integration»; установите его через менеджер пакетов.",
+    "note_plasma_addon_failed": "Не удалось скачать дополнение Plasma Integration с addons.mozilla.org."
 }

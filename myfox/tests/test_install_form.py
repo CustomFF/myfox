@@ -84,8 +84,9 @@ class FormTests(unittest.TestCase):
 class SimulateInstallTests(unittest.TestCase):
     def test_reports_increasing_progress_and_ends_done(self):
         reports = []
-        with mock.patch("myfox.install_form.time.sleep"):
+        with mock.patch("myfox.install_form.time.sleep"), mock.patch("myfox.addons.is_plasma_session", return_value=True):
             simulate_install(Answers(), lambda message, fraction: reports.append((message, fraction)))
+        self.assertIn(i18n.t("progress_tweaks_plasma"), [m for m, _f in reports])
         fractions = [fraction for _message, fraction in reports]
         self.assertEqual(fractions, sorted(fractions))
         self.assertEqual(reports[-1], (i18n.t("progress_done"), 1.0))

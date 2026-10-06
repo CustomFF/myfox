@@ -37,8 +37,11 @@ def install(answers: Answers, progress: Progress) -> None:
     install_dir = Path(answers.install_dir)
     reuse = firefox.dir_claim_state(install_dir) == "ours"
     weights = [("download", 0 if reuse else 60), ("extract", 0 if reuse else 15), ("profile", 10)]
+    plasma = answers.tweaks and addons.is_plasma_session()
     if answers.tweaks:
         weights += [("styles", 2), ("themes", 5), ("bookmarklets", 3)]
+    if plasma:
+        weights += [("plasma", 3)]
     weights += [("shortcut", 5)]
     stages = _Stages(progress, weights)
 
@@ -78,6 +81,15 @@ def install(answers: Answers, progress: Progress) -> None:
         stages.report("bookmarklets", i18n.t("progress_tweaks_bookmarklets"))
         apply.apply_bookmarklets(profile_dir, local_dir=os.environ.get("MYFOX_DDBLM_LOCAL"))
 
+    if plasma:
+        stages.report("plasma", i18n.t("progress_tweaks_plasma"))
+        if addons.apply_amo_addons(profile_dir, [addons.MYFOX_ADDON_PLASMA]):
+            answers.notes.append(i18n.t("note_plasma_addon_failed"))
+        if not addons.pkg_installed():
+            hint = addons.pkg_install_hint()
+            answers.notes.append(i18n.t("note_plasma_pkg_missing", hint) if hint
+                                 else i18n.t("note_plasma_pkg_missing_manual"))
+
     stages.report("shortcut", i18n.t("progress_shortcut"))
     desktop.write_entry(install_dir, launcher.install_self())
 
@@ -86,7 +98,7 @@ def install(answers: Answers, progress: Progress) -> None:
         ("install_dir", str(install_dir)), ("profile_dir", str(profile_dir)), ("firefox_version", version),
         ("install_hash", install_hash), ("installed_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
         ("lang", answers.lang), ("channel", answers.channel), ("theme", answers.theme),
-        ("tweaks", answers.tweaks), ("opt_bl", answers.tweaks),
+        ("tweaks", answers.tweaks), ("opt_bl", answers.tweaks), ("opt_plasma", plasma),
     ):
         state.set(key, value)
     state.save()

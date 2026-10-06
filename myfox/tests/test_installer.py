@@ -28,9 +28,14 @@ class InstallTests(IsolatedStateCase):
         on_extract(5, 5)
         return "152.0"
 
-    def _install(self, answers):
+    def _install(self, answers, plasma=False, pkg=True, addon_fails=False):
         record = lambda name: (lambda *a, **k: self.calls.append(name))  # noqa: E731
-        with mock.patch("myfox.firefox.install_tarball", side_effect=self._fake_tarball), \
+        amo = lambda *a, **k: self.calls.append("plasma") or (["plasma-integration"] if addon_fails else [])  # noqa: E731
+        with mock.patch("myfox.addons.is_plasma_session", return_value=plasma), \
+             mock.patch("myfox.addons.apply_amo_addons", side_effect=amo), \
+             mock.patch("myfox.addons.pkg_installed", return_value=pkg), \
+             mock.patch("myfox.addons.pkg_install_hint", return_value="sudo apt install plasma-browser-integration"), \
+             mock.patch("myfox.firefox.install_tarball", side_effect=self._fake_tarball), \
              mock.patch("myfox.profiles.create_new", return_value=self.profile_dir), \
              mock.patch("myfox.profiles.pin_install", side_effect=lambda *a, **k: self.calls.append("pin") or "HASH"), \
              mock.patch("myfox.apply.apply_autoconfig", side_effect=record("autoconfig")), \
@@ -62,6 +67,27 @@ class InstallTests(IsolatedStateCase):
     def test_without_tweaks_the_profile_is_left_alone(self):
         self._install(Answers(install_dir=str(self.install_dir), tweaks=False))
         self.assertEqual(self.calls, ["tarball", "desktop"])
+
+    def test_plasma_session_gets_the_addon_and_no_note_with_the_package(self):
+        answers = Answers(install_dir=str(self.install_dir))
+        self._install(answers, plasma=True)
+        self.assertEqual(self.calls[-2:], ["plasma", "desktop"])
+        self.assertEqual(answers.notes, [])
+        self.assertTrue(State().get("opt_plasma"))
+
+    def test_missing_plasma_package_leaves_a_note_with_the_command(self):
+        answers = Answers(install_dir=str(self.install_dir))
+        self._install(answers, plasma=True, pkg=False)
+        self.assertEqual(answers.notes, [i18n.t("note_plasma_pkg_missing", "sudo apt install plasma-browser-integration")])
+
+    def test_failed_plasma_addon_leaves_a_note(self):
+        answers = Answers(install_dir=str(self.install_dir))
+        self._install(answers, plasma=True, addon_fails=True)
+        self.assertIn(i18n.t("note_plasma_addon_failed"), answers.notes)
+
+    def test_no_plasma_without_tweaks(self):
+        self._install(Answers(install_dir=str(self.install_dir), tweaks=False), plasma=True)
+        self.assertNotIn("plasma", self.calls)
 
     def test_an_install_of_ours_is_reused(self):
         self.install_dir.mkdir()

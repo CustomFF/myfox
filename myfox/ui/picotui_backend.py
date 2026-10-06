@@ -48,7 +48,17 @@ def _ensure_screen() -> None:
     Screen.wr(b"\x1b[?1049h")  # alt screen: real terminal content is untouched underneath
     Screen.enable_mouse()
     Screen.cursor(False)
-    atexit.register(_teardown_screen)
+    atexit.register(end_screen)
+
+
+def end_screen() -> None:
+    """Leaves the alt screen now (it's otherwise left at exit), so whatever
+    is printed next stays visible in the terminal. Safe to call twice."""
+    global _started
+    if not _started:
+        return
+    _started = False
+    _teardown_screen()
 
 
 def _teardown_screen() -> None:

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import firefox, i18n
+from . import addons, firefox, i18n
 from . import profiles as profiles_mod
 
 DEFAULT_INSTALL_DIR = str(Path.home() / ".local" / "share" / "firefox")
@@ -29,6 +29,9 @@ class Answers:
     profile_dir: str | None = None  # None = create a new one
     tweaks: bool = True
     theme: str = "dark"
+    # Filled by the install: things to tell the user in the terminal once
+    # the form is closed (the TUI owns the terminal while it's open).
+    notes: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -115,6 +118,8 @@ def simulate_install(answers: Answers, progress: Progress) -> None:
             ("progress_tweaks_themes_download", 1.0),
             ("progress_tweaks_bookmarklets", 0.6),
         ]
+        if addons.is_plasma_session():
+            stages += [("progress_tweaks_plasma", 0.6)]
     stages += [("progress_shortcut", 0.4)]
     total = sum(seconds for _key, seconds in stages)
     done = 0.0
