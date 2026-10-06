@@ -23,7 +23,6 @@ def _common_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument("-y", "--yes", action="store_true", dest="noninteractive")
     p.add_argument("-v", "--verbose", action="store_true")
-    p.add_argument("--gui", action="store_true", help="force the graphical backend")
     return p
 
 
@@ -188,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     noninteractive = getattr(args, "noninteractive", False)
-    ui = get_backend(force_gui=getattr(args, "gui", False), noninteractive=noninteractive)
+    ui = get_backend(noninteractive=noninteractive)
 
     if args.command in (None, "help"):
         print_top_help(parser)

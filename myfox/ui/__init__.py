@@ -2,14 +2,12 @@
 read three-way branching inside every widget function.
 
 plain_backend (input()/print()) needs nothing; picotui_backend (pass 3,
-vendored) renders real dialogs on a tty; dearpygui_backend (pass 4, fetched
-on demand) adds a GUI — all behind the same Backend interface, so callers
-never branch on which one is active.
+vendored) renders real dialogs on a tty — both behind the same Backend
+interface, so callers never branch on which one is active.
 """
 
 from __future__ import annotations
 
-import os
 import sys
 from typing import Protocol, Sequence
 
@@ -32,7 +30,7 @@ class Backend(Protocol):
         """no_label=None suppresses the second button entirely (e.g. the
         wizard's first page: just "Continue" plus whatever cancel
         affordance the backend already offers — Escape in picotui, a
-        dedicated Cancel button in dearpygui) rather than showing a
+        dedicated Cancel button in a GUI) rather than showing a
         redundant second negative answer alongside it. Leaving yes_label/
         no_label unset (the default) resolves to the current locale's
         "Yes"/"No" — pass an explicit string only to say something more
@@ -80,33 +78,18 @@ def _has_tty() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
-def _has_display() -> bool:
-    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
-
-
-def get_backend(force_gui: bool = False, noninteractive: bool = False) -> Backend:
+def get_backend(noninteractive: bool = False) -> Backend:
     """Picks a backend without the caller needing to know why.
 
     -y (noninteractive) always gets plain: nothing it does asks a real
     question, so there's nothing for a heavier backend to buy here.
-    force_gui or a tty-less run with a display goes to dearpygui; an
-    interactive tty gets picotui; anything else (piped, no tty, no display
-    — e.g. a cron job) falls back to plain. dearpygui itself falls back to
-    plain if its compiled pair can't be fetched (no prebuilt release yet,
-    or no network) — a GUI it can't actually show is worse than a plain
-    prompt, never a crash.
+    An interactive tty gets picotui; anything else (piped, no tty — e.g.
+    a cron job) falls back to plain.
     """
     from . import plain_backend  # local import: keeps this module dependency-free
 
     if noninteractive:
         return plain_backend.PlainBackend()
-    if force_gui or (not _has_tty() and _has_display()):
-        try:
-            from . import dearpygui_backend
-
-            return dearpygui_backend.DearpyguiBackend()
-        except Exception:
-            return plain_backend.PlainBackend()
     if _has_tty():
         from . import picotui_backend
 
