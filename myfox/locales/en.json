@@ -47,5 +47,14 @@
     "wizard_summary_tweaks": "Tweaks: {0}",
     "wizard_summary_theme": "Theme: {0}",
     "wizard_yes": "yes",
-    "wizard_no": "no"
+    "wizard_no": "no",
+    "wizard_continue": "Continue",
+    "wizard_install": "Install",
+    "wizard_next": "Next",
+    "ui_yes": "Yes",
+    "ui_no": "No",
+    "ui_back": "Back",
+    "ui_cancel": "Cancel",
+    "ui_select": "Select",
+    "ui_ok": "OK"
 }

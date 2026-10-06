@@ -42,12 +42,15 @@ class Answers:
 
 
 def _page_welcome(answers: Answers, ui: Backend, direction: str) -> str:
-    return NEXT if ui.confirm(i18n.t("wizard_welcome"), default=True) else CANCEL
+    # no_label=None: there's no distinct "no" here, just proceed or don't —
+    # a second button alongside Continue would just restate Cancel.
+    confirmed = ui.confirm(i18n.t("wizard_welcome"), default=True, yes_label=i18n.t("wizard_continue"), no_label=None)
+    return NEXT if confirmed else CANCEL
 
 
 def _page_dir(answers: Answers, ui: Backend, direction: str) -> str:
     while True:
-        raw = ui.input_dir(i18n.t("wizard_dir_prompt"), answers.install_dir)
+        raw = ui.input_dir(i18n.t("wizard_dir_prompt"), answers.install_dir, next_label=i18n.t("wizard_next"))
         if raw is None:
             return BACK
         try:
@@ -61,7 +64,7 @@ def _page_dir(answers: Answers, ui: Backend, direction: str) -> str:
 
 def _page_channel(answers: Answers, ui: Backend, direction: str) -> str:
     options = [("stable", i18n.t("wizard_channel_stable")), ("beta", i18n.t("wizard_channel_beta"))]
-    value = ui.choose(i18n.t("wizard_channel_prompt"), options, default=answers.channel)
+    value = ui.choose(i18n.t("wizard_channel_prompt"), options, default=answers.channel, next_label=i18n.t("wizard_next"))
     if value is None:
         return BACK
     answers.channel = value
@@ -80,7 +83,9 @@ def _page_lang(answers: Answers, ui: Backend, direction: str) -> str:
         return NEXT
 
     options = sorted(((code, f"{name} ({code})") for code, name in catalog.items()), key=lambda pair: pair[1])
-    value = ui.choose(i18n.t("wizard_lang_prompt"), options, default=firefox.pick_lang(catalog))
+    value = ui.choose(
+        i18n.t("wizard_lang_prompt"), options, default=firefox.pick_lang(catalog), next_label=i18n.t("wizard_next"),
+    )
     if value is None:
         return BACK
     answers.lang = value
@@ -95,7 +100,7 @@ def _page_profile(answers: Answers, ui: Backend, direction: str) -> str:
 
     options = [("", i18n.t("wizard_profile_new"))]
     options += [(str(path), name or path.name) for path, name in existing]
-    value = ui.choose(i18n.t("wizard_profile_prompt"), options, default="")
+    value = ui.choose(i18n.t("wizard_profile_prompt"), options, default="", next_label=i18n.t("wizard_next"))
     if value is None:
         return BACK
     answers.profile_dir = value or None
@@ -103,7 +108,15 @@ def _page_profile(answers: Answers, ui: Backend, direction: str) -> str:
 
 
 def _page_tweaks(answers: Answers, ui: Backend, direction: str) -> str:
-    answers.tweaks = ui.confirm(i18n.t("wizard_tweaks_prompt"), default=True)
+    # toggle(), not confirm()'s yes/no or a two-item choose() list — a
+    # single on/off setting is a checkbox, not a filterable search box and
+    # scrollable listbox built for picking one of several named options
+    # (a live review called this out directly after an earlier choose()-
+    # based attempt). Same Back/Next/Cancel row as every other middle page.
+    result = ui.toggle(i18n.t("wizard_tweaks_prompt"), default=answers.tweaks, next_label=i18n.t("wizard_next"))
+    if result is None:
+        return BACK
+    answers.tweaks = result
     return NEXT
 
 
@@ -112,7 +125,7 @@ def _page_theme(answers: Answers, ui: Backend, direction: str) -> str:
         return direction  # nothing to ask — pass through, see module docstring
 
     options = [("dark", i18n.t("wizard_theme_dark")), ("light", i18n.t("wizard_theme_light"))]
-    value = ui.choose(i18n.t("wizard_theme_prompt"), options, default=answers.theme)
+    value = ui.choose(i18n.t("wizard_theme_prompt"), options, default=answers.theme, next_label=i18n.t("wizard_next"))
     if value is None:
         return BACK
     answers.theme = value
@@ -129,7 +142,13 @@ def _page_summary(answers: Answers, ui: Backend, direction: str) -> str:
     if answers.tweaks:
         lines.append(i18n.t("wizard_summary_theme", answers.theme))
     text = i18n.t("wizard_summary_title") + "\n\n" + "\n".join(lines)
-    return NEXT if ui.confirm(text, default=True) else BACK
+    # show_back, not no_label: declining here means "let me change
+    # something" — the same None-means-Back every other page uses, not a
+    # second labeled-"Back" button sitting in the no_label slot (which put
+    # it in a different position than every other page's actual Back
+    # button — found live).
+    confirmed = ui.confirm(text, default=True, yes_label=i18n.t("wizard_install"), no_label=None, show_back=True)
+    return NEXT if confirmed else BACK
 
 
 _PAGES: list[Callable[[Answers, Backend, str], str]] = [

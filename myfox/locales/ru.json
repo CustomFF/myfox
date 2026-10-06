@@ -47,5 +47,14 @@
     "wizard_summary_tweaks": "Твики: {0}",
     "wizard_summary_theme": "Тема: {0}",
     "wizard_yes": "да",
-    "wizard_no": "нет"
+    "wizard_no": "нет",
+    "wizard_continue": "Продолжить",
+    "wizard_install": "Установить",
+    "wizard_next": "Далее",
+    "ui_yes": "Да",
+    "ui_no": "Нет",
+    "ui_back": "Назад",
+    "ui_cancel": "Отмена",
+    "ui_select": "Выбрать",
+    "ui_ok": "ОК"
 }

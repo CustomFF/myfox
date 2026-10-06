@@ -17,12 +17,15 @@ import atexit
 import contextlib
 from typing import Sequence
 
-from .. import _vendor
+from .. import _vendor, i18n
+from . import _UNSET
 
 _vendor.ensure_on_path()
 
 from picotui.screen import Screen  # noqa: E402 (must follow ensure_on_path())
-from picotui.widgets import Dialog, WButton, WListBox, WLabel, WTextEntry, ACTION_OK, ACTION_CANCEL  # noqa: E402
+from picotui.widgets import (  # noqa: E402
+    Dialog, WButton, WCheckbox, WListBox, WLabel, WTextEntry, ACTION_OK, ACTION_CANCEL,
+)
 from picotui.defs import C_WHITE, C_BLACK, C_RED, C_BLUE, KEY_BACKSPACE  # noqa: E402
 
 ACTION_BACK = 1004  # not one of picotui's own reserved 1000-1003 sentinels
@@ -164,7 +167,14 @@ class _FilterableListBox(WListBox):
 
 
 class PicotuiBackend:
-    def confirm(self, prompt: str, default: bool = True) -> bool:
+    def confirm(
+        self, prompt: str, default: bool = True, yes_label: str = _UNSET, no_label: str | None = _UNSET,
+        show_back: bool = False,
+    ) -> bool | None:
+        if yes_label == _UNSET:
+            yes_label = i18n.t("ui_yes")
+        if no_label == _UNSET:
+            no_label = i18n.t("ui_no")
         _ensure_screen()
         lines = prompt.split("\n")
         w = _box_width(lines)
@@ -174,13 +184,43 @@ class PicotuiBackend:
         d = BoxDialog(x, y, w, h, title="MyFox")
         for i, line in enumerate(lines):
             d.add(2, 1 + i, WLabel(line, w=w - 4))
-        yes, no = ThemedButton(10, "Yes"), ThemedButton(10, "No")
-        yes.finish_dialog, no.finish_dialog = ACTION_OK, ACTION_CANCEL
-        _button_row(d, w, h - 2, [yes, no])
-        _set_focus(d, yes if default else no)
-        return d.loop() == ACTION_OK
 
-    def choose(self, header: str, options: Sequence[tuple[str, str]], default: str | None = None) -> str | None:
+        # [Back?, primary, secondary?] — the same slot order choose()/
+        # input_dir() use, confirm() included; it used to put its primary
+        # action first instead, which a live review flagged as exactly the
+        # kind of inconsistency that makes a wizard feel like several
+        # unrelated dialogs rather than one.
+        buttons = []
+        if show_back:
+            back = ThemedButton(10, i18n.t("ui_back"))
+            back.finish_dialog = ACTION_BACK
+            buttons.append(back)
+        yes = ThemedButton(max(10, len(yes_label) + 4), yes_label)
+        yes.finish_dialog = ACTION_OK
+        buttons.append(yes)
+        no = None
+        if no_label is not None:
+            no = ThemedButton(max(10, len(no_label) + 4), no_label)
+            no.finish_dialog = ACTION_CANCEL
+            buttons.append(no)
+        _button_row(d, w, h - 2, buttons)
+        _set_focus(d, yes if default or no is None else no)
+        # Escape already maps to ACTION_CANCEL via picotui's own Dialog —
+        # true even with no visible "No"/Cancel button, so suppressing it
+        # (no_label=None) never removes the only way out, just the
+        # redundant second button when there's nothing distinct for it to
+        # mean (e.g. the wizard's first page: "Continue" is the only real
+        # choice besides backing out).
+        res = d.loop()
+        if res == ACTION_BACK:
+            return None
+        return res == ACTION_OK
+
+    def choose(
+        self, header: str, options: Sequence[tuple[str, str]], default: str | None = None, next_label: str = _UNSET,
+    ) -> str | None:
+        if next_label == _UNSET:
+            next_label = i18n.t("ui_select")
         _ensure_screen()
         labels = [label for _value, label in options]
         w = _box_width(labels + [header])
@@ -193,7 +233,7 @@ class PicotuiBackend:
         lb = _FilterableListBox(w - 4, h - 7, labels, query_label)
         d.add(2, 1, query_label)
         d.add(2, 2, lb)
-        back, select = ThemedButton(10, "Back"), ThemedButton(10, "Select")
+        back, select = ThemedButton(10, i18n.t("ui_back")), ThemedButton(max(10, len(next_label) + 4), next_label)
         back.finish_dialog, select.finish_dialog = ACTION_BACK, ACTION_OK
         _button_row(d, w, h - 2, [back, select])
         _set_focus(d, lb)
@@ -209,7 +249,9 @@ class PicotuiBackend:
         chosen_label = lb.content[lb.cur_line]
         return next(value for value, label in options if label == chosen_label)
 
-    def input_dir(self, prompt: str, initial: str) -> str | None:
+    def input_dir(self, prompt: str, initial: str, next_label: str = _UNSET) -> str | None:
+        if next_label == _UNSET:
+            next_label = i18n.t("ui_ok")
         _ensure_screen()
         w = _box_width([prompt, initial])
         h = 7
@@ -220,9 +262,9 @@ class PicotuiBackend:
         entry = WTextEntry(w - 4, initial)
         entry.finish_dialog = ACTION_OK
         d.add(2, 2, entry)
-        back = ThemedButton(10, "Back")
+        back = ThemedButton(10, i18n.t("ui_back"))
         back.finish_dialog = ACTION_BACK
-        ok = ThemedButton(10, "OK")
+        ok = ThemedButton(max(10, len(next_label) + 4), next_label)
         ok.finish_dialog = ACTION_OK
         _button_row(d, w, h - 2, [back, ok])
         _set_focus(d, entry)
@@ -231,6 +273,38 @@ class PicotuiBackend:
         if res != ACTION_OK:
             return None
         return entry.get() or initial
+
+    def toggle(self, prompt: str, default: bool = True, next_label: str = _UNSET) -> bool | None:
+        # A real checkbox (picotui's own WCheckbox), not a two-item
+        # choose() list — a live review caught that choose()'s filterable
+        # search box and scrollable listbox machinery is nonsense for a
+        # single on/off setting (the wizard's "apply tweaks?" page).
+        if next_label == _UNSET:
+            next_label = i18n.t("ui_ok")
+        _ensure_screen()
+        w = _box_width([prompt])
+        h = 7
+        x, y = _centered(w, h)
+        _clear()
+        d = BoxDialog(x, y, w, h, title="MyFox")
+        d.add(2, 1, WLabel(prompt, w=w - 4))
+        checkbox = WCheckbox("", choice=default)
+        d.add(2, 2, checkbox)
+        back = ThemedButton(10, i18n.t("ui_back"))
+        back.finish_dialog = ACTION_BACK
+        ok = ThemedButton(max(10, len(next_label) + 4), next_label)
+        ok.finish_dialog = ACTION_OK
+        _button_row(d, w, h - 2, [back, ok])
+        _set_focus(d, checkbox)
+
+        res = d.loop()
+        # Any non-OK outcome (the Back button, or Escape -> ACTION_CANCEL at
+        # the Dialog level) means Back here, same as choose()/input_dir() —
+        # unlike confirm(), toggle() has no separate "No" button, so there's
+        # no second meaning ACTION_CANCEL needs to be told apart from.
+        if res != ACTION_OK:
+            return None
+        return checkbox.choice
 
     def message(self, text: str) -> None:
         _ensure_screen()
@@ -242,7 +316,7 @@ class PicotuiBackend:
         d = BoxDialog(x, y, w, h, title="MyFox")
         for i, line in enumerate(lines):
             d.add(2, 1 + i, WLabel(line, w=w - 4))
-        ok = ThemedButton(10, "OK")
+        ok = ThemedButton(10, i18n.t("ui_ok"))
         ok.finish_dialog = ACTION_OK
         _button_row(d, w, h - 2, [ok])
         _set_focus(d, ok)
