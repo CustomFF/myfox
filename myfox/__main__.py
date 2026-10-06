@@ -14,7 +14,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import addons, apply, firefox, i18n, profiles, refresh
+from . import addons, apply, desktop, firefox, i18n, launcher, profiles, refresh
 from .state import State
 from .ui import get_backend
 
@@ -89,6 +89,8 @@ def cmd_uninstall(state: State, ui, noninteractive: bool) -> int:
     if install_hash:
         profiles.unpin_install(install_hash)
     shutil.rmtree(install_dir, ignore_errors=True)
+    desktop.remove_entry()
+    launcher.remove_self()
 
     state.clear()
     state.save()
