@@ -106,6 +106,8 @@ def install(answers: Answers, progress: Progress) -> None:
         ("install_hash", install_hash), ("installed_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
         ("lang", answers.lang), ("channel", answers.channel), ("theme", answers.theme),
         ("tweaks", answers.tweaks), ("opt_bl", answers.tweaks), ("opt_plasma", plasma),
+        # Set by bootstrap.py: the core-* release this copy came from.
+        ("core_version", os.environ.get("MYFOX_CORE_VERSION")),
     ):
         state.set(key, value)
     state.save()
