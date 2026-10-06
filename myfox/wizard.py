@@ -10,7 +10,7 @@ only picks how it looks:
 Runs from bootstrap.py's "not installed yet" branch — there's no `install`
 subcommand (see docs/python-rewrite-plan.md). For development:
 
-    python3 -m myfox.wizard [--gui] [-y]
+    python3 -m myfox.wizard [--gui] [-y] [--dry-run]
 """
 
 from __future__ import annotations
@@ -20,10 +20,11 @@ import sys
 
 from . import i18n
 from .install_form import Answers, InstallForm, Installer, simulate_install
+from .installer import install as real_install
 from .ui import _has_tty
 
 
-def run(gui: bool = False, noninteractive: bool = False, install: Installer = simulate_install) -> Answers | None:
+def run(gui: bool = False, noninteractive: bool = False, install: Installer = real_install) -> Answers | None:
     form = InstallForm.load()
     if noninteractive:
         from .ui import form_plain
@@ -49,9 +50,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="myfox-wizard")
     parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
     parser.add_argument("-y", "--yes", action="store_true", dest="noninteractive", help="no questions, defaults")
+    parser.add_argument("--dry-run", action="store_true", help="show the install's stages without installing")
     args = parser.parse_args(argv)
     i18n.load()
-    answers = run(gui=args.gui, noninteractive=args.noninteractive)
+    install = simulate_install if args.dry_run else real_install
+    answers = run(gui=args.gui, noninteractive=args.noninteractive, install=install)
     return 0 if answers is not None else 1
 
 

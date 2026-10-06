@@ -105,17 +105,17 @@ class InstallForm:
 
 
 def simulate_install(answers: Answers, progress: Progress) -> None:
-    """Stand-in for the real install until bootstrap.py wires its steps
-    (pass 5): walks the same stages with the same messages, touches nothing."""
+    """The real install's stages and messages without doing anything
+    (`python3 -m myfox.wizard --dry-run`), to try the form safely."""
     firefox_mb = 82
-    stages = [("progress_firefox_download", 4.0), ("progress_firefox_install", 2.0)]
+    stages = [("progress_firefox_download", 4.0), ("progress_firefox_install", 2.0), ("progress_profile", 1.0)]
     if answers.tweaks:
         stages += [
-            ("progress_tweaks_styles_download", 1.0),
-            ("progress_tweaks_styles_unpack", 0.6),
+            ("progress_tweaks_styles", 0.6),
             ("progress_tweaks_themes_download", 1.0),
-            ("progress_tweaks_addons", 1.0),
+            ("progress_tweaks_bookmarklets", 0.6),
         ]
+    stages += [("progress_shortcut", 0.4)]
     total = sum(seconds for _key, seconds in stages)
     done = 0.0
     for key, seconds in stages:

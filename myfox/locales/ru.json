@@ -49,10 +49,7 @@
     "form_close": "Закрыть",
     "progress_firefox_download": "Скачивание Firefox… {0} из {1} МБ",
     "progress_firefox_install": "Распаковка и установка Firefox…",
-    "progress_tweaks_styles_download": "Применение твиков: скачивание стилей…",
-    "progress_tweaks_styles_unpack": "Применение твиков: распаковка стилей…",
     "progress_tweaks_themes_download": "Применение твиков: скачивание тем…",
-    "progress_tweaks_addons": "Применение твиков: установка дополнений…",
     "progress_done": "Готово: Firefox установлен.",
     "err_mozilla_unreachable": "Не удалось связаться с серверами Mozilla: {0}",
     "form_profile": "Профиль:",
@@ -73,5 +70,10 @@
     "progress_refresh_tweaks_apply": "Применение твиков…",
     "progress_refresh_core_download": "Скачивание MyFox {0}…",
     "progress_refresh_core_replace": "Обновление MyFox…",
-    "progress_refresh_done": "Готово: обновлено."
+    "progress_refresh_done": "Готово: обновлено.",
+    "progress_profile": "Настройка профиля…",
+    "progress_tweaks_styles": "Применение твиков: стили…",
+    "progress_tweaks_bookmarklets": "Применение твиков: букмарклеты…",
+    "progress_shortcut": "Создание ярлыка…",
+    "progress_firefox_download_size_unknown": "Скачивание Firefox… {0} МБ"
 }

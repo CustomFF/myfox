@@ -49,10 +49,7 @@
     "form_close": "Close",
     "progress_firefox_download": "Downloading Firefox… {0} of {1} MB",
     "progress_firefox_install": "Unpacking and installing Firefox…",
-    "progress_tweaks_styles_download": "Applying tweaks: downloading styles…",
-    "progress_tweaks_styles_unpack": "Applying tweaks: unpacking styles…",
     "progress_tweaks_themes_download": "Applying tweaks: downloading themes…",
-    "progress_tweaks_addons": "Applying tweaks: installing add-ons…",
     "progress_done": "Done: Firefox is installed.",
     "err_mozilla_unreachable": "Could not reach Mozilla's servers: {0}",
     "form_profile": "Profile:",
@@ -73,5 +70,10 @@
     "progress_refresh_tweaks_apply": "Applying tweaks…",
     "progress_refresh_core_download": "Downloading MyFox {0}…",
     "progress_refresh_core_replace": "Updating MyFox…",
-    "progress_refresh_done": "Done: updated."
+    "progress_refresh_done": "Done: updated.",
+    "progress_profile": "Setting up the profile…",
+    "progress_tweaks_styles": "Applying tweaks: styles…",
+    "progress_tweaks_bookmarklets": "Applying tweaks: bookmarklets…",
+    "progress_shortcut": "Creating the shortcut…",
+    "progress_firefox_download_size_unknown": "Downloading Firefox… {0} MB"
 }
