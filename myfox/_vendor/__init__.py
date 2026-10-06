@@ -18,10 +18,15 @@ shipped product).
   box fill color are also not centered/contrasting by default — see
   ui/picotui_backend.py's BoxDialog for the override.
 
-Unmodified upstream source (+ the LICENSE file, missing from the PyPI
-sdist — fetched from the GitHub repo instead). picotui's own imports
-expect to find it as a top-level package (`from picotui.widgets import
-...`), not nested under `myfox._vendor` — so callers prepend this
+- jeepney 0.9.0 (MIT, licenses/jeepney.LICENSE) — pure-Python D-Bus
+  client, stdlib only, for the xdg-desktop-portal directory picker
+  (ui/portal.py). Only the blocking client is vendored: tests, bindgen.py
+  and the asyncio/trio/threading integrations are left out.
+
+Unmodified upstream source (+ the LICENSE file: picotui's from its GitHub
+repo, missing from the sdist; jeepney's from its wheel). Both expect to be
+top-level packages (`from picotui.widgets import ...`, `from jeepney
+import ...`), not nested under `myfox._vendor` — so callers prepend this
 directory to sys.path via ensure_on_path() instead of importing through
 this package.
 """
