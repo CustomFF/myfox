@@ -23,13 +23,16 @@ _vendor.ensure_on_path()
 
 from picotui.screen import Screen  # noqa: E402 (must follow ensure_on_path())
 from picotui.widgets import Dialog, WButton, WLabel, ACTION_OK, ACTION_CANCEL  # noqa: E402
-from picotui.defs import C_WHITE, C_BLACK, C_GRAY, C_RED, C_BLUE  # noqa: E402
+from picotui.defs import C_WHITE, C_BLACK, C_RED, C_BLUE  # noqa: E402
 
 BOX_BG = (C_BLACK, C_WHITE)
 SHADOW_BG = (C_BLACK, C_BLACK)
 BTN_BG = (C_WHITE, C_BLUE)
 BTN_FOCUS_BG = (C_WHITE, C_RED)
-BTN_DISABLED_BG = (C_WHITE, C_GRAY)
+# picotui's attr_color() can't do gray (C_GRAY == 8 falls through its
+# `fg > 8` check and emits a broken ESC[38m), so gray goes out as raw SGR.
+SGR_GRAY_ON_CYAN = "\x1b[90;46m"
+SGR_WHITE_ON_GRAY = "\x1b[37;100m"
 
 _MIN_W, _MAX_W = 30, 70
 
@@ -109,10 +112,10 @@ class ThemedButton(WButton):
     def redraw(self):
         self.goto(self.x, self.y)
         if self.disabled:
-            self.attr_color(*BTN_DISABLED_BG)
+            self.wr(SGR_WHITE_ON_GRAY)
         else:
             self.attr_color(*(BTN_FOCUS_BG if self.focus else BTN_BG))
-        self.wr(f"< {self.t} >".center(self.w))
+        self.wr(self.t.center(self.w))
         self.attr_reset()
 
 

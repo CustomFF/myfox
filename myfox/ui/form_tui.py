@@ -14,11 +14,11 @@ from pathlib import Path
 
 from .. import i18n
 from ..install_form import Answers, Choice, InstallForm, Installer, Lang
-from .picotui_backend import BOX_BG, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
+from .picotui_backend import BOX_BG, SGR_GRAY_ON_CYAN, SGR_WHITE_ON_GRAY, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
 
-from picotui.defs import KEYMAP, KEY_BACKSPACE, KEY_ENTER, C_B_BLUE, C_BLACK, C_GRAY, C_RED, C_WHITE  # noqa: E402 (picotui_backend put it on sys.path)
+from picotui.defs import KEYMAP, KEY_BACKSPACE, KEY_ENTER, C_B_BLUE, C_BLACK, C_RED, C_WHITE  # noqa: E402 (picotui_backend put it on sys.path)
 from picotui.widgets import (  # noqa: E402
-    ACTION_CANCEL, ACTION_NEXT, ACTION_OK, WCheckbox, WDropDown, WLabel, WListBox, WTextEntry,
+    ACTION_CANCEL, ACTION_NEXT, ACTION_OK, WCheckbox, WDropDown, WFrame, WLabel, WListBox, WTextEntry,
 )
 
 _MAX_W, _MAX_H = 78, 24
@@ -59,6 +59,16 @@ class _Checkbox(WCheckbox):
         self.attr_reset()
 
 
+class _Frame(WFrame):
+    """A plain box in the dialog's colors (WFrame draws with whatever
+    attributes were left active)."""
+
+    def redraw(self):
+        self.attr_color(*BOX_BG)
+        self.draw_box(self.x, self.y, self.w, self.h)
+        self.attr_reset()
+
+
 class _Entry(WTextEntry):
     """Emits "changed" on edits and shows a hint while empty and unfocused.
     With next_on_enter, Enter moves on to the next widget."""
@@ -80,7 +90,8 @@ class _Entry(WTextEntry):
     def redraw(self):
         if self.hint and not self.focus and not self.get():
             self.goto(self.x, self.y)
-            self.attr_color(C_GRAY, C_WHITE)
+            # Same cyan field as a filled entry, so it reads as an input.
+            self.wr(SGR_GRAY_ON_CYAN)
             self.wr_fixedw(self.hint, self.w)
             self.attr_reset()
             return
@@ -104,7 +115,10 @@ class _Dropdown(WDropDown):
             super().redraw()
             return
         self.goto(self.x, self.y)
-        self.attr_color(*(BOX_BG if self.hidden else (C_WHITE, C_GRAY)))
+        if self.hidden:
+            self.attr_color(*BOX_BG)
+        else:
+            self.wr(SGR_WHITE_ON_GRAY)
         self.wr_fixedw("" if self.hidden else self.items[self.choice], self.w)
         self.attr_reset()
 
@@ -337,9 +351,10 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     search = _Entry(w - 4, "", hint=i18n.t("form_lang_search"), next_on_enter=True)
     d.add(2, row, search)
     row += 1
-    list_h = max(3, h - row - 5)
-    langs = _LangList(w - 4, list_h, form.langs, a.lang)
-    d.add(2, row, langs)
+    frame_h = max(5, h - row - 5)
+    d.add(2, row, _Frame(w - 4, frame_h))
+    langs = _LangList(w - 6, frame_h - 2, form.langs, a.lang)
+    d.add(3, row + 1, langs)
 
     status = _Label("", w - 4)
     bar = _Label("", w - 4)
