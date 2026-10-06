@@ -1,6 +1,7 @@
 """The installed copy of MyFox itself: ~/.local/share/myfox holds the
 package plus autoconfig/ and chrome/ (what update/uninstall/refresh need
-offline), and ~/.local/bin/myfox is a symlink to its launcher script.
+offline), dearpygui/ (gui_deps.py) and, by default, the browser in
+firefox/; ~/.local/bin/myfox is a symlink to its launcher script.
 """
 
 from __future__ import annotations
@@ -30,10 +31,10 @@ def install_self() -> Path:
     dir. Returns the launcher path (what the .desktop action runs)."""
     share, source = share_dir(), paths.myfox_root()
     if source.resolve() != share.resolve():
-        shutil.rmtree(share, ignore_errors=True)
+        # Only our own parts: the browser may live in share/firefox.
         ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "tests")
-        shutil.copytree(source / "myfox", share / "myfox", ignore=ignore)
-        for name in ("autoconfig", "chrome"):
+        for name in ("myfox", "autoconfig", "chrome"):
+            shutil.rmtree(share / name, ignore_errors=True)
             shutil.copytree(source / name, share / name, ignore=ignore)
 
     launcher = launcher_path()

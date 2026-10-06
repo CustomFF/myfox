@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import addons, apply, desktop, firefox, i18n, launcher, profiles
+from . import addons, apply, desktop, firefox, gui_deps, i18n, launcher, profiles
 from .install_form import Answers, Progress
 from .state import State
 
@@ -42,7 +42,7 @@ def install(answers: Answers, progress: Progress) -> None:
         weights += [("styles", 2), ("themes", 5), ("bookmarklets", 3)]
     if plasma:
         weights += [("plasma", 3)]
-    weights += [("shortcut", 5)]
+    weights += [("gui", 5), ("shortcut", 2)]
     stages = _Stages(progress, weights)
 
     # Firefox: an install of ours already there is reused, as before.
@@ -90,8 +90,15 @@ def install(answers: Answers, progress: Progress) -> None:
             answers.notes.append(i18n.t("note_plasma_pkg_missing", hint) if hint
                                  else i18n.t("note_plasma_pkg_missing_manual"))
 
+    launcher_path = launcher.install_self()
+    stages.report("gui", i18n.t("progress_gui"))
+    try:
+        gui_deps.install_into(launcher.share_dir())
+    except (OSError, RuntimeError) as exc:
+        answers.notes.append(i18n.t("note_gui_failed", exc))
+
     stages.report("shortcut", i18n.t("progress_shortcut"))
-    desktop.write_entry(install_dir, launcher.install_self())
+    desktop.write_entry(install_dir, launcher_path)
 
     state = State()
     for key, value in (

@@ -11,10 +11,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import addons, firefox, i18n
+from . import addons, firefox, i18n, launcher
 from . import profiles as profiles_mod
 
-DEFAULT_INSTALL_DIR = str(Path.home() / ".local" / "share" / "firefox")
+
+def default_install_dir() -> str:
+    """The browser lives with MyFox's own copy by default."""
+    return str(launcher.share_dir() / "firefox")
+
 
 # (message, overall fraction 0..1) — how an install reports progress.
 Progress = Callable[[str, float], None]
@@ -23,7 +27,7 @@ Installer = Callable[["Answers", Progress], None]
 
 @dataclass
 class Answers:
-    install_dir: str = DEFAULT_INSTALL_DIR
+    install_dir: str = field(default_factory=default_install_dir)
     channel: str = "stable"
     lang: str = "en-US"
     profile_dir: str | None = None  # None = create a new one
@@ -120,7 +124,7 @@ def simulate_install(answers: Answers, progress: Progress) -> None:
         ]
         if addons.is_plasma_session():
             stages += [("progress_tweaks_plasma", 0.6)]
-    stages += [("progress_shortcut", 0.4)]
+    stages += [("progress_gui", 0.6), ("progress_shortcut", 0.4)]
     total = sum(seconds for _key, seconds in stages)
     done = 0.0
     for key, seconds in stages:

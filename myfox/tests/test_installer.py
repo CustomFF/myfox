@@ -28,7 +28,7 @@ class InstallTests(IsolatedStateCase):
         on_extract(5, 5)
         return "152.0"
 
-    def _install(self, answers, plasma=False, pkg=True, addon_fails=False):
+    def _install(self, answers, plasma=False, pkg=True, addon_fails=False, gui_error=None):
         record = lambda name: (lambda *a, **k: self.calls.append(name))  # noqa: E731
         amo = lambda *a, **k: self.calls.append("plasma") or (["plasma-integration"] if addon_fails else [])  # noqa: E731
         with mock.patch("myfox.addons.is_plasma_session", return_value=plasma), \
@@ -44,13 +44,14 @@ class InstallTests(IsolatedStateCase):
              mock.patch("myfox.addons.fetch_themes", side_effect=record("themes")), \
              mock.patch("myfox.apply.apply_bookmarklets", side_effect=record("bookmarklets")), \
              mock.patch("myfox.launcher.install_self", return_value=Path("/x/bin/myfox")), \
+             mock.patch("myfox.gui_deps.install_into", side_effect=gui_error or record("gui")), \
              mock.patch("myfox.desktop.write_entry", side_effect=record("desktop")):
             installer.install(answers, lambda message, fraction: self.reports.append((message, fraction)))
 
     def test_full_install_runs_every_step_and_saves_state(self):
         self._install(Answers(install_dir=str(self.install_dir), lang="ru", theme="light"))
         self.assertEqual(self.calls, ["tarball", "pin", "autoconfig", "chrome", "theme", "themes", "bookmarklets",
-                                      "desktop"])
+                                      "gui", "desktop"])
         self.assertTrue((self.install_dir / ".myfox-installed").is_file())
         state = State()
         self.assertEqual((state.get("install_dir"), state.get("profile_dir"), state.get("install_hash")),
@@ -66,12 +67,12 @@ class InstallTests(IsolatedStateCase):
 
     def test_without_tweaks_the_profile_is_left_alone(self):
         self._install(Answers(install_dir=str(self.install_dir), tweaks=False))
-        self.assertEqual(self.calls, ["tarball", "desktop"])
+        self.assertEqual(self.calls, ["tarball", "gui", "desktop"])
 
     def test_plasma_session_gets_the_addon_and_no_note_with_the_package(self):
         answers = Answers(install_dir=str(self.install_dir))
         self._install(answers, plasma=True)
-        self.assertEqual(self.calls[-2:], ["plasma", "desktop"])
+        self.assertEqual(self.calls[-3:], ["plasma", "gui", "desktop"])
         self.assertEqual(answers.notes, [])
         self.assertTrue(State().get("opt_plasma"))
 
@@ -88,6 +89,12 @@ class InstallTests(IsolatedStateCase):
     def test_no_plasma_without_tweaks(self):
         self._install(Answers(install_dir=str(self.install_dir), tweaks=False), plasma=True)
         self.assertNotIn("plasma", self.calls)
+
+    def test_gui_failure_is_a_note_not_a_failed_install(self):
+        answers = Answers(install_dir=str(self.install_dir))
+        self._install(answers, gui_error=OSError("no release"))
+        self.assertEqual(answers.notes, [i18n.t("note_gui_failed", "no release")])
+        self.assertIn("desktop", self.calls)
 
     def test_an_install_of_ours_is_reused(self):
         self.install_dir.mkdir()

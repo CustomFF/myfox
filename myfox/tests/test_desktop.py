@@ -57,6 +57,13 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(Path(os.readlink(launcher.link_path())), path)
         self.assertIn(f'PYTHONPATH="{share}', path.read_text(encoding="utf-8"))
 
+    def test_reinstalling_itself_leaves_the_browser_alone(self):
+        browser = launcher.share_dir() / "firefox" / "firefox"
+        browser.parent.mkdir(parents=True)
+        browser.write_text("binary")
+        launcher.install_self()
+        self.assertTrue(browser.is_file())
+
     def test_remove_keeps_a_foreign_myfox_command(self):
         launcher.install_self()
         launcher.link_path().unlink()
