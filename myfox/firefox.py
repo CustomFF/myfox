@@ -139,11 +139,17 @@ def dir_claim_state(path: Path) -> str:
     return "empty"
 
 
-def fetch_lang_catalog() -> dict[str, str]:
-    """code -> English name, straight from Mozilla's own JSON — no scraping."""
+def fetch_lang_names() -> dict[str, tuple[str, str]]:
+    """code -> (English name, native name), straight from Mozilla's own
+    JSON — no scraping. Native falls back to English if ever missing."""
     with urllib.request.urlopen(net.request(LANGUAGES_URL), timeout=30) as resp:
         raw = json.loads(resp.read().decode("utf-8"))
-    return {code: info["English"] for code, info in raw.items()}
+    return {code: (info["English"], info.get("native") or info["English"]) for code, info in raw.items()}
+
+
+def fetch_lang_catalog() -> dict[str, str]:
+    """code -> English name."""
+    return {code: english for code, (english, _native) in fetch_lang_names().items()}
 
 
 def validate_lang(code: str) -> bool:
