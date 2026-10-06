@@ -175,23 +175,26 @@ def resolve_download(arch: str, lang: str, channel: str) -> tuple[str, str]:
     return effective_url, version
 
 
-def download_and_extract(url: str, install_dir: Path, progress=None) -> None:
+def download_and_extract(url: str, install_dir: Path, on_download=None, on_extract=None) -> None:
     """Streams the tarball to a temp file, then extracts it with
     --strip-components=1 semantics (Mozilla's tarball has one top-level
-    "firefox/" directory). `progress`, if given, is called with the number
-    of bytes written so far — a spinner doesn't need more than "still
-    alive", same as the bash version's plain tui_spin."""
+    "firefox/" directory). on_download(bytes_done, bytes_total or None) and
+    on_extract(files_done, files_total) report progress if given."""
     install_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(suffix=".tar.xz", delete=False) as tmp:
         tmp_path = Path(tmp.name)
         try:
             with urllib.request.urlopen(net.request(url), timeout=60) as resp:
+                total = int(resp.headers.get("Content-Length") or 0) or None
                 written = 0
-                while chunk := resp.read(1024 * 1024):
+                while True:
+                    chunk = resp.read(1024 * 1024)
+                    if not chunk:
+                        break
                     tmp.write(chunk)
                     written += len(chunk)
-                    if progress:
-                        progress(written)
+                    if on_download:
+                        on_download(written, total)
             tmp.flush()
             with tarfile.open(tmp_path, mode="r:xz") as tf:
                 members = tf.getmembers()
@@ -199,16 +202,17 @@ def download_and_extract(url: str, install_dir: Path, progress=None) -> None:
                 if len(top_dirs) != 1:
                     raise RuntimeError(f"unexpected tarball layout: {top_dirs!r}")
                 prefix = next(iter(top_dirs)) + "/"
-                for member in members:
-                    if member.name == prefix.rstrip("/"):
-                        continue
-                    member.name = member.name[len(prefix):]
-                    tf.extract(member, install_dir)
+                for i, member in enumerate(members, 1):
+                    if member.name != prefix.rstrip("/"):
+                        member.name = member.name[len(prefix):]
+                        tf.extract(member, install_dir)
+                    if on_extract:
+                        on_extract(i, len(members))
         finally:
             tmp_path.unlink(missing_ok=True)
 
 
-def install_tarball(install_dir: Path, lang: str, channel: str, progress=None) -> str:
+def install_tarball(install_dir: Path, lang: str, channel: str, on_download=None, on_extract=None) -> str:
     """Downloads + extracts, returns the installed version. Raises on
     failure (unsupported arch, network error) — the caller decides what to
     tell the user."""
@@ -216,6 +220,6 @@ def install_tarball(install_dir: Path, lang: str, channel: str, progress=None) -
     if arch is None:
         raise RuntimeError("unsupported_arch")
     url, version = resolve_download(arch, lang, channel)
-    download_and_extract(url, install_dir, progress=progress)
+    download_and_extract(url, install_dir, on_download=on_download, on_extract=on_extract)
     (install_dir / ".myfox-version").write_text(version + "\n", encoding="utf-8")
     return version
