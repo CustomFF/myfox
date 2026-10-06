@@ -1,0 +1,306 @@
+"""The install form as one picotui dialog on a tty: the same fields as the
+GUI, Tab between them, Install/Cancel at the bottom, progress in place of
+the status line while installing. All decisions live in
+install_form.InstallForm; this only draws it.
+"""
+
+from __future__ import annotations
+
+import textwrap
+import unicodedata
+
+from .. import i18n
+from ..install_form import Answers, Choice, InstallForm, Installer, Lang
+from .picotui_backend import BOX_BG, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen
+
+from picotui.defs import KEYMAP, KEY_ENTER, C_B_BLUE, C_BLACK, C_GRAY, C_RED, C_WHITE  # noqa: E402 (picotui_backend put it on sys.path)
+from picotui.widgets import (  # noqa: E402
+    ACTION_CANCEL, ACTION_NEXT, ACTION_OK, WCheckbox, WDropDown, WLabel, WListBox, WTextEntry,
+)
+
+_MAX_W, _MAX_H = 78, 24
+_COMBO_W = 24
+
+
+def _single_width(text: str) -> bool:
+    """picotui sizes text by len(); wide (CJK) and combining characters
+    take a different number of cells and would break the box edge."""
+    return all(unicodedata.east_asian_width(ch) not in ("W", "F") and not unicodedata.combining(ch)
+               and unicodedata.category(ch) != "Mc" for ch in text)
+
+
+class _Label(WLabel):
+    """Always paints its own colors: after a widget that resets attributes,
+    a plain WLabel would be drawn in the terminal's default colors."""
+
+    def __init__(self, text: str, w: int, fg: int = C_BLACK):
+        super().__init__(text, w)
+        self.fg = fg
+
+    def redraw(self):
+        self.goto(self.x, self.y)
+        self.attr_color(self.fg, C_WHITE)
+        self.wr_fixedw(self.t, self.w)
+        self.attr_reset()
+
+
+class _Checkbox(WCheckbox):
+    """WCheckbox draws with whatever attributes were left active (and only
+    a foreground when focused); this always paints on the box background."""
+
+    def redraw(self):
+        self.goto(self.x, self.y)
+        self.attr_color(C_B_BLUE if self.focus else C_BLACK, C_WHITE)
+        self.wr(("[x] " if self.choice else "[ ] ") + self.t)
+        self.attr_reset()
+
+
+class _Entry(WTextEntry):
+    """Emits "changed" on edits and shows a hint while empty and unfocused.
+    With next_on_enter, Enter moves on to the next widget."""
+
+    def __init__(self, w: int, text: str, hint: str = "", next_on_enter: bool = False):
+        super().__init__(w, text)
+        self.hint = hint
+        self.next_on_enter = next_on_enter
+
+    def handle_edit_key(self, key):
+        if key == KEY_ENTER and self.next_on_enter:
+            return ACTION_NEXT
+        before = self.get()
+        res = super().handle_edit_key(key)
+        if self.get() != before:
+            self.signal("changed")
+        return res
+
+    def redraw(self):
+        if self.hint and not self.focus and not self.get():
+            self.goto(self.x, self.y)
+            self.attr_color(C_GRAY, C_WHITE)
+            self.wr_fixedw(self.hint, self.w)
+            self.attr_reset()
+            return
+        super().redraw()
+
+
+class _Dropdown(WDropDown):
+    def __init__(self, choices: list[Choice], value: str):
+        super().__init__(_COMBO_W, [choice.label for choice in choices], dropdown_h=len(choices) + 2)
+        self.choices = choices
+        self.choice = next(i for i, choice in enumerate(choices) if choice.value == value)
+        self.disabled = False
+
+    @property
+    def value(self) -> str:
+        return self.choices[self.choice].value
+
+    def redraw(self):
+        if not self.disabled:
+            super().redraw()
+            return
+        self.goto(self.x, self.y)
+        self.attr_color(C_WHITE, C_GRAY)
+        self.wr_fixedw(self.items[self.choice], self.w)
+        self.attr_reset()
+
+    def handle_mouse(self, x, y):
+        if not self.disabled:
+            super().handle_mouse(x, y)
+
+    def handle_key(self, key):
+        if not self.disabled:
+            super().handle_key(key)
+
+
+class _LangList(WListBox):
+    def __init__(self, w: int, h: int, langs: list[Lang], default: str):
+        self.visible = langs
+        super().__init__(w, h, self._labels(langs))
+        self._select(default)
+
+    @staticmethod
+    def _labels(langs: list[Lang]) -> list[str]:
+        return [lang.label(show_native=_single_width(lang.native)) for lang in langs]
+
+    def _select(self, code: str | None) -> None:
+        index = next((i for i, lang in enumerate(self.visible) if lang.code == code), 0)
+        self.cur_line = self.choice = index
+        self.top_line = max(0, index - self.height // 2)
+        self.row = self.cur_line - self.top_line
+
+    @property
+    def value(self) -> str | None:
+        return self.visible[self.cur_line].code if self.visible else None
+
+    def show(self, langs: list[Lang]) -> None:
+        current = self.value
+        self.visible = langs
+        self.set_items(self._labels(langs))
+        self._select(current)
+        self.redraw()
+
+    def handle_key(self, key):
+        # Enter takes the highlighted language and moves on to Install.
+        if key == KEY_ENTER:
+            return ACTION_NEXT
+        return super().handle_key(key)
+
+    def show_line(self, l, i):
+        if self.cur_line != i:
+            self.attr_color(*BOX_BG)
+        super().show_line(l, i)
+        self.attr_reset()
+
+
+class _FormDialog(BoxDialog):
+    def get_input(self):
+        # picotui hands out the first character of a read whole but then
+        # takes its leftover buffer one byte at a time, splitting multibyte
+        # (e.g. Cyrillic) characters typed or pasted together.
+        if self.kbuf:
+            text = self.kbuf.decode()
+            key, self.kbuf = text[0].encode(), text[1:].encode()
+            return KEYMAP.get(key, key)
+        return super().get_input()
+
+    def find_focusable_by_idx(self, from_idx, direction):
+        # Tab skips disabled widgets (the theme dropdown without tweaks).
+        sz = len(self.childs)
+        for _ in range(sz):
+            idx, widget = super().find_focusable_by_idx(from_idx, direction)
+            if widget is None or not getattr(widget, "disabled", False):
+                return idx, widget
+            from_idx = (idx + direction) % sz
+        return None, None
+
+
+def _bar(fraction: float, width: int) -> str:
+    filled = round(fraction * (width - 7))
+    return f"[{'#' * filled}{'-' * (width - 7 - filled)}] {round(fraction * 100):3d}%"
+
+
+def run(form: InstallForm, install: Installer) -> Answers | None:
+    """Shows the form until the user leaves it; the answers if the install
+    went through, None if cancelled or failed."""
+    from picotui.screen import Screen
+
+    _ensure_screen()
+    a = form.answers
+    cols, rows = Screen.screen_size()
+    w, h = min(_MAX_W, cols - 2), min(_MAX_H, rows - 1)
+    x, y = _centered(w, h)
+    _clear()
+    d = _FormDialog(x, y, w, h, title=i18n.t("form_title"))
+
+    labels = [i18n.t(k) for k in ("form_dir", "form_channel", "form_profile", "form_theme")]
+    ctrl_x = 2 + max(len(label) for label in labels) + 2
+    ctrl_w = w - ctrl_x - 2
+    row = 1
+
+    def add_row(label_key: str, widget, gap: int = 0) -> None:
+        nonlocal row
+        d.add(2, row, _Label(i18n.t(label_key), ctrl_x - 2))
+        d.add(ctrl_x, row, widget)
+        row += 1 + gap
+
+    dir_entry = _Entry(ctrl_w, a.install_dir)
+    add_row("form_dir", dir_entry, gap=1)
+    channel = _Dropdown(form.channels, a.channel)
+    add_row("form_channel", channel, gap=1)
+    profile = None
+    if form.profiles:
+        profile = _Dropdown(form.profiles, a.profile_dir or "")
+        add_row("form_profile", profile, gap=1)
+    tweaks = _Checkbox(i18n.t("form_tweaks"), choice=a.tweaks)
+    d.add(ctrl_x, row, tweaks)
+    row += 1
+    theme = _Dropdown(form.themes, a.theme)
+    theme.disabled = not form.theme_applies
+    add_row("form_theme", theme)
+    row += 1
+
+    search = _Entry(w - 4, "", hint=i18n.t("form_lang_search"), next_on_enter=True)
+    d.add(2, row, search)
+    row += 1
+    list_h = max(3, h - row - 5)
+    langs = _LangList(w - 4, list_h, form.langs, a.lang)
+    d.add(2, row, langs)
+
+    status = _Label("", w - 4)
+    bar = _Label("", w - 4)
+    d.add(2, h - 4, status)
+    d.add(2, h - 3, bar)
+
+    def set_error(text: str) -> None:
+        # Two lines: the bar's row is free until the install starts.
+        lines = textwrap.wrap(text, w - 4, max_lines=2, placeholder="…") or [""]
+        status.t, bar.t = lines[0], lines[1] if len(lines) > 1 else ""
+        status.fg = bar.fg = C_RED
+
+    def show_error(text: str) -> None:
+        set_error(text)
+        status.redraw()
+        bar.redraw()
+
+    if form.error:
+        set_error(form.error)
+    install_btn = ThemedButton(max(12, len(i18n.t("wizard_install")) + 4), i18n.t("wizard_install"))
+    install_btn.finish_dialog = ACTION_OK
+    cancel_btn = ThemedButton(max(12, len(i18n.t("ui_cancel")) + 4), i18n.t("ui_cancel"))
+    cancel_btn.finish_dialog = ACTION_CANCEL
+    install_btn.disabled = bool(form.error)
+    _button_row(d, w, h - 2, [install_btn, cancel_btn])
+
+    def on_tweaks(widget) -> None:
+        a.tweaks = widget.choice
+        theme.disabled = not form.theme_applies
+        theme.redraw()
+
+    tweaks.on("changed", on_tweaks)
+    search.on("changed", lambda widget: langs.show(form.filter_langs(widget.get())))
+
+    while True:
+        if d.loop() != ACTION_OK:
+            return None
+        if form.error:
+            continue
+        a.install_dir = dir_entry.get()
+        a.channel = channel.value
+        a.profile_dir = (profile.value or None) if profile else None
+        a.theme = theme.value
+        a.lang = langs.value or a.lang
+        error = form.validate()
+        if error is None:
+            break
+        show_error(error)
+
+    dir_entry.set(a.install_dir)
+    status.fg = bar.fg = C_BLACK
+
+    def progress(message: str, fraction: float) -> None:
+        status.t, bar.t = message, _bar(fraction, w - 4)
+        status.redraw()
+        bar.redraw()
+
+    install_btn.disabled = True
+    install_btn.redraw()
+    result: Answers | None = a
+    try:
+        install(a, progress)
+    except Exception as exc:  # shown in the form; the user decides what next
+        show_error(str(exc) or type(exc).__name__)
+        result = None
+
+    # One button left: Close.
+    d.childs.remove(install_btn)
+    d.childs.remove(cancel_btn)
+    close_btn = ThemedButton(max(12, len(i18n.t("form_close")) + 4), i18n.t("form_close"))
+    close_btn.finish_dialog = ACTION_OK
+    _button_row(d, w, h - 2, [close_btn])
+    d.focus_idx, d.focus_w = d.childs.index(close_btn), close_btn
+    for widget in d.childs:
+        widget.focus = widget is close_btn
+        if widget is not close_btn:
+            widget.disabled = True  # nothing left to edit; Tab stays on Close
+    d.loop()
+    return result

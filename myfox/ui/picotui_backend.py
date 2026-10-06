@@ -26,7 +26,7 @@ from picotui.screen import Screen  # noqa: E402 (must follow ensure_on_path())
 from picotui.widgets import (  # noqa: E402
     Dialog, WButton, WCheckbox, WListBox, WLabel, WTextEntry, ACTION_OK, ACTION_CANCEL,
 )
-from picotui.defs import C_WHITE, C_BLACK, C_RED, C_BLUE, KEY_BACKSPACE  # noqa: E402
+from picotui.defs import C_WHITE, C_BLACK, C_GRAY, C_RED, C_BLUE, KEY_BACKSPACE  # noqa: E402
 
 ACTION_BACK = 1004  # not one of picotui's own reserved 1000-1003 sentinels
 
@@ -34,6 +34,7 @@ BOX_BG = (C_BLACK, C_WHITE)
 SHADOW_BG = (C_BLACK, C_BLACK)
 BTN_BG = (C_WHITE, C_BLUE)
 BTN_FOCUS_BG = (C_WHITE, C_RED)
+BTN_DISABLED_BG = (C_WHITE, C_GRAY)
 
 _MIN_W, _MAX_W = 30, 70
 
@@ -112,7 +113,10 @@ class BoxDialog(Dialog):
 class ThemedButton(WButton):
     def redraw(self):
         self.goto(self.x, self.y)
-        self.attr_color(*(BTN_FOCUS_BG if self.focus else BTN_BG))
+        if self.disabled:
+            self.attr_color(*BTN_DISABLED_BG)
+        else:
+            self.attr_color(*(BTN_FOCUS_BG if self.focus else BTN_BG))
         self.wr(f"< {self.t} >".center(self.w))
         self.attr_reset()
 
