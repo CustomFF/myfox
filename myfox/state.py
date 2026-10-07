@@ -1,6 +1,4 @@
-"""Flat JSON state file — replaces the old awk key=value store.
-
-One file (~/.local/state/myfox/state.json), read on load(), written back
+"""Flat JSON state file: one file (~/.local/state/myfox/state.json), read on load(), written back
 whole on save(). Values are plain JSON scalars (paths, booleans, version
 strings) written only by this tool, so there's nothing to escape.
 """

@@ -1,6 +1,6 @@
-"""The real first install behind the install form (port of bin/myfox-core's
-run_install): Firefox from the tarball, the profile, the tweaks, the
-shortcut and the `myfox` command, then the state file. Reports progress
+"""The first install behind the install form: Firefox from the tarball,
+the profile, the tweaks, the shortcut and the `myfox` command, then the
+state file. Reports progress
 the same way simulate_install does, so the form doesn't care which runs.
 """
 
@@ -46,7 +46,7 @@ def install(answers: Answers, progress: Progress) -> None:
     weights += [("gui", 5), ("shortcut", 2)]
     stages = Stages(progress, weights)
 
-    # Firefox: an install of ours already there is reused, as before.
+    # Firefox: an install of ours already there is reused.
     if reuse:
         version = firefox.local_version(install_dir)
     else:

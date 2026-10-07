@@ -8,7 +8,7 @@ only picks how it looks:
   -y              no questions, defaults
 
 Runs from bootstrap.py's "not installed yet" branch — there's no `install`
-subcommand (see docs/python-rewrite-plan.md). For development:
+subcommand. For development:
 
     python3 -m myfox.wizard [--gui] [-y] [--dry-run]
 """

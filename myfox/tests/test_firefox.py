@@ -49,7 +49,7 @@ class PickLangTests(unittest.TestCase):
         ("zh_TW.UTF-8", "zh-TW"),
         ("en_GB.UTF-8", "en-GB"),
         ("en_AU.UTF-8", "en-AU"),
-        ("es_AR.UTF-8", "es-AR"),  # not just the one Spanish variant we used to hardcode
+        ("es_AR.UTF-8", "es-AR"),  # a regional variant, not only es-ES
         ("hi_IN.UTF-8", "hi-IN"),
         ("uk_UA.UTF-8", "uk"),
         ("xx_XX.UTF-8", "en-US"),  # unsupported language -> honest default

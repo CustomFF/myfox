@@ -1,8 +1,6 @@
-"""Message catalog — replaces lib/i18n.sh + i18n/*.sh.
-
-en.json is the base; any other locale only overrides the keys it has,
-same as the old base+overlay scheme. An unknown key prints itself instead
-of raising, so a missing translation is visible but never fatal.
+"""Message catalog: locales/en.json is the base, any other locale only
+overrides the keys it has. An unknown key prints itself instead of
+raising, so a missing translation is visible but never fatal.
 """
 
 from __future__ import annotations

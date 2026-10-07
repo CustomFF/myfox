@@ -1,6 +1,5 @@
-"""The firefox-myfox wrapper and the .desktop entry (port of
-lib/firefox.sh's firefox_create_desktop_entry), plus a context-menu action
-that opens `myfox refresh --gui`.
+"""The firefox-myfox wrapper and the .desktop entry, with a context-menu
+action that opens `myfox refresh --gui`.
 """
 
 from __future__ import annotations

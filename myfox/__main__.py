@@ -1,9 +1,7 @@
 """python3 -m myfox <browser|refresh|reinstall|uninstall|help> [options]
 
-Installed entry point — replaces bin/myfox-core's option tables + case
-dispatch. No `install`: the wizard only ever runs from bootstrap.py's own
-"not installed yet" branch (see docs/python-rewrite-plan.md), never as a
-subcommand here.
+The installed `myfox` command. No `install`: the install form only ever
+runs from bootstrap.py's "not installed yet" branch.
 """
 
 from __future__ import annotations
@@ -85,7 +83,7 @@ def cmd_refresh(state: State, force: bool, gui: bool, noninteractive: bool) -> i
 def print_top_help(parser: argparse.ArgumentParser) -> None:
     # Composed by hand, not parser.print_help(): "browser" isn't a real
     # subparser (see build_parser), so argparse's own listing can't include
-    # it. Wording is a placeholder — full copy pass is later (see plan).
+    # it.
     print(i18n.t("usage_title"))
     print()
     print(i18n.t("usage_usage"))

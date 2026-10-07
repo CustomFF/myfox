@@ -1,11 +1,5 @@
-"""Firefox tarball download/extract, language/arch detection, .desktop entry.
-
-Port of lib/firefox.sh. urllib.request instead of curl, tarfile instead of
-tar/xz, json instead of an awk regex scraper for languages.json — none of
-that changes the actual behaviour, it's genuinely simpler in Python. What
-doesn't get simpler: install-dir validation rules and the .desktop/wrapper
-quirks (MOZ_APP_LAUNCHER, WM_CLASS) are Firefox/freedesktop knowledge, not
-bash-specific, and carry over almost line for line.
+"""Firefox itself: the tarball (download, extract, version), language and
+architecture detection, install-dir validation, running processes.
 """
 
 from __future__ import annotations
@@ -75,9 +69,7 @@ def pick_lang(catalog: dict[str, str], env_lang: str | None = None) -> str:
 
 
 def local_version(install_dir: Path) -> str | None:
-    """Version=... from application.ini's [App] section — genuine INI,
-    configparser reads it directly (the bash version's awk one-liner did
-    the same job the hard way)."""
+    """Version=... from application.ini's [App] section."""
     ini = install_dir / "application.ini"
     if not ini.is_file():
         return None
@@ -94,10 +86,8 @@ def is_myfox_dir(path: Path) -> bool:
 
 
 def validate_install_dir(raw: str) -> Path:
-    """Normalizes and validates a prospective install directory. Raises
-    InstallDirError (never touches the filesystem beyond stat'ing) instead
-    of the bash version's "print message, return 1" — the caller decides
-    how to surface it (message() today, a dialog once wizard.py exists)."""
+    """Normalizes and validates a prospective install directory; raises
+    InstallDirError for the form to show. Only stats the filesystem."""
     p = raw.strip()
     if not p:
         raise InstallDirError("err_installdir_empty")
@@ -163,8 +153,7 @@ def _download_url(arch: str, lang: str, channel: str) -> str:
 
 def resolve_download(arch: str, lang: str, channel: str) -> tuple[str, str]:
     """Follows the download.mozilla.org redirect without downloading the
-    tarball — gives the real file URL and the version parsed out of it,
-    the same trick the bash version used (curl -w '%{url_effective}')."""
+    tarball — gives the real file URL and the version parsed out of it."""
     req = net.request(_download_url(arch, lang, channel), method="HEAD")
     with urllib.request.urlopen(req, timeout=30) as resp:
         effective_url = resp.geturl()

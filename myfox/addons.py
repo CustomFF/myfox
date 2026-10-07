@@ -1,11 +1,6 @@
-"""Installs the (already-signed) themes built by CustomFF/tweaks and,
-optionally, the AMO Plasma integration add-on.
-
-Port of lib/addons.sh. Theme XPIs used to be bundled in this repo and
-just copied; autoconfig/chrome/themes have since moved to their own
-CustomFF/tweaks repo (see docs/python-rewrite-plan.md), so this fetches
-the signed build from its releases instead. Only Plasma integration goes
-through AMO directly (urllib + json instead of curl + awk).
+"""Add-ons into the profile's extensions/: the two signed themes from
+CustomFF/tweaks' releases and, under KDE Plasma, the Plasma integration
+add-on from AMO.
 """
 
 from __future__ import annotations
@@ -43,8 +38,8 @@ def _release_assets(repo: str, tag: str) -> dict[str, str]:
 
 def fetch_themes(profile_dir: Path, local_dir: str | None = None) -> list[str]:
     """Returns the theme IDs that couldn't be installed (a warning for the
-    caller, never a hard failure) — both themes are always installed,
-    instant switching later (see resolve_theme in the old bin/myfox-core).
+    caller, never a hard failure). Both themes are always installed, so
+    switching later is instant.
 
     Fetched from CustomFF/tweaks' latest `themes-*` release, or from a
     local tweaks checkout's `build/signed/` when `local_dir` is given (dev
@@ -135,7 +130,7 @@ def addon_guid(slug: str) -> str | None:
 
 def addon_fetch(slug: str, out: Path) -> bool:
     """XPI is a zip — "PK" magic bytes are the only sanity check worth
-    doing here, same as the bash version."""
+    doing here."""
     url = f"https://addons.mozilla.org/firefox/downloads/latest/{slug}/addon-latest.xpi"
     try:
         with urllib.request.urlopen(net.request(url), timeout=60) as resp:

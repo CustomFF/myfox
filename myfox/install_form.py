@@ -1,7 +1,7 @@
 """The first-install form, independent of how it is drawn: the GUI and the
-TUI show it as one window, the plain frontend asks the same fields one by
-one. Runs only from bootstrap.py's "not installed yet" branch — there is
-no `install` subcommand (see docs/python-rewrite-plan.md).
+TUI show it as one window, the plain view prints it (it never asks). Runs
+only from bootstrap.py's "not installed yet" branch — there is no `install`
+subcommand.
 """
 
 from __future__ import annotations

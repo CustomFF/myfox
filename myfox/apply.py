@@ -1,7 +1,6 @@
-"""Copies autoconfig/chrome/bookmarklet tweaks into the install/profile.
-
-Port of lib/apply.sh. Bookmarklets are a separate project (ddblm) — this
-only copies its already-built CSS/icons, same as before.
+"""Copies the tweaks (autoconfig/ into the install, chrome/ into the
+profile) and the bookmarklet styling. Bookmarklets are a separate project
+(ddblm): this only copies its built CSS and icons.
 """
 
 from __future__ import annotations
@@ -34,8 +33,7 @@ def apply_autoconfig(install_dir: Path) -> None:
 
 def apply_chrome(profile_dir: Path) -> bool:
     """Returns True the one time it backs up a pre-existing userChrome.css
-    (the caller decides how to tell the user — see warn_backed_up_style in
-    the old i18n catalog for the wording this replaces)."""
+    (the caller decides how to tell the user)."""
     src = paths.chrome_dir()
     c_dir = profile_dir / "chrome"
     c_dir.mkdir(parents=True, exist_ok=True)
@@ -98,7 +96,7 @@ def apply_bookmarklets(profile_dir: Path, local_dir: str | None = None) -> str |
     """Returns the gallery URL on success, None if ddblm was unreachable —
     a warning for the caller to show, never a hard install failure. Source
     is MYFOX_DDBLM_LOCAL (dev testing against a checkout) or ddblm's raw
-    GitHub content otherwise, same as the bash version."""
+    GitHub content otherwise."""
     c_dir = profile_dir / "chrome"
     c_dir.mkdir(parents=True, exist_ok=True)
     src_dir = Path(local_dir) if local_dir and (Path(local_dir) / "icons").is_dir() else None
@@ -118,8 +116,7 @@ def apply_bookmarklets(profile_dir: Path, local_dir: str | None = None) -> str |
                 names.update(_ICON_URL_RE.findall(css_file.read_text(encoding="utf-8")))
         names.add("import-bookmarklets")
         for name in sorted(names):
-            # Best-effort per icon, same as the bash version — a missing
-            # icon is a warning the caller can show, not a reason to abort.
+            # Best-effort per icon: a missing icon is no reason to abort.
             _ddblm_fetch(f"icons/{name}.svg", icons_dir / f"{name}.svg", local_dir)
 
     return DDBLM_GALLERY

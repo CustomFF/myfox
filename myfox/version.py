@@ -6,10 +6,7 @@ for the whole repo, not per tag pattern — no use with two independent
 tracks sharing one repo. We list releases instead (already sorted newest
 first) and take the first tag matching the track's pattern.
 
-Deliberately not semver-aware: the tweaks tag is <firefox-beta-major>.<patch>
-(see docs/python-rewrite-plan.md), compared for inequality only, never
-ordered — refresh's job is "does this differ from what I have", not
-"is this newer".
+Comparing versions is changelog.is_newer()'s job; this only finds tags.
 """
 
 from __future__ import annotations

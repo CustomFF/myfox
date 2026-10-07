@@ -1,15 +1,13 @@
 """profiles.ini / installs.ini handling, headless install-hash pinning.
 
-Port of lib/profile.sh. The profile store is *shared* with regular Firefox
-(~/.mozilla/firefox or the XDG path Firefox 147+ uses) — every function here
-touches only the sections it owns ([Install<HASH>], [ProfileN] Name=myfox),
-never someone else's.
+The profile store is *shared* with regular Firefox (~/.mozilla/firefox or
+the XDG path Firefox 147+ uses) — every function here touches only the
+sections it owns ([Install<HASH>], [ProfileN] Name=myfox), never someone
+else's.
 
-The headless-pinning dance (profile_headless_once / profile_install_hash_fresh)
-is genuine domain logic, not bash-specific: Firefox computes its own
-[Install<HASH>] itself with no public API for it, so the only way to learn
-the hash is to actually run Firefox once and diff profiles.ini/installs.ini
-before and after. That does not get simpler in another language.
+Firefox computes its own [Install<HASH>] with no public API for it, so the
+only way to learn the hash is to run the install once (headless) and diff
+profiles.ini/installs.ini before and after.
 """
 
 from __future__ import annotations
