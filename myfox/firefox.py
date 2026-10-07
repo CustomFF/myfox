@@ -212,6 +212,23 @@ def download_and_extract(url: str, install_dir: Path, on_download=None, on_extra
             tmp_path.unlink(missing_ok=True)
 
 
+def running_pids(install_dir: Path) -> list[int]:
+    """Processes running a binary from this install (Firefox and its
+    helpers), found through /proc/<pid>/exe."""
+    root = install_dir.resolve()
+    pids = []
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            exe = Path(os.readlink(proc / "exe"))
+        except OSError:
+            continue
+        if root in exe.parents:
+            pids.append(int(proc.name))
+    return pids
+
+
 def install_tarball(install_dir: Path, lang: str, channel: str, on_download=None, on_extract=None) -> str:
     """Downloads + extracts, returns the installed version. Raises on
     failure (unsupported arch, network error) — the caller decides what to

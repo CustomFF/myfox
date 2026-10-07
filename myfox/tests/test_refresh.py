@@ -9,7 +9,7 @@ from unittest import mock
 
 from myfox import core, i18n, refresh, tweaks
 from myfox.state import State
-from myfox.ui import refresh_plain, refresh_tui
+from myfox.ui import task_plain, task_tui
 from picotui.defs import KEY_ENTER, KEY_ESC
 
 from ._helpers import IsolatedStateCase
@@ -79,7 +79,7 @@ class PlanTests(IsolatedStateCase):
 
     def test_long_whats_new_is_cut_with_a_count(self):
         plan = self._check(changes=[str(i) for i in range(12)])
-        self.assertEqual(plan.changes_shown(5), ["0", "1", "2", "3", i18n.t("refresh_more", 8)])
+        self.assertEqual(refresh.to_task(plan, self.fail).lines_shown(5), ["0", "1", "2", "3", i18n.t("refresh_more", 8)])
 
     def test_no_new_tweaks_means_no_whats_new_even_forced(self):
         self.assertEqual(self._check(force=True, tweaks="151.2").changes, [])
@@ -106,7 +106,7 @@ class RunTests(IsolatedStateCase):
         return rc, out.getvalue(), err.getvalue()
 
     def test_no_updates_prints_a_line_and_shows_no_dialog(self):
-        with mock.patch("myfox.ui.refresh_tui.run") as tui:
+        with mock.patch("myfox.ui.task_tui.run") as tui:
             rc, out, _err = self._run(_latest(tweaks="151.2"))
         self.assertEqual((rc, out.strip()), (0, i18n.t("refresh_none")))
         tui.assert_not_called()
@@ -133,7 +133,7 @@ class RunTests(IsolatedStateCase):
 
     def test_tty_shows_the_tui_dialog(self):
         with mock.patch("myfox.ui._has_tty", return_value=True), \
-             mock.patch("myfox.ui.refresh_tui.run", return_value=True) as tui:
+             mock.patch("myfox.ui.task_tui.run", return_value=True) as tui:
             self.assertEqual(self._run(_latest())[0], 0)
         tui.assert_called_once()
 
@@ -145,13 +145,13 @@ class TuiDialogTests(IsolatedStateCase):
 
     def test_enter_updates_then_closes(self):
         updated = []
-        with _drive([KEY_ENTER, KEY_ENTER]), mock.patch("myfox.ui.refresh_tui._ensure_screen"):
-            self.assertTrue(refresh_tui.run(self._plan(), lambda plan, progress: updated.append(plan)))
+        with _drive([KEY_ENTER, KEY_ENTER]), mock.patch("myfox.ui.task_tui._ensure_screen"):
+            self.assertTrue(task_tui.run(refresh.to_task(self._plan(), lambda plan, progress: updated.append(plan))))
         self.assertEqual(len(updated), 1)
 
     def test_escape_cancels(self):
-        with _drive([KEY_ESC]), mock.patch("myfox.ui.refresh_tui._ensure_screen"):
-            self.assertFalse(refresh_tui.run(self._plan(), lambda plan, progress: self.fail("updated")))
+        with _drive([KEY_ESC]), mock.patch("myfox.ui.task_tui._ensure_screen"):
+            self.assertFalse(task_tui.run(refresh.to_task(self._plan(), lambda plan, progress: self.fail("updated"))))
 
 
 class ApplyUpdatesTests(IsolatedStateCase):
@@ -191,7 +191,7 @@ class PlainDialogTests(IsolatedStateCase):
             plan = refresh.RefreshPlan.check(_state())
         out = io.StringIO()
         with mock.patch("builtins.input", return_value="n"), redirect_stdout(out):
-            self.assertFalse(refresh_plain.run(plan, lambda plan, progress: self.fail("updated")))
+            self.assertFalse(task_plain.run(refresh.to_task(plan, lambda plan, progress: self.fail("updated"))))
         self.assertIn(i18n.t("refresh_whats_new"), out.getvalue())
         self.assertIn("Rounded popup menus", out.getvalue())
 

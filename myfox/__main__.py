@@ -10,11 +10,9 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import sys
-from pathlib import Path
 
-from . import __version__, addons, apply, desktop, firefox, i18n, launcher, profiles, refresh
+from . import __version__, i18n, refresh, reinstall, task, uninstall
 from .state import State
 from .ui import get_backend
 
@@ -40,8 +38,12 @@ def build_parser() -> argparse.ArgumentParser:
     refresh_parser.add_argument("--force", action="store_true")
     refresh_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
 
-    sub.add_parser("reinstall", parents=[common], help=i18n.t("cmd_reinstall"))
-    sub.add_parser("uninstall", parents=[common], help=i18n.t("cmd_uninstall"))
+    reinstall_parser = sub.add_parser("reinstall", parents=[common], help=i18n.t("cmd_reinstall"))
+    reinstall_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
+    uninstall_parser = sub.add_parser("uninstall", parents=[common], help=i18n.t("cmd_uninstall"))
+    uninstall_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
+    uninstall_parser.add_argument("--remove-profile", action="store_true",
+                                  help="also delete the profile (bookmarks, history, passwords)")
     sub.add_parser("help", parents=[common], help=i18n.t("cmd_help"))
     return parser
 
@@ -56,52 +58,18 @@ def cmd_browser(firefox_args: list[str], state: State, ui) -> int:
     os.execv(target, [target, *firefox_args])  # never returns on success
 
 
-def cmd_uninstall(state: State, ui, noninteractive: bool) -> int:
-    install_dir = state.get("install_dir")
-    if not install_dir:
+def cmd_uninstall(state: State, ui, noninteractive: bool, gui: bool = False, remove_profile: bool = False) -> int:
+    if not state.get("install_dir"):
         ui.message(i18n.t("err_not_installed"))
         return 0
-    if not noninteractive and not ui.confirm(i18n.t("confirm_uninstall", install_dir), default=False):
-        return 1
-
-    profile_dir = state.get("profile_dir")
-    if profile_dir:
-        profiles.remove_myfox_section(Path(profile_dir))
-    install_hash = state.get("install_hash")
-    if install_hash:
-        profiles.unpin_install(install_hash)
-    shutil.rmtree(install_dir, ignore_errors=True)
-    desktop.remove_entry()
-    launcher.remove_self()
-
-    state.clear()
-    state.save()
-    ui.message(i18n.t("uninstall_done"))
-    return 0
+    return 0 if task.show(uninstall.build(state, remove_profile), gui=gui, noninteractive=noninteractive) else 1
 
 
-def cmd_reinstall(state: State, ui) -> int:
-    install_dir = state.get("install_dir")
-    if not install_dir:
+def cmd_reinstall(state: State, ui, noninteractive: bool = False, gui: bool = False) -> int:
+    if not state.get("install_dir"):
         ui.message(i18n.t("err_not_installed"))
         return 1
-    install_dir = Path(install_dir)
-
-    with ui.spin(i18n.t("reinstalling_firefox")):
-        new_version = firefox.install_tarball(install_dir, state.get("lang", "en-US"), state.get("channel", "stable"))
-
-    profile_dir = state.get("profile_dir")
-    if profile_dir and state.get("tweaks", True):
-        # Also what fixes a profile the install couldn't pin (Firefox didn't start then).
-        pinned = profiles.pin_install(install_dir, Path(profile_dir), saved_hash=state.get("install_hash"))
-        if pinned:
-            state.set("install_hash", pinned)
-    apply.reapply_tweaks(install_dir, Path(profile_dir) if profile_dir else None, state)
-
-    state.set("firefox_version", new_version)
-    state.save()
-    ui.message(i18n.t("reinstall_done", new_version))
-    return 0
+    return 0 if task.show(reinstall.build(state), gui=gui, noninteractive=noninteractive) else 1
 
 
 def cmd_refresh(state: State, ui, force: bool, gui: bool, noninteractive: bool) -> int:
@@ -120,8 +88,9 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(i18n.t("usage_usage"))
     print(f"  myfox browser [firefox args...]   {i18n.t('cmd_browser')}")
     print(f"  myfox refresh [--force] [--gui]   {i18n.t('cmd_refresh')}")
-    print(f"  myfox reinstall                   {i18n.t('cmd_reinstall')}")
-    print(f"  myfox uninstall                   {i18n.t('cmd_uninstall')}")
+    print(f"  myfox reinstall [--gui]           {i18n.t('cmd_reinstall')}")
+    print(f"  myfox uninstall [--remove-profile] [--gui]\n"
+          f"                                    {i18n.t('cmd_uninstall')}")
     print(f"  myfox help                        {i18n.t('cmd_help')}")
 
 
@@ -163,9 +132,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "refresh":
         return cmd_refresh(state, ui, force=args.force, gui=args.gui, noninteractive=noninteractive)
     if args.command == "reinstall":
-        return cmd_reinstall(state, ui)
+        return cmd_reinstall(state, ui, noninteractive, gui=args.gui)
     if args.command == "uninstall":
-        return cmd_uninstall(state, ui, noninteractive)
+        return cmd_uninstall(state, ui, noninteractive, gui=args.gui, remove_profile=args.remove_profile)
 
     print_top_help(parser)
     return 1

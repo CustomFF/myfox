@@ -8,8 +8,8 @@ line in a terminal or a desktop notification for --gui. Otherwise a dialog
 lists what will be updated — unless -y, which updates without asking.
 --force downloads everything again.
 
-Like install_form, this holds the logic; ui/refresh_{gui,tui,plain}.py
-only show it.
+Like install_form, this holds the logic; the dialog is a task.Task, shown
+by ui/task_{gui,tui,plain}.py.
 """
 
 from __future__ import annotations
@@ -20,7 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import apply, changelog, core, gui_deps, i18n, tweaks, version
+from . import apply, changelog, core, i18n, tweaks, version
+from . import task as task_mod
 from .addons import TWEAKS_REPO
 from .install_form import Progress
 from .state import State
@@ -93,14 +94,6 @@ class RefreshPlan:
     def changes(self) -> list[str]:
         return [line for t in self.todo for line in t.changes]
 
-    def changes_shown(self, limit: int) -> list[str]:
-        """At most `limit` lines of what's new, the last one saying how many
-        more there are when they don't fit."""
-        changes = self.changes
-        if len(changes) <= limit:
-            return changes
-        return changes[:limit - 1] + [i18n.t("refresh_more", len(changes) - limit + 1)]
-
     @property
     def todo(self) -> list[TrackState]:
         """What gets updated: with --force every track that has a release to
@@ -142,6 +135,19 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
     progress(i18n.t("progress_refresh_done"), 1.0)
 
 
+def to_task(plan: RefreshPlan, update: Updater) -> task_mod.Task:
+    return task_mod.Task(
+        title=i18n.t("refresh_title"),
+        subtitle=i18n.t("refresh_subtitle_force" if plan.force else "refresh_subtitle"),
+        rows=[(t.label, t.describe()) for t in plan.todo],
+        heading=i18n.t("refresh_whats_new") if plan.changes else "",
+        lines=plan.changes,
+        action=i18n.t("refresh_update"),
+        confirm=i18n.t("refresh_confirm"),
+        run=lambda progress: update(plan, progress),
+    )
+
+
 def run(state: State, gui: bool = False, noninteractive: bool = False, force: bool = False,
         update: Updater = apply_updates) -> int:
     """Checks, then shows (or skips) the dialog the way the session allows."""
@@ -155,30 +161,4 @@ def run(state: State, gui: bool = False, noninteractive: bool = False, force: bo
                 return 1 if plan.error else 0
         print(text, file=sys.stderr if plan.error else sys.stdout)
         return 1 if plan.error else 0
-
-    if noninteractive:
-        from .ui import refresh_plain
-
-        return 0 if refresh_plain.run(plan, update, ask=False) else 1
-    if gui:
-        try:
-            gui_deps.prepare()
-            from .ui import refresh_gui
-        except (ImportError, OSError, RuntimeError) as exc:
-            # Likely started from the menu: nobody would see a printed line.
-            text = i18n.t("err_gui_unavailable", exc)
-            from .ui import notify
-
-            if not notify.send(i18n.t("refresh_title"), text):
-                print(text, file=sys.stderr)
-            return 1
-        return 0 if refresh_gui.run(plan, update) else 1
-    from .ui import _has_tty
-
-    if _has_tty():
-        from .ui import refresh_tui
-
-        return 0 if refresh_tui.run(plan, update) else 1
-    from .ui import refresh_plain
-
-    return 0 if refresh_plain.run(plan, update) else 1
+    return 0 if task_mod.show(to_task(plan, update), gui=gui, noninteractive=noninteractive) else 1

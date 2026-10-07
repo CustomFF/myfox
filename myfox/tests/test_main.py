@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import io
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -48,54 +47,62 @@ class _FakeUI:
 
 
 class UninstallTests(IsolatedStateCase):
+    def setUp(self):
+        super().setUp()
+        running = mock.patch("myfox.firefox.running_pids", return_value=[])
+        running.start()
+        self.addCleanup(running.stop)
+
+    def _installed(self, d: str, **extra) -> tuple[State, Path]:
+        install_dir = Path(d) / "firefox"
+        install_dir.mkdir()
+        state = State()
+        state.set("install_dir", str(install_dir))
+        for key, value in extra.items():
+            state.set(key, value)
+        state.save()
+        return state, install_dir
+
     def test_not_installed_is_a_noop(self):
         ui = _FakeUI()
         self.assertEqual(cli.cmd_uninstall(State(), ui, noninteractive=True), 0)
         self.assertEqual(ui.messages, [i18n.t("err_not_installed")])
 
     def test_noninteractive_removes_the_install_dir_and_clears_state(self):
-        with tempfile.TemporaryDirectory() as d:
-            install_dir = Path(d) / "firefox"
-            install_dir.mkdir()
-            state = State()
-            state.set("install_dir", str(install_dir))
-            state.save()
-
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            state, install_dir = self._installed(d)
             rc = cli.cmd_uninstall(state, _FakeUI(), noninteractive=True)
-
             self.assertEqual(rc, 0)
             self.assertFalse(install_dir.exists())
             self.assertIsNone(State().get("install_dir"))
 
     def test_interactive_decline_removes_nothing(self):
-        with tempfile.TemporaryDirectory() as d:
-            install_dir = Path(d) / "firefox"
-            install_dir.mkdir()
-            state = State()
-            state.set("install_dir", str(install_dir))
-            state.save()
-
-            rc = cli.cmd_uninstall(state, _FakeUI(confirm_answer=False), noninteractive=False)
-
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
+             mock.patch("myfox.ui._has_tty", return_value=False), \
+             mock.patch("builtins.input", return_value=""):
+            # Enter alone means "no": the default of a destructive task.
+            state, install_dir = self._installed(d)
+            rc = cli.cmd_uninstall(state, _FakeUI(), noninteractive=False)
             self.assertEqual(rc, 1)
             self.assertTrue(install_dir.exists())
             self.assertEqual(State().get("install_dir"), str(install_dir))
 
+    def test_running_firefox_blocks_it(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stderr(io.StringIO()) as err, \
+             mock.patch("myfox.firefox.running_pids", return_value=[42]):
+            state, install_dir = self._installed(d)
+            self.assertEqual(cli.cmd_uninstall(state, _FakeUI(), noninteractive=True), 1)
+            self.assertTrue(install_dir.exists())
+        self.assertIn(i18n.t("err_firefox_running"), err.getvalue())
+
     def test_unregisters_the_profile_without_touching_its_files(self):
         # Only the browser install is removed — the profile (bookmarks,
-        # history) stays so a later reinstall can find it again (see
-        # profiles.list_myfox's own docstring on orphaned myfox-* dirs).
-        with tempfile.TemporaryDirectory() as d:
-            install_dir = Path(d) / "firefox"
+        # history) stays so a later reinstall can find it again.
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
             profile_dir = Path(d) / "profile"
-            install_dir.mkdir()
             profile_dir.mkdir()
             (profile_dir / "places.sqlite").write_text("", encoding="utf-8")
-            state = State()
-            state.set("install_dir", str(install_dir))
-            state.set("profile_dir", str(profile_dir))
-            state.set("install_hash", "DEADBEEF")
-            state.save()
+            state, _install_dir = self._installed(d, profile_dir=str(profile_dir), install_hash="DEADBEEF")
 
             with mock.patch("myfox.profiles.remove_myfox_section") as remove_section, \
                  mock.patch("myfox.profiles.unpin_install") as unpin:
@@ -105,60 +112,110 @@ class UninstallTests(IsolatedStateCase):
             unpin.assert_called_once_with("DEADBEEF")
             self.assertTrue((profile_dir / "places.sqlite").exists())
 
+    def _with_profile(self, d: str, marked: bool) -> tuple[State, Path]:
+        profile_dir = Path(d) / "profile"
+        profile_dir.mkdir()
+        if marked:
+            (profile_dir / ".myfox").write_text("", encoding="utf-8")
+        state, _install_dir = self._installed(d, profile_dir=str(profile_dir))
+        return state, profile_dir
+
+    def test_remove_profile_deletes_our_profile(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            state, profile_dir = self._with_profile(d, marked=True)
+            cli.cmd_uninstall(state, _FakeUI(), noninteractive=True, remove_profile=True)
+            self.assertFalse(profile_dir.exists())
+
+    def test_remove_profile_spares_a_profile_without_our_marker(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            state, profile_dir = self._with_profile(d, marked=False)
+            cli.cmd_uninstall(state, _FakeUI(), noninteractive=True, remove_profile=True)
+            self.assertTrue(profile_dir.exists())
+
+    def test_interactive_profile_question_defaults_to_keeping_it(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
+             mock.patch("myfox.ui._has_tty", return_value=False), \
+             mock.patch("builtins.input", side_effect=["", "y"]):
+            state, profile_dir = self._with_profile(d, marked=True)
+            self.assertEqual(cli.cmd_uninstall(state, _FakeUI(), noninteractive=False), 0)
+            self.assertTrue(profile_dir.exists())
+            self.assertFalse((Path(d) / "firefox").exists())
+
+    def test_interactive_yes_to_the_profile_question_deletes_it(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
+             mock.patch("myfox.ui._has_tty", return_value=False), \
+             mock.patch("builtins.input", side_effect=["y", "y"]):
+            state, profile_dir = self._with_profile(d, marked=True)
+            cli.cmd_uninstall(state, _FakeUI(), noninteractive=False)
+            self.assertFalse(profile_dir.exists())
+
+
+def _fake_tarball(dest, lang, channel, on_download=None, on_extract=None):
+    (Path(dest) / "firefox").write_text("new", encoding="utf-8")
+    return "158.0"
+
 
 class ReinstallTests(IsolatedStateCase):
+    def setUp(self):
+        super().setUp()
+        for target, value in (("myfox.firefox.running_pids", []), ("myfox.desktop.write_entry", None)):
+            patcher = mock.patch(target, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _installed(self, d: str, **extra) -> tuple[State, Path]:
+        install_dir = Path(d) / "firefox"
+        install_dir.mkdir()
+        (install_dir / "firefox").write_text("old", encoding="utf-8")
+        state = State()
+        state.set("install_dir", str(install_dir))
+        for key, value in extra.items():
+            state.set(key, value)
+        state.save()
+        return state, install_dir
+
     def test_not_installed_returns_an_error(self):
         self.assertEqual(cli.cmd_reinstall(State(), _FakeUI()), 1)
 
-    def test_redownloads_firefox_and_reapplies_tweaks(self):
-        with tempfile.TemporaryDirectory() as d:
-            install_dir = Path(d) / "firefox"
+    def test_swaps_in_the_new_firefox_and_reapplies_tweaks(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
             profile_dir = Path(d) / "profile"
-            install_dir.mkdir()
             profile_dir.mkdir()
-            state = State()
-            state.set("install_dir", str(install_dir))
-            state.set("profile_dir", str(profile_dir))
-            state.set("lang", "ru")
-            state.set("channel", "beta")
-            state.save()
+            state, install_dir = self._installed(d, profile_dir=str(profile_dir), lang="ru", channel="beta")
 
-            with mock.patch.dict("os.environ", {}, clear=False), \
-                 mock.patch("myfox.firefox.install_tarball", return_value="158.0") as install, \
+            with mock.patch("myfox.firefox.install_tarball", side_effect=_fake_tarball) as install, \
                  mock.patch("myfox.profiles.pin_install", return_value="HASH") as pin, \
-                 mock.patch("myfox.apply.apply_autoconfig") as autoconfig, \
-                 mock.patch("myfox.apply.apply_chrome") as chrome, \
-                 mock.patch("myfox.apply.apply_theme_pref") as theme, \
-                 mock.patch("myfox.addons.fetch_themes", return_value=[]) as themes, \
-                 mock.patch("myfox.apply.apply_bookmarklets", return_value=None):
-                os.environ.pop("MYFOX_TWEAKS_LOCAL", None)
-                rc = cli.cmd_reinstall(state, _FakeUI())
+                 mock.patch("myfox.apply.reapply_tweaks") as reapply:
+                rc = cli.cmd_reinstall(state, _FakeUI(), noninteractive=True)
 
             self.assertEqual(rc, 0)
-            install.assert_called_once_with(install_dir, "ru", "beta")
-            autoconfig.assert_called_once_with(install_dir)
-            chrome.assert_called_once_with(profile_dir)
+            self.assertEqual(install.call_args.args[1:], ("ru", "beta"))
+            self.assertEqual((install_dir / "firefox").read_text(encoding="utf-8"), "new")
+            self.assertTrue((install_dir / ".myfox-installed").is_file())
+            self.assertEqual(sorted(p.name for p in Path(d).iterdir()), ["firefox", "profile"])  # no leftovers
             pin.assert_called_once()
-            self.assertEqual(state.get("install_hash"), "HASH")
-            theme.assert_called_once_with(profile_dir, "dark")
-            themes.assert_called_once_with(profile_dir, local_dir=None)
+            self.assertEqual(reapply.call_args.args[:2], (install_dir, profile_dir))
+            self.assertEqual(State().get("install_hash"), "HASH")
             self.assertEqual(State().get("firefox_version"), "158.0")
 
+    def test_failed_download_keeps_the_current_firefox(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
+             contextlib.redirect_stderr(io.StringIO()):
+            state, install_dir = self._installed(d)
+            with mock.patch("myfox.firefox.install_tarball", side_effect=OSError("offline")):
+                self.assertEqual(cli.cmd_reinstall(state, _FakeUI(), noninteractive=True), 1)
+            self.assertEqual((install_dir / "firefox").read_text(encoding="utf-8"), "old")
+            self.assertEqual([p.name for p in Path(d).iterdir()], ["firefox"])
+
     def test_skips_profile_steps_when_no_profile_is_recorded(self):
-        with tempfile.TemporaryDirectory() as d:
-            install_dir = Path(d) / "firefox"
-            install_dir.mkdir()
-            state = State()
-            state.set("install_dir", str(install_dir))
-            state.save()
-
-            with mock.patch("myfox.firefox.install_tarball", return_value="158.0"), \
-                 mock.patch("myfox.apply.apply_autoconfig") as autoconfig, \
-                 mock.patch("myfox.apply.apply_chrome") as chrome:
-                cli.cmd_reinstall(state, _FakeUI())
-
-            autoconfig.assert_called_once()
-            chrome.assert_not_called()
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            state, _install_dir = self._installed(d)
+            with mock.patch("myfox.firefox.install_tarball", side_effect=_fake_tarball), \
+                 mock.patch("myfox.profiles.pin_install") as pin, \
+                 mock.patch("myfox.apply.reapply_tweaks") as reapply:
+                self.assertEqual(cli.cmd_reinstall(state, _FakeUI(), noninteractive=True), 0)
+            pin.assert_not_called()
+            reapply.assert_not_called()
 
 
 class RefreshTests(IsolatedStateCase):
@@ -183,6 +240,11 @@ class DispatchWiringTests(IsolatedStateCase):
             cli.main(["refresh", "--force", "--gui", "-y"])
         cmd.assert_called_once_with(mock.ANY, mock.ANY, force=True, gui=True, noninteractive=True)
 
+    def test_uninstall_forwards_remove_profile(self):
+        with mock.patch("myfox.__main__.cmd_uninstall", return_value=0) as cmd:
+            cli.main(["uninstall", "--remove-profile", "-y"])
+        cmd.assert_called_once_with(mock.ANY, mock.ANY, True, gui=False, remove_profile=True)
+
     def test_reinstall_dispatches(self):
         with mock.patch("myfox.__main__.cmd_reinstall", return_value=0) as cmd:
             cli.main(["reinstall"])
@@ -191,7 +253,7 @@ class DispatchWiringTests(IsolatedStateCase):
     def test_uninstall_forwards_the_noninteractive_flag(self):
         with mock.patch("myfox.__main__.cmd_uninstall", return_value=0) as cmd:
             cli.main(["uninstall", "-y"])
-        cmd.assert_called_once_with(mock.ANY, mock.ANY, True)
+        cmd.assert_called_once_with(mock.ANY, mock.ANY, True, gui=False, remove_profile=False)
 
 
 class BrowserCommandTests(IsolatedStateCase):

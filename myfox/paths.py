@@ -31,3 +31,9 @@ def autoconfig_dir() -> Path:
 
 def chrome_dir() -> Path:
     return tweaks_dir() / "chrome"
+
+
+def shown(path: str | Path) -> str:
+    """A path for people to read: the home directory as ~."""
+    home, p = str(Path.home()), str(path)
+    return "~" + p[len(home):] if p == home or p.startswith(home + "/") else p

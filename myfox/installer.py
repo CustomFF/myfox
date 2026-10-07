@@ -18,7 +18,7 @@ from .state import State
 _MB = 1024 * 1024
 
 
-class _Stages:
+class Stages:
     """Maps each stage's own 0..1 onto one overall bar, by weight."""
 
     def __init__(self, progress: Progress, weights: list[tuple[str, float]]):
@@ -44,7 +44,7 @@ def install(answers: Answers, progress: Progress) -> None:
     if plasma:
         weights += [("plasma", 3)]
     weights += [("gui", 5), ("shortcut", 2)]
-    stages = _Stages(progress, weights)
+    stages = Stages(progress, weights)
 
     # Firefox: an install of ours already there is reused, as before.
     if reuse:
