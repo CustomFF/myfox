@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.3 — 2026-10-07
+
+- The reinstall window shows a beta Firefox version whole (158.0b4, not 4)
+
 ## 1.1.2 — 2026-10-07
 
 - Installing on aarch64 works: it asked Mozilla for a download that doesn't exist
