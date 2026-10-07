@@ -207,15 +207,16 @@ class ResolveDownloadTests(unittest.TestCase):
         self.assertEqual(version, "158.0")
         self.assertIn("linux-x86_64", url)
 
-    def test_arm64_rewrites_the_arch_in_the_effective_url(self):
+    def test_arm64_asks_mozilla_for_the_aarch64_build(self):
+        # "linux64-aarch64" is Mozilla's name for it; "linux-aarch64" is a 404.
         cm = mock.MagicMock()
         cm.__enter__.return_value.geturl.return_value = (
-            "https://download-installer.cdn.mozilla.net/pub/firefox/releases/158.0/linux-x86_64/ru/firefox-158.0.tar.xz"
+            "https://download-installer.cdn.mozilla.net/pub/firefox/releases/158.0/linux-aarch64/ru/firefox-158.0.tar.xz"
         )
-        with mock.patch("urllib.request.urlopen", return_value=cm):
-            url, _version = firefox.resolve_download("arm64", "ru", "stable")
-        self.assertIn("linux-aarch64", url)
-        self.assertNotIn("linux-x86_64", url)
+        with mock.patch("urllib.request.urlopen", return_value=cm) as urlopen:
+            url, version = firefox.resolve_download("arm64", "ru", "stable")
+        self.assertIn("os=linux64-aarch64&", urlopen.call_args.args[0].full_url)
+        self.assertEqual((version, url.split("/")[-3]), ("158.0", "linux-aarch64"))
 
 
 if __name__ == "__main__":

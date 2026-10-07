@@ -41,7 +41,7 @@ def detect_arch() -> str | None:
 
 
 def _mozilla_arch(arch: str) -> str:
-    return {"amd64": "linux64", "arm64": "linux-aarch64"}[arch]
+    return {"amd64": "linux64", "arm64": "linux64-aarch64"}[arch]
 
 
 def pick_lang(catalog: dict[str, str], env_lang: str | None = None) -> str:
@@ -157,8 +157,6 @@ def resolve_download(arch: str, lang: str, channel: str) -> tuple[str, str]:
     req = net.request(_download_url(arch, lang, channel), method="HEAD")
     with urllib.request.urlopen(req, timeout=30) as resp:
         effective_url = resp.geturl()
-    if arch == "arm64":
-        effective_url = effective_url.replace("linux-x86_64", "linux-aarch64")
     m = re.search(r"firefox-([^/]+)\.tar", effective_url)
     version = m.group(1) if m else "unknown"
     return effective_url, version
