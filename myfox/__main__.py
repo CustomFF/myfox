@@ -17,7 +17,6 @@ from .state import State
 def _common_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument("-y", "--yes", action="store_true", dest="noninteractive")
-    p.add_argument("-v", "--verbose", action="store_true")
     return p
 
 
