@@ -18,6 +18,17 @@ curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh
 curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh -s -- --gui
 ```
 
+Из клона — то же через `make`:
+
+```bash
+git clone https://github.com/CustomFF/myfox.git && cd myfox
+make install                    # форма в терминале; `make install gui` — в окне
+MYFOX_INSTALL=AUTO make install # по умолчанию, без вопросов
+```
+
+`make refresh`, `make reinstall` и `make uninstall` (каждый с необязательным `gui`) просто
+вызывают установленную команду `myfox`, описанную ниже.
+
 ## Что нужно
 
 - Linux, x86_64 или aarch64

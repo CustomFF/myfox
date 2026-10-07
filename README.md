@@ -18,6 +18,17 @@ to install with the defaults without questions:
 curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh -s -- --gui
 ```
 
+From a clone, the same thing with `make`:
+
+```bash
+git clone https://github.com/CustomFF/myfox.git && cd myfox
+make install                    # the form in the terminal; `make install gui` for a window
+MYFOX_INSTALL=AUTO make install # the defaults, no questions
+```
+
+`make refresh`, `make reinstall` and `make uninstall` (each with an optional `gui`) just run the
+installed `myfox` command below.
+
 ## Requirements
 
 - Linux, x86_64 or aarch64
