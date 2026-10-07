@@ -62,5 +62,5 @@ def run(state: State, progress: Progress, remove_profile: bool = False) -> None:
     desktop.remove_entry()
     launcher.remove_self()
     state.clear()
-    state.save()
+    state.delete_file()
     progress(i18n.t("uninstall_done_profile" if removing_profile else "uninstall_done"), 1.0)

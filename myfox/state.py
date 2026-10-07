@@ -54,7 +54,12 @@ class State:
         tmp.replace(self._path)
 
     def delete_file(self) -> None:
+        """Removes the file, and its directory once empty."""
         try:
             self._path.unlink()
         except FileNotFoundError:
+            pass
+        try:
+            state_dir().rmdir()
+        except OSError:
             pass

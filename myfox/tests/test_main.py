@@ -9,7 +9,7 @@ from unittest import mock
 
 from myfox import __main__ as cli
 from myfox import i18n
-from myfox.state import State
+from myfox.state import State, state_file
 from ._helpers import IsolatedStateCase
 
 
@@ -48,7 +48,8 @@ class UninstallTests(IsolatedStateCase):
             rc = cli.cmd_uninstall(state, noninteractive=True)
             self.assertEqual(rc, 0)
             self.assertFalse(install_dir.exists())
-            self.assertIsNone(State().get("install_dir"))
+            self.assertFalse(state_file().exists())
+            self.assertFalse(state_file().parent.exists())
 
     def test_without_a_terminal_and_yes_removes_nothing(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \

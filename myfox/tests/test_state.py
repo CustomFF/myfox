@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from myfox.state import State
+from myfox.state import State, state_file
 from ._helpers import IsolatedStateCase
 
 
@@ -51,3 +51,11 @@ class StateTests(IsolatedStateCase):
 
     def test_delete_file_is_safe_when_nothing_was_ever_saved(self):
         State().delete_file()  # must not raise
+
+    def test_delete_file_removes_the_file_and_its_empty_directory(self):
+        state = State()
+        state.set("install_dir", "/opt/firefox")
+        state.save()
+        state.delete_file()
+        self.assertFalse(state_file().exists())
+        self.assertFalse(state_file().parent.exists())
