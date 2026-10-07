@@ -16,7 +16,10 @@ from .. import i18n
 from ..install_form import Answers, Choice, InstallForm, Installer, Lang
 from .picotui_backend import BOX_BG, SGR_GRAY_ON_CYAN, SGR_WHITE_ON_GRAY, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
 
-from picotui.defs import KEYMAP, KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, C_B_BLUE, C_BLACK, C_RED, C_WHITE  # noqa: E402 (picotui_backend put it on sys.path)
+from picotui.defs import (  # noqa: E402 (picotui_backend put it on sys.path)
+    KEYMAP, KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_SHIFT_TAB,
+    C_B_BLUE, C_BLACK, C_RED, C_WHITE,
+)
 from picotui.widgets import (  # noqa: E402
     ACTION_CANCEL, ACTION_NEXT, ACTION_OK, WCheckbox, WDropDown, WFrame, WLabel, WListBox, WTextEntry,
 )
@@ -174,16 +177,41 @@ class _LangList(WListBox):
         self.attr_reset()
 
 
+# Escape sequences picotui knows: mapped ones plus those it passes on raw.
+_SEQUENCES = {
+    **{k: v for k, v in KEYMAP.items() if isinstance(k, bytes) and k.startswith(b"\x1b")},
+    **{k: k for k in (KEY_SHIFT_TAB, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10)},
+}
+
+
 class _FormDialog(BoxDialog):
     def get_input(self):
         # picotui hands out the first character of a read whole but then
         # takes its leftover buffer one byte at a time, splitting multibyte
-        # (e.g. Cyrillic) characters typed or pasted together.
-        if self.kbuf:
-            text = self.kbuf.decode()
-            key, self.kbuf = text[0].encode(), text[1:].encode()
-            return KEYMAP.get(key, key)
-        return super().get_input()
+        # (e.g. Cyrillic) characters typed or pasted together. And a read
+        # starting with ESC is looked up as one key, so two arrows read
+        # together (a held key, fast typing) match nothing and are lost.
+        if not self.kbuf:
+            key = super().get_input()
+            if not (isinstance(key, bytes) and key.startswith(b"\x1b") and len(key) > 1 and key not in _SEQUENCES):
+                return key
+            self.kbuf = key
+        buf = self.kbuf
+        if buf.startswith(b"\x1b"):
+            for n in range(min(len(buf), 8), 1, -1):
+                if buf[:n] in _SEQUENCES:
+                    self.kbuf = buf[n:]
+                    return _SEQUENCES[buf[:n]]
+            # Unknown sequence (ctrl+arrow, …): skipped up to the next one.
+            end = buf.find(b"\x1b", 1)
+            self.kbuf = buf[end:] if end > 0 else b""
+            return None if len(buf) > 1 else KEYMAP[b"\x1b"]
+        end = buf.find(b"\x1b")
+        text, self.kbuf = (buf, b"") if end < 0 else (buf[:end], buf[end:])
+        text = text.decode(errors="replace")
+        key = text[0].encode()
+        self.kbuf = text[1:].encode() + self.kbuf
+        return KEYMAP.get(key, key)
 
     def find_focusable_by_idx(self, from_idx, direction):
         # Tab skips disabled and hidden widgets (the theme without tweaks).

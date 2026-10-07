@@ -14,7 +14,7 @@ from unittest import mock
 from myfox.install_form import InstallForm, Lang
 from myfox.ui import form_tui
 from myfox.ui.picotui_backend import Dialog, Screen
-from picotui.defs import KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_ESC, KEY_SHIFT_TAB, KEY_TAB
+from picotui.defs import KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_ESC, KEY_LEFT, KEY_SHIFT_TAB, KEY_TAB
 
 LANGS = [Lang("en-US", "English (US)", "English (US)"), Lang("ru", "Russian", "Русский")]
 TO_INSTALL = [KEY_SHIFT_TAB, KEY_SHIFT_TAB]  # from the first field, backwards past Cancel
@@ -106,6 +106,23 @@ class FormTuiTests(unittest.TestCase):
         dialog.kbuf = "ус".encode()
         self.assertEqual([dialog.get_input(), dialog.get_input()], ["у".encode(), "с".encode()])
         self.assertEqual(dialog.kbuf, b"")
+
+    def test_arrows_read_together_are_separate_keys(self):
+        dialog = form_tui._FormDialog(0, 0, 10, 5)
+        with mock.patch.object(Dialog, "get_input", lambda self: b"\x1b[D\x1b[D"):
+            self.assertEqual([dialog.get_input(), dialog.get_input()], [KEY_LEFT, KEY_LEFT])
+        self.assertEqual(dialog.kbuf, b"")
+
+    def test_text_and_keys_read_together_keep_their_order(self):
+        dialog = form_tui._FormDialog(0, 0, 10, 5)
+        dialog.kbuf = "у\x1b[Bс".encode()
+        keys = [dialog.get_input() for _ in range(3)]
+        self.assertEqual(keys, ["у".encode(), KEY_DOWN, "с".encode()])
+
+    def test_an_unknown_sequence_is_skipped_not_taken_for_escape(self):
+        dialog = form_tui._FormDialog(0, 0, 10, 5)
+        dialog.kbuf = b"\x1b[1;5C\x1b[D"
+        self.assertEqual([dialog.get_input(), dialog.get_input()], [None, KEY_LEFT])
 
     def test_failed_install_returns_none(self):
         def failing(answers, progress):
