@@ -27,7 +27,7 @@ class Task:
     subtitle: str
     rows: list[tuple[str, str]]      # (label, value); a value may read "old → new"
     action: str                      # the button
-    confirm: str                     # the question the plain view asks
+    unconfirmed: list[str]           # what to run instead, when there's no terminal and no -y
     run: Callable[[Progress], None]
     heading: str = ""                # above `lines`, e.g. "What's new:"
     lines: list[str] = field(default_factory=list)
@@ -57,7 +57,7 @@ def show(task: Task, gui: bool = False, noninteractive: bool = False) -> bool:
             return False
         from .ui import task_plain
 
-        return task_plain.run(task, ask=False)
+        return task_plain.run(task, confirmed=True)
 
     from .ui import _has_tty
 
@@ -80,4 +80,4 @@ def show(task: Task, gui: bool = False, noninteractive: bool = False) -> bool:
         return task_tui.run(task)
     from .ui import task_plain
 
-    return task_plain.run(task)
+    return task_plain.run(task, confirmed=False)

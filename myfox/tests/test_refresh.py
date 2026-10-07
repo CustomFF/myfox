@@ -186,14 +186,15 @@ class ApplyUpdatesTests(IsolatedStateCase):
 
 
 class PlainDialogTests(IsolatedStateCase):
-    def test_no_answer_cancels(self):
+    def test_without_yes_it_shows_whats_new_and_the_command(self):
         with _releases(_latest()):
             plan = refresh.RefreshPlan.check(_state())
-        out = io.StringIO()
-        with mock.patch("builtins.input", return_value="n"), redirect_stdout(out):
-            self.assertFalse(task_plain.run(refresh.to_task(plan, lambda plan, progress: self.fail("updated"))))
-        self.assertIn(i18n.t("refresh_whats_new"), out.getvalue())
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            t = refresh.to_task(plan, lambda plan, progress: self.fail("updated"))
+            self.assertFalse(task_plain.run(t, confirmed=False))
         self.assertIn("Rounded popup menus", out.getvalue())
+        self.assertIn(i18n.t("needs_yes_refresh", "myfox refresh -y"), err.getvalue())
 
 
 if __name__ == "__main__":

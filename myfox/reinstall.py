@@ -31,7 +31,7 @@ def build(state: State) -> task_mod.Task:
         ],
         lines=[i18n.t("reinstall_keeps_profile")],
         action=i18n.t("reinstall_action"),
-        confirm=i18n.t("reinstall_confirm"),
+        unconfirmed=[i18n.t("needs_yes_reinstall", "myfox reinstall -y")],
         run=lambda progress: run(state, progress),
         blocked=i18n.t("err_firefox_running") if firefox.running_pids(install_dir) else None,
     )

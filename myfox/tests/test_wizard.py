@@ -6,8 +6,8 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
-from myfox import wizard
-from myfox.install_form import InstallForm, Lang
+from myfox import i18n, wizard
+from myfox.install_form import INSTALL_COMMAND, InstallForm, Lang
 from myfox.ui import form_plain
 
 # Sorted by English name, as InstallForm.load() returns them.
@@ -28,32 +28,15 @@ class PlainFormTests(unittest.TestCase):
         progress("step…", 0.5)
         self.installed.append(answers)
 
-    def _run(self, inputs, **kwargs):
-        with mock.patch("builtins.input", side_effect=list(inputs)), redirect_stdout(io.StringIO()), \
-             redirect_stderr(io.StringIO()):
-            return form_plain.run(self.form, self.install, **kwargs)
-
-    def test_enter_everywhere_keeps_the_defaults(self):
-        # dir, channel, tweaks, theme, lang
-        answers = self._run(["", "", "", "", ""])
-        self.assertEqual(self.installed, [answers])
-        self.assertEqual((answers.channel, answers.tweaks, answers.theme, answers.lang), ("stable", True, "dark", "en-US"))
-
-    def test_answers_are_taken(self):
-        answers = self._run(["", "2", "y", "2", "ru"])
-        self.assertEqual((answers.channel, answers.theme, answers.lang), ("beta", "light", "ru"))
-
-    def test_no_theme_question_without_tweaks(self):
-        answers = self._run(["", "", "n", ""])  # dir, channel, tweaks=no, lang
-        self.assertFalse(answers.tweaks)
-
-    def test_lang_by_word_with_several_matches_asks_which(self):
-        answers = self._run(["", "", "", "", "рус", "2"])  # be, ru -> pick 2
-        self.assertEqual(answers.lang, "ru")
-
-    def test_invalid_dir_is_asked_again(self):
-        answers = self._run(["relative", "", "", "", "", ""])
-        self.assertEqual(answers.install_dir, self._tmp.name)
+    def test_without_yes_shows_the_defaults_and_the_command(self):
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch("builtins.input", side_effect=AssertionError("asked")), redirect_stdout(out), \
+             redirect_stderr(err):
+            self.assertIsNone(form_plain.run(self.form, self.install))
+        self.assertEqual(self.installed, [])
+        self.assertIn(self._tmp.name, out.getvalue())
+        self.assertIn("English (US) (en-US)", out.getvalue())
+        self.assertIn(i18n.t("needs_yes_install", INSTALL_COMMAND), err.getvalue())
 
     def test_noninteractive_asks_nothing(self):
         with mock.patch("builtins.input", side_effect=AssertionError("asked")), redirect_stdout(io.StringIO()):

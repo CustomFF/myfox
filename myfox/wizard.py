@@ -4,7 +4,7 @@ only picks how it looks:
 
   --gui           dearpygui window
   tty             picotui dialog
-  no tty          plain questions on stdin/stdout
+  no tty          plain: -y installs, otherwise the defaults and the command
   -y              no questions, defaults
 
 Runs from bootstrap.py's "not installed yet" branch — there's no `install`

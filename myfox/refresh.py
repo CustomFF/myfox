@@ -143,7 +143,7 @@ def to_task(plan: RefreshPlan, update: Updater) -> task_mod.Task:
         heading=i18n.t("refresh_whats_new") if plan.changes else "",
         lines=plan.changes,
         action=i18n.t("refresh_update"),
-        confirm=i18n.t("refresh_confirm"),
+        unconfirmed=[i18n.t("needs_yes_refresh", "myfox refresh --force -y" if plan.force else "myfox refresh -y")],
         run=lambda progress: update(plan, progress),
     )
 

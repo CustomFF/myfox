@@ -76,16 +76,16 @@ class UninstallTests(IsolatedStateCase):
             self.assertFalse(install_dir.exists())
             self.assertIsNone(State().get("install_dir"))
 
-    def test_interactive_decline_removes_nothing(self):
+    def test_without_a_terminal_and_yes_removes_nothing(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
-             mock.patch("myfox.ui._has_tty", return_value=False), \
-             mock.patch("builtins.input", return_value=""):
-            # Enter alone means "no": the default of a destructive task.
+             contextlib.redirect_stderr(io.StringIO()) as err, \
+             mock.patch("myfox.ui._has_tty", return_value=False):
             state, install_dir = self._installed(d)
             rc = cli.cmd_uninstall(state, _FakeUI(), noninteractive=False)
             self.assertEqual(rc, 1)
             self.assertTrue(install_dir.exists())
             self.assertEqual(State().get("install_dir"), str(install_dir))
+        self.assertIn("myfox uninstall -y", err.getvalue())
 
     def test_running_firefox_blocks_it(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stderr(io.StringIO()) as err, \
@@ -132,22 +132,17 @@ class UninstallTests(IsolatedStateCase):
             cli.cmd_uninstall(state, _FakeUI(), noninteractive=True, remove_profile=True)
             self.assertTrue(profile_dir.exists())
 
-    def test_interactive_profile_question_defaults_to_keeping_it(self):
+    def test_without_yes_both_commands_are_named(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
-             mock.patch("myfox.ui._has_tty", return_value=False), \
-             mock.patch("builtins.input", side_effect=["", "y"]):
+             contextlib.redirect_stderr(io.StringIO()) as err, \
+             mock.patch("myfox.ui._has_tty", return_value=False):
             state, profile_dir = self._with_profile(d, marked=True)
-            self.assertEqual(cli.cmd_uninstall(state, _FakeUI(), noninteractive=False), 0)
+            self.assertEqual(cli.cmd_uninstall(state, _FakeUI(), noninteractive=False), 1)
             self.assertTrue(profile_dir.exists())
-            self.assertFalse((Path(d) / "firefox").exists())
-
-    def test_interactive_yes_to_the_profile_question_deletes_it(self):
-        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
-             mock.patch("myfox.ui._has_tty", return_value=False), \
-             mock.patch("builtins.input", side_effect=["y", "y"]):
-            state, profile_dir = self._with_profile(d, marked=True)
-            cli.cmd_uninstall(state, _FakeUI(), noninteractive=False)
-            self.assertFalse(profile_dir.exists())
+        self.assertEqual(err.getvalue().splitlines(), [
+            i18n.t("needs_yes_uninstall", "myfox uninstall -y"),
+            i18n.t("needs_yes_uninstall_profile", "myfox uninstall -y --remove-profile"),
+        ])
 
 
 def _fake_tarball(dest, lang, channel, on_download=None, on_extract=None):

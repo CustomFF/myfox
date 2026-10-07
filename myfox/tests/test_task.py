@@ -20,7 +20,7 @@ from .test_form_tui import _drive
 
 def _task(ran: list, **kwargs) -> task.Task:
     return task.Task(
-        title="T", subtitle="S", rows=[("Row:", "value")], action="Go", confirm="Go?",
+        title="T", subtitle="S", rows=[("Row:", "value")], action="Go", unconfirmed=["Run: go -y"],
         run=lambda progress: ran.append(True), **kwargs,
     )
 
@@ -49,28 +49,34 @@ class ShowTests(IsolatedStateCase):
 
 
 class PlainTests(IsolatedStateCase):
-    def _run(self, t: task.Task, answer: str) -> bool:
-        with mock.patch("builtins.input", return_value=answer), redirect_stdout(io.StringIO()):
-            return task_plain.run(t)
+    def test_without_yes_it_names_the_command_and_runs_nothing(self):
+        ran, err = [], io.StringIO()
+        with mock.patch("builtins.input", side_effect=AssertionError("asked")), \
+             redirect_stdout(io.StringIO()), redirect_stderr(err):
+            self.assertFalse(task_plain.run(_task(ran), confirmed=False))
+        self.assertEqual((ran, err.getvalue().strip()), ([], "Run: go -y"))
 
-    def test_enter_runs_an_ordinary_task(self):
+    def test_no_tty_without_yes_goes_the_same_way(self):
         ran = []
-        self.assertTrue(self._run(_task(ran), ""))
-        self.assertEqual(ran, [True])
-
-    def test_enter_declines_a_destructive_task(self):
-        ran = []
-        self.assertFalse(self._run(_task(ran, destructive=True), ""))
+        with mock.patch("myfox.ui._has_tty", return_value=False), \
+             redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertFalse(task.show(_task(ran)))
         self.assertEqual(ran, [])
+
+    def test_options_are_shown_with_their_state(self):
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            task_plain.run(_task([], options=[task.Option("Also the profile", True)]), confirmed=False)
+        self.assertIn("[x] Also the profile", out.getvalue())
 
     def test_a_failure_is_reported_not_raised(self):
         def fail(progress):
             raise OSError("disk full")
 
-        t = task.Task(title="T", subtitle="S", rows=[], action="Go", confirm="Go?", run=fail)
+        t = task.Task(title="T", subtitle="S", rows=[], action="Go", unconfirmed=[], run=fail)
         err = io.StringIO()
-        with redirect_stderr(err):
-            self.assertFalse(self._run(t, "y"))
+        with redirect_stdout(io.StringIO()), redirect_stderr(err):
+            self.assertFalse(task_plain.run(t, confirmed=True))
         self.assertIn("disk full", err.getvalue())
 
 
@@ -97,7 +103,7 @@ class TuiTests(IsolatedStateCase):
     def test_space_ticks_an_option_before_the_run(self):
         seen = []
         option = task.Option("Also the profile")
-        t = task.Task(title="T", subtitle="S", rows=[("Row:", "v")], action="Go", confirm="Go?",
+        t = task.Task(title="T", subtitle="S", rows=[("Row:", "v")], action="Go", unconfirmed=["Run: go -y"],
                       run=lambda progress: seen.append(option.value), options=[option], destructive=True)
         # Focus starts on Cancel: Left to the action, Left again to the
         # checkbox, Space ticks it, Down back to the action.

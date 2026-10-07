@@ -32,7 +32,10 @@ def build(state: State, remove_profile: bool = False) -> task_mod.Task:
         rows=rows,
         options=options,
         action=i18n.t("uninstall_action"),
-        confirm=i18n.t("uninstall_confirm"),
+        unconfirmed=[i18n.t("needs_yes_uninstall", "myfox uninstall -y --remove-profile" if remove_profile
+                            else "myfox uninstall -y")]
+        + ([i18n.t("needs_yes_uninstall_profile", "myfox uninstall -y --remove-profile")]
+           if profile_dir and not remove_profile else []),
         run=lambda progress: run(state, progress, remove_profile=bool(options) and options[0].value),
         destructive=True,
         blocked=i18n.t("err_firefox_running") if firefox.running_pids(install_dir) else None,

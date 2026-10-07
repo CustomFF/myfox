@@ -37,6 +37,10 @@ class Answers:
     notes: list[str] = field(default_factory=list)
 
 
+# What a user runs to install without questions (no terminal to ask in).
+INSTALL_COMMAND = "curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh -s -- -y"
+
+
 @dataclass(frozen=True)
 class Choice:
     value: str
