@@ -50,8 +50,9 @@ def run(state: State, progress: Progress, remove_profile: bool = False) -> None:
         profiles.remove_myfox_section(profile_dir)
     if state.get("install_hash"):
         profiles.unpin_install(state.get("install_hash"))
-    # Only a profile carrying our marker: never one MyFox doesn't own.
-    removing_profile = remove_profile and profile_dir is not None and (profile_dir / ".myfox").is_file()
+    # Only a profile MyFox created itself (profiles.create_new marks it),
+    # never one it was merely pointed at.
+    removing_profile = remove_profile and profile_dir is not None and (profile_dir / ".myfox-created").is_file()
     if removing_profile:
         progress(i18n.t("progress_uninstall_profile_files"), 0.25)
         shutil.rmtree(profile_dir, ignore_errors=True)

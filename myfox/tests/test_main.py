@@ -112,23 +112,23 @@ class UninstallTests(IsolatedStateCase):
             unpin.assert_called_once_with("DEADBEEF")
             self.assertTrue((profile_dir / "places.sqlite").exists())
 
-    def _with_profile(self, d: str, marked: bool) -> tuple[State, Path]:
+    def _with_profile(self, d: str, created: bool) -> tuple[State, Path]:
         profile_dir = Path(d) / "profile"
         profile_dir.mkdir()
-        if marked:
-            (profile_dir / ".myfox").write_text("", encoding="utf-8")
+        if created:
+            (profile_dir / ".myfox-created").write_text("", encoding="utf-8")
         state, _install_dir = self._installed(d, profile_dir=str(profile_dir))
         return state, profile_dir
 
     def test_remove_profile_deletes_our_profile(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
-            state, profile_dir = self._with_profile(d, marked=True)
+            state, profile_dir = self._with_profile(d, created=True)
             cli.cmd_uninstall(state, _FakeUI(), noninteractive=True, remove_profile=True)
             self.assertFalse(profile_dir.exists())
 
-    def test_remove_profile_spares_a_profile_without_our_marker(self):
+    def test_remove_profile_spares_a_profile_myfox_did_not_create(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
-            state, profile_dir = self._with_profile(d, marked=False)
+            state, profile_dir = self._with_profile(d, created=False)
             cli.cmd_uninstall(state, _FakeUI(), noninteractive=True, remove_profile=True)
             self.assertTrue(profile_dir.exists())
 
@@ -136,7 +136,7 @@ class UninstallTests(IsolatedStateCase):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
              contextlib.redirect_stderr(io.StringIO()) as err, \
              mock.patch("myfox.ui._has_tty", return_value=False):
-            state, profile_dir = self._with_profile(d, marked=True)
+            state, profile_dir = self._with_profile(d, created=True)
             self.assertEqual(cli.cmd_uninstall(state, _FakeUI(), noninteractive=False), 1)
             self.assertTrue(profile_dir.exists())
         self.assertEqual(err.getvalue().splitlines(), [
