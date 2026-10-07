@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0 — 2026-10-07
+
+- `myfox reinstall` and `myfox uninstall` open the same window as the update, in the terminal or with `--gui`: what will happen, then progress
+- Uninstalling can delete the profile too (bookmarks, history, passwords): a checkbox, off by default, or `--remove-profile`; otherwise the profile stays on disk
+- Reinstalling replaces Firefox only once the new copy is fully downloaded; a failed download leaves the current one working
+- Both refuse to run while Firefox from this install is open
+- Without a terminal nothing is asked any more: MyFox shows what it would do and the command to run with `-y`
+- In the terminal interface, keys pressed quickly (a held arrow key) are no longer lost
+
 ## 1.0.2 — 2026-10-07
 
 - The graphical window no longer hangs where OpenGL can't use the graphics card: it falls back to software rendering, or the install carries on in the terminal
