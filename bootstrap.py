@@ -131,13 +131,11 @@ def main(argv) -> int:
         root = Path(core_dir) if core_dir else Path(tmp)
         if not core_dir:
             try:
-                tag = fetch_core(root)
+                fetch_core(root)
             except OSError as exc:
                 print(t("core_failed", getattr(exc, "reason", exc)), file=sys.stderr)
                 return 1
-        else:
-            tag = "dev"
-        env = dict(os.environ, MYFOX_CORE_VERSION=tag)
+        env = dict(os.environ)
         env["PYTHONPATH"] = os.pathsep.join(p for p in (str(root), os.environ.get("PYTHONPATH")) if p)
         if "--gui" in argv:
             # The form itself needs dearpygui; the install then keeps this copy.

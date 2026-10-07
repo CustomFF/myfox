@@ -88,15 +88,13 @@ class FreshTests(_Env):
 
         def run(cmd, env=None, **kwargs):
             root = Path(env["PYTHONPATH"].split(os.pathsep)[0])
-            seen.update(cmd=cmd[1:], version=env["MYFOX_CORE_VERSION"],
-                        unpacked=sorted(p.name for p in root.iterdir()))
+            seen.update(cmd=cmd[1:], unpacked=sorted(p.name for p in root.iterdir()))
             return mock.Mock(returncode=0)
 
         with mock.patch.dict("os.environ", {"MYFOX_CORE_URL": str(archive)}), \
              mock.patch("subprocess.run", side_effect=run):
             self.assertEqual(bootstrap.main(["-y"]), 0)
-        self.assertEqual(seen, {"cmd": ["-m", "myfox.wizard", "-y"], "version": "dev",
-                                "unpacked": ["autoconfig", "chrome", "myfox"]})
+        self.assertEqual(seen, {"cmd": ["-m", "myfox.wizard", "-y"], "unpacked": ["autoconfig", "chrome", "myfox"]})
 
     def test_unsafe_archive_is_refused(self):
         archive = self._archive({"../evil": b"x"})

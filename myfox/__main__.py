@@ -14,7 +14,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import addons, apply, desktop, firefox, i18n, launcher, profiles, refresh
+from . import __version__, addons, apply, desktop, firefox, i18n, launcher, profiles, refresh
 from .state import State
 from .ui import get_backend
 
@@ -29,6 +29,7 @@ def _common_parser() -> argparse.ArgumentParser:
 def build_parser() -> argparse.ArgumentParser:
     common = _common_parser()
     parser = argparse.ArgumentParser(prog="myfox", description=i18n.t("usage_title"))
+    parser.add_argument("--version", action="version", version=f"MyFox {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     # "browser" is intercepted in main() before argparse ever sees it (see

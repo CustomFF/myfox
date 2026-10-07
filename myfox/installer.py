@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import addons, apply, desktop, firefox, gui_deps, i18n, launcher, profiles, tweaks
+from . import __version__
 from .install_form import Answers, Progress
 from .state import State
 
@@ -109,8 +110,7 @@ def install(answers: Answers, progress: Progress) -> None:
         ("install_hash", install_hash), ("installed_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
         ("lang", answers.lang), ("channel", answers.channel), ("theme", answers.theme),
         ("tweaks", answers.tweaks), ("opt_bl", answers.tweaks), ("opt_plasma", plasma),
-        # Set by bootstrap.py: the core-* release this copy came from.
-        ("core_version", os.environ.get("MYFOX_CORE_VERSION")), ("tweaks_version", tweaks_version),
+        ("core_version", __version__), ("tweaks_version", tweaks_version),
     ):
         state.set(key, value)
     state.save()

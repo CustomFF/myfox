@@ -267,5 +267,15 @@ class ParserStructureTests(IsolatedStateCase):
             cli.main(["uninstall", "--force"])
 
 
+class VersionFlagTests(unittest.TestCase):
+    def test_prints_the_package_version(self):
+        import myfox
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(SystemExit) as exit_:
+            cli.main(["--version"])
+        self.assertEqual((exit_.exception.code, out.getvalue().strip()), (0, f"MyFox {myfox.__version__}"))
+
+
 if __name__ == "__main__":
     unittest.main()

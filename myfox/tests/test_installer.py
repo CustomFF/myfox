@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import myfox
 from myfox import i18n, installer
 from myfox.install_form import Answers
 from myfox.state import State
@@ -59,6 +60,7 @@ class InstallTests(IsolatedStateCase):
                          (str(self.install_dir), str(self.profile_dir), "HASH"))
         self.assertEqual((state.get("firefox_version"), state.get("lang"), state.get("theme")), ("152.0", "ru", "light"))
         self.assertEqual(state.get("tweaks_version"), "158.0")
+        self.assertEqual(state.get("core_version"), myfox.__version__)
 
     def test_progress_only_goes_up_and_ends_done(self):
         self._install(Answers(install_dir=str(self.install_dir)))
