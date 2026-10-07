@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 — 2026-10-07
+
+- Uninstalling with "also delete the profile" now also deletes a profile installed without the tweaks
+- The `-v` option is gone: it did nothing
+
 ## 1.1.0 — 2026-10-07
 
 - `myfox reinstall` and `myfox uninstall` open the same window as the update, in the terminal or with `--gui`: what will happen, then progress
