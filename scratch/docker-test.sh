@@ -63,8 +63,15 @@ fi
 read -r -d '' INNER <<'EOF' || true
 set -e
 if command -v apt-get >/dev/null; then
-    apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-        python3 curl ca-certificates libgtk-3-0 libasound2 libx11-xcb1 >/dev/null
+    apt-get update -qq
+    # Newer releases renamed some libraries to *t64; the old name is then a
+    # virtual package apt won't pick by itself.
+    pkgs=""
+    for p in libgtk-3-0 libasound2; do
+        if apt-cache show "${p}t64" >/dev/null 2>&1; then pkgs="$pkgs ${p}t64"; else pkgs="$pkgs $p"; fi
+    done
+    # shellcheck disable=SC2086
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 curl ca-certificates libx11-xcb1 $pkgs >/dev/null
 elif command -v dnf >/dev/null; then
     dnf install -y -q python3 curl gtk3 alsa-lib libX11-xcb >/dev/null
 elif command -v zypper >/dev/null; then
