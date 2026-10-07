@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 — 2026-10-07
+
+- After the install, a note in the terminal when the MyFox profile couldn't be tied to Firefox (Firefox didn't start); `myfox reinstall` now ties it
+- No more Python warning about unpacking archives on Python 3.13
+
 ## 1.0.0 — 2026-10-07
 
 - The installer and updater are rewritten in Python and need nothing beyond python3 and curl
