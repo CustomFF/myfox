@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import json
 import tarfile
 from pathlib import Path
 from unittest import mock
@@ -80,29 +79,3 @@ class InstallTests(IsolatedStateCase):
     def test_no_release_is_an_error(self):
         with mock.patch("myfox.tweaks.latest_release", return_value=None), self.assertRaises(OSError):
             tweaks.install()
-
-
-class ChangesSinceTests(IsolatedStateCase):
-    CHANGELOG = {"versions": [
-        {"version": "159.0", "date": "2026-11-01", "changes": ["C"]},
-        {"version": "158.1", "date": "2026-10-10", "changes": ["B1", "B2"]},
-        {"version": "158.0", "date": "2026-10-06", "changes": ["A"]},
-    ]}
-
-    def _since(self, current, body=None):
-        data = json.dumps(body or self.CHANGELOG).encode()
-        with mock.patch("myfox.tweaks._download", return_value=data):
-            return tweaks.changes_since(current, tweaks.Release("159.0", "a", "c"))
-
-    def test_only_versions_newer_than_installed(self):
-        self.assertEqual(self._since("158.0"), ["C", "B1", "B2"])
-
-    def test_versions_compare_as_numbers(self):
-        self.assertEqual(self._since("158.10"), ["C"])
-
-    def test_unknown_installed_version_shows_everything(self):
-        self.assertEqual(self._since(None), ["C", "B1", "B2", "A"])
-
-    def test_malformed_changelog_is_an_error(self):
-        with self.assertRaises(OSError):
-            self._since("158.0", body={"nope": []})

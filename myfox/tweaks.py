@@ -12,7 +12,6 @@ checkout instead (dev use), as addons.fetch_themes() does for the themes.
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import tarfile
@@ -21,7 +20,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import net, paths, version
+from . import changelog, net, paths, version
 from .addons import TWEAKS_REPO
 
 ARCHIVE = "myfox-tweaks.tar.gz"
@@ -50,14 +49,6 @@ def latest_release() -> Release | None:
         if assets.get(ARCHIVE) and assets.get(CHANGELOG):
             return Release(rel["tag_name"], assets[ARCHIVE], assets[CHANGELOG])
     return None
-
-
-def parse_version(tag: str | None) -> tuple[int, int] | None:
-    try:
-        major, patch = (tag or "").split(".")
-        return int(major), int(patch)
-    except ValueError:
-        return None
 
 
 def _download(url: str) -> bytes:
@@ -103,18 +94,5 @@ def install(release: Release | None = None) -> str:
 
 
 def changes_since(current: str | None, release: Release) -> list[str]:
-    """What's new from `current` up to `release`, newest first, as the
-    changelog's own lines. Raises OSError if the changelog can't be read."""
-    try:
-        data = json.loads(_download(release.changelog_url).decode("utf-8"))
-        entries = data["versions"]
-    except (ValueError, KeyError, TypeError) as exc:
-        raise OSError(f"bad changelog: {exc}") from exc
-    since = parse_version(current)
-    changes = []
-    for entry in entries:
-        ver = parse_version(entry.get("version"))
-        if ver is None or (since is not None and ver <= since):
-            continue
-        changes += [line for line in entry.get("changes", []) if isinstance(line, str)]
-    return changes
+    """What's new from `current` up to `release`, newest first."""
+    return changelog.changes_since(release.changelog_url, current)

@@ -30,10 +30,15 @@ class LatestReleaseTests(IsolatedStateCase):
         releases = [
             {"tag_name": "dearpygui-2.3.1", "assets": [{"name": "x.whl", "browser_download_url": "w"}]},
             {"tag_name": "core-3", "assets": []},
-            {"tag_name": "core-2", "assets": [{"name": "myfox-core.tar.gz", "browser_download_url": "https://c/2"}]},
+            {"tag_name": "core-2.1.0", "assets": [{"name": "myfox-core.tar.gz", "browser_download_url": "x"}]},
+            {"tag_name": "core-2.0.0", "assets": [
+                {"name": "myfox-core.tar.gz", "browser_download_url": "https://c/2"},
+                {"name": "changelog.json", "browser_download_url": "https://c/2.json"},
+            ]},
         ]
+        # core-3 has no assets, core-2.1.0 no changelog.
         with mock.patch("myfox.version._fetch_releases", return_value=releases):
-            self.assertEqual(core.latest_release(), core.Release("core-2", "https://c/2"))
+            self.assertEqual(core.latest_release(), core.Release("core-2.0.0", "https://c/2", "https://c/2.json"))
 
     def test_local_archive_instead_of_a_release(self):
         with mock.patch.dict("os.environ", {"MYFOX_CORE_URL": "/tmp/myfox-core.tar.gz"}), \
@@ -65,6 +70,10 @@ class InstallTests(IsolatedStateCase):
         self.assertFalse((self.share / "myfox" / "old_module.py").exists())
         for part in ("firefox/firefox", "tweaks/chrome/x.css", "dearpygui/__init__.py"):
             self.assertEqual((self.share / part).read_text(), "old", part)
+
+    def test_returns_the_new_package_s_own_version(self):
+        version = self._install({"myfox/__main__.py": b"new", "myfox/__init__.py": b'__version__ = "1.2.3"\n'})
+        self.assertEqual(version, "1.2.3")
 
     def test_unsafe_archive_keeps_the_current_package(self):
         with self.assertRaises(OSError):

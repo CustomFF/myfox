@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import apply, core, gui_deps, i18n, tweaks, version
+from . import apply, changelog, core, gui_deps, i18n, tweaks, version
 from .addons import TWEAKS_REPO
 from .install_form import Progress
 from .state import State
@@ -54,13 +54,14 @@ class TrackState:
 
     @property
     def has_update(self) -> bool:
-        return self.latest is not None and self.latest != self.current
+        """Only to a newer version (numbers, not tag text)."""
+        return changelog.is_newer(self.latest, self.current)
 
     def describe(self) -> str:
-        """"151.2 → 151.3" when it changes, else just the version (forced)."""
+        """"1.0.0 → 1.1.0" when it changes, else just the version (forced)."""
         if self.has_update:
-            return i18n.t("refresh_version_change", self.current or "—", self.latest)
-        return self.current or self.latest or "—"
+            return i18n.t("refresh_version_change", changelog.display(self.current), changelog.display(self.latest))
+        return changelog.display(self.current or self.latest)
 
 
 @dataclass
@@ -80,9 +81,9 @@ class RefreshPlan:
             except OSError as exc:
                 return cls(force=force, error=i18n.t("refresh_check_failed", getattr(exc, "reason", exc)))
             t = TrackState(track, state.get(track.key), latest, release)
-            if t.has_update and isinstance(release, tweaks.Release):
+            if t.has_update and getattr(release, "changelog_url", None):
                 try:
-                    t.changes = tweaks.changes_since(t.current, release)
+                    t.changes = changelog.changes_since(release.changelog_url, t.current)
                 except OSError:
                     pass  # no "what's new" is no reason not to update
             tracks.append(t)

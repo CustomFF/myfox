@@ -30,10 +30,10 @@ def _releases(latest):
             yield
         return
     release = tweaks.Release(latest["tweaks"], "https://x/a.tar.gz", "https://x/c.json") if latest["tweaks"] else None
-    core_release = core.Release(latest["core"], "https://x/core.tar.gz") if latest["core"] else None
+    core_release = core.Release(latest["core"], "https://x/core.tar.gz", "https://x/core.json") if latest["core"] else None
     with mock.patch("myfox.core.latest_release", return_value=core_release), \
          mock.patch("myfox.tweaks.latest_release", return_value=release), \
-         mock.patch("myfox.tweaks.changes_since", return_value=latest["changes"]):
+         mock.patch("myfox.changelog.changes_since", return_value=latest["changes"]):
         yield
 
 
@@ -61,6 +61,14 @@ class PlanTests(IsolatedStateCase):
         plan = self._check(force=True, tweaks="151.2")
         self.assertEqual(len(plan.todo), 2)
         self.assertEqual(plan.todo[0].describe(), "151.2")
+
+    def test_an_older_release_is_not_an_update(self):
+        self.assertFalse(self._check(tweaks="151.1", core="core-4").needed)
+
+    def test_versions_show_without_the_tag_prefix(self):
+        plan = self._check(core="core-6")
+        core_track = next(t for t in plan.todo if t.track.key == "core_version")
+        self.assertEqual(core_track.describe(), i18n.t("refresh_version_change", "5", "6"))
 
     def test_force_skips_a_track_with_no_release(self):
         plan = self._check(force=True, tweaks="151.2", core=None)
