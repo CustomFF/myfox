@@ -68,6 +68,23 @@ class InstalledTests(_Env):
             self.assertEqual(bootstrap.main([]), 0)
         execv.assert_not_called()
 
+    def test_install_flags_are_not_passed_to_myfox(self):
+        launcher = self.install()
+        with mock.patch("os.execv", side_effect=_Exec) as execv, mock.patch("builtins.input", return_value=""), \
+             mock.patch.object(bootstrap, "_has_tty", return_value=True), \
+             redirect_stdout(io.StringIO()), self.assertRaises(_Exec):
+            bootstrap.main(["--gui"])
+        execv.assert_called_once_with(str(launcher), [str(launcher), "refresh", "--gui"])
+
+    def test_yes_when_installed_asks_nothing(self):
+        self.install()
+        out = io.StringIO()
+        with mock.patch("os.execv") as execv, mock.patch("builtins.input", side_effect=AssertionError("asked")), \
+             mock.patch.object(bootstrap, "_has_tty", return_value=True), redirect_stdout(out):
+            self.assertEqual(bootstrap.main(["-y"]), 0)
+        execv.assert_not_called()
+        self.assertIn(bootstrap.t("updates_hint"), out.getvalue())
+
     def test_without_a_terminal_names_the_command_instead_of_asking(self):
         self.install()
         out = io.StringIO()

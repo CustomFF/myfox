@@ -2,8 +2,9 @@
 every call, so it has no version of its own; stdlib only, it can't import
 myfox before downloading it.
 
-Installed already: with arguments they go to the installed `myfox`;
-without, it says so and offers to check for updates (`myfox refresh`).
+Installed already: a command (`… | sh -s -- uninstall`) goes to the
+installed `myfox`; otherwise it says so and offers to check for updates
+(`myfox refresh`, with --gui if given).
 Not installed: downloads the core archive (the myfox/ package) of the
 latest core-* release into a temp dir, adds dearpygui there for
 --gui, and runs the install form from it (`python3 -m myfox.wizard`); the
@@ -137,15 +138,17 @@ def main(argv) -> int:
 
     launcher = installed_launcher()
     if launcher:
-        if argv:
+        # A command goes to the installed myfox; the install form's own
+        # flags (--gui, -y) mean "install", which is done already.
+        if argv and not argv[0].startswith("-"):
             os.execv(str(launcher), [str(launcher), *argv])
         print(t("already_installed", launcher.parent.parent))
-        if not _has_tty():
-            # A question printed into a pipe reaches nobody.
+        if not _has_tty() or "-y" in argv or "--yes" in argv:
+            # No one to ask: a question printed into a pipe reaches nobody.
             print(t("updates_hint"))
             return 0
         if _ask_yes(t("check_updates")):
-            os.execv(str(launcher), [str(launcher), "refresh"])
+            os.execv(str(launcher), [str(launcher), "refresh", *(["--gui"] if "--gui" in argv else [])])
         return 0
 
     core_dir = os.environ.get("MYFOX_CORE_DIR")
