@@ -9,7 +9,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from . import apply, changelog, desktop, firefox, i18n, launcher, paths, profiles
+from . import apply, desktop, firefox, i18n, launcher, paths, profiles
 from . import task as task_mod
 from .install_form import Progress
 from .installer import Stages
@@ -25,7 +25,7 @@ def build(state: State) -> task_mod.Task:
         title=i18n.t("reinstall_title"),
         subtitle=i18n.t("reinstall_subtitle"),
         rows=[
-            (i18n.t("row_firefox"), changelog.display(state.get("firefox_version"))),
+            (i18n.t("row_firefox"), state.get("firefox_version") or "—"),
             (i18n.t("form_channel"), i18n.t(channel) if channel else state.get("channel")),
             (i18n.t("form_dir"), paths.shown(install_dir)),
         ],

@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from myfox import __main__ as cli
-from myfox import i18n
+from myfox import i18n, reinstall
 from myfox.state import State, state_file
 from ._helpers import IsolatedStateCase
 
@@ -146,6 +146,12 @@ class ReinstallTests(IsolatedStateCase):
 
     def test_not_installed_returns_an_error(self):
         self.assertEqual(cli.cmd_reinstall(State()), 1)
+
+    def test_shows_a_beta_version_whole(self):
+        with tempfile.TemporaryDirectory() as d:
+            state, _install_dir = self._installed(d, firefox_version="158.0b4", channel="beta")
+            rows = dict(reinstall.build(state).rows)
+        self.assertEqual(rows[i18n.t("row_firefox")], "158.0b4")
 
     def test_swaps_in_the_new_firefox_and_reapplies_tweaks(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
