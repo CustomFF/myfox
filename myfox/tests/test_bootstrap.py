@@ -55,6 +55,7 @@ class InstalledTests(_Env):
     def test_no_arguments_asks_and_yes_runs_refresh(self):
         launcher = self.install()
         with mock.patch("os.execv", side_effect=_Exec) as execv, mock.patch("builtins.input", return_value=""), \
+             mock.patch.object(bootstrap, "_has_tty", return_value=True), \
              redirect_stdout(io.StringIO()), self.assertRaises(_Exec):
             bootstrap.main([])
         execv.assert_called_once_with(str(launcher), [str(launcher), "refresh"])
@@ -62,9 +63,19 @@ class InstalledTests(_Env):
     def test_no_means_exit(self):
         self.install()
         with mock.patch("os.execv") as execv, mock.patch("builtins.input", return_value="n"), \
+             mock.patch.object(bootstrap, "_has_tty", return_value=True), \
              redirect_stdout(io.StringIO()):
             self.assertEqual(bootstrap.main([]), 0)
         execv.assert_not_called()
+
+    def test_without_a_terminal_names_the_command_instead_of_asking(self):
+        self.install()
+        out = io.StringIO()
+        with mock.patch("os.execv") as execv, mock.patch("builtins.input", side_effect=AssertionError("asked")), \
+             mock.patch.object(bootstrap, "_has_tty", return_value=False), redirect_stdout(out):
+            self.assertEqual(bootstrap.main([]), 0)
+        execv.assert_not_called()
+        self.assertIn(bootstrap.t("updates_hint"), out.getvalue())
 
     def test_state_without_install_dir_is_not_installed(self):
         self.install()

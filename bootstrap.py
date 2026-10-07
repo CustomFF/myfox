@@ -32,6 +32,7 @@ _MESSAGES = {
         "python_too_old": "MyFox needs Python 3.8 or newer.",
         "already_installed": "MyFox is already installed ({0}).",
         "check_updates": "Check for updates? [Y/n] ",
+        "updates_hint": "To check for updates: myfox refresh",
         "core_failed": "Could not download MyFox: {0}",
         "no_core_release": "no core-* release with {0} found",
     },
@@ -39,6 +40,7 @@ _MESSAGES = {
         "python_too_old": "Для MyFox нужен Python 3.8 или новее.",
         "already_installed": "MyFox уже установлен ({0}).",
         "check_updates": "Проверить обновления? [Y/n] ",
+        "updates_hint": "Проверить обновления: myfox refresh",
         "core_failed": "Не удалось скачать MyFox: {0}",
         "no_core_release": "не найден релиз core-* с {0}",
     },
@@ -116,6 +118,10 @@ def fetch_core(dest: Path) -> str:
     return tag
 
 
+def _has_tty() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
 def _ask_yes(prompt: str) -> bool:
     try:
         answer = input(prompt).strip().lower()
@@ -134,6 +140,10 @@ def main(argv) -> int:
         if argv:
             os.execv(str(launcher), [str(launcher), *argv])
         print(t("already_installed", launcher.parent.parent))
+        if not _has_tty():
+            # A question printed into a pipe reaches nobody.
+            print(t("updates_hint"))
+            return 0
         if _ask_yes(t("check_updates")):
             os.execv(str(launcher), [str(launcher), "refresh"])
         return 0
