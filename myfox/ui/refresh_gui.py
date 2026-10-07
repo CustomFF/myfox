@@ -12,10 +12,12 @@ from .. import i18n
 from ..refresh import RefreshPlan, Updater
 from .form_gui import (
     ASSETS, BTN_GAP, BTN_H, BTN_W, ERROR, FOOTER_H, HEADER_H, LABEL_W, LINE, MUTED, PAD, WIN_W,
-    _button_theme, _color_theme, _global_theme, _load_fonts, px,
+    _button_theme, _color_theme, _global_theme, _load_fonts, px, symbol_font,
 )
 
 ROW_H = 32
+NEWS_ROW_H = 22
+NEWS_LIMIT = 10
 
 
 class _Window:
@@ -25,7 +27,9 @@ class _Window:
         self._failure: str | None = None
         self._worker: threading.Thread | None = None
         self.ok = False
-        self.height = px(HEADER_H) + 1 + px(PAD * 2 + ROW_H * len(plan.todo)) + 1 + px(FOOTER_H)
+        self.news = plan.changes_shown(NEWS_LIMIT)
+        news_h = NEWS_ROW_H * (len(self.news) + 1) + PAD // 2 if self.news else 0
+        self.height = px(HEADER_H) + 1 + px(PAD * 2 + ROW_H * len(plan.todo) + news_h) + 1 + px(FOOTER_H)
         self._build(bold_font)
 
     def _build(self, bold_font: int | None) -> None:
@@ -46,10 +50,27 @@ class _Window:
 
             with dpg.child_window(pos=(0, header_h + 1), width=w, height=footer_y - header_h - 2, border=False,
                                   no_scrollbar=True):
+                arrow_font = symbol_font("→")
                 for i, t in enumerate(self.plan.todo):
                     y = px(PAD + ROW_H * i)
                     dpg.add_text(t.label, pos=(px(PAD), y))
-                    dpg.add_text(t.describe(), pos=(px(PAD) + px(LABEL_W), y))
+                    if not t.has_update:
+                        dpg.add_text(t.describe(), pos=(px(PAD) + px(LABEL_W), y))
+                        continue
+                    # The system sans may lack "→": the arrow gets a font
+                    # that has it, or falls back to "->".
+                    with dpg.group(horizontal=True, horizontal_spacing=px(4), pos=(px(PAD) + px(LABEL_W), y)):
+                        dpg.add_text(t.current or "—")
+                        arrow = dpg.add_text("→" if arrow_font else "->")
+                        dpg.add_text(t.latest)
+                    if arrow_font:
+                        dpg.bind_item_font(arrow, arrow_font)
+                if self.news:
+                    y = PAD + ROW_H * len(self.plan.todo) + PAD // 2
+                    dpg.add_text(i18n.t("refresh_whats_new"), pos=(px(PAD), px(y)))
+                    for i, line in enumerate(self.news, 1):
+                        dpg.add_text(f"•  {line}", pos=(px(PAD + 12), px(y + NEWS_ROW_H * i)),
+                                     wrap=px(WIN_W - PAD * 2 - 12))
 
             with dpg.child_window(pos=(0, footer_y), width=w, height=footer_h, border=False, no_scrollbar=True):
                 y = (footer_h - px(BTN_H)) // 2

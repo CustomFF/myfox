@@ -15,6 +15,10 @@ def run(plan: RefreshPlan, update: Updater, ask: bool = True) -> bool:
     print(i18n.t("refresh_title"))
     for t in plan.todo:
         print(f"  {t.label} {t.describe()}")
+    if plan.changes:
+        print(i18n.t("refresh_whats_new"))
+        for line in plan.changes:
+            print(f"  - {line}")
     if ask and not PlainBackend().confirm(i18n.t("refresh_confirm"), default=True):
         return False
     try:

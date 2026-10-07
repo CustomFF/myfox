@@ -75,6 +75,16 @@ def _renderable(text: str) -> bool:
     return all(ord(ch) < 0x0530 or 0x1E00 <= ord(ch) <= 0x206F for ch in text)
 
 
+def symbol_font(char: str) -> int | None:
+    """A font that has `char` (via fontconfig), for a single item to use
+    when the system sans lacks it — dpg has no fallback chain."""
+    path = _font_file(f"sans-serif:charset={ord(char):x}")
+    if not path:
+        return None
+    with dpg.font_registry():
+        return dpg.add_font(path, round(FONT_PT * DPI / 72))
+
+
 def _load_fonts() -> tuple[int | None, int | None]:
     regular, bold = _font_file("sans-serif"), _font_file("sans-serif:bold")
     size = round(FONT_PT * DPI / 72)

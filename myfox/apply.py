@@ -6,6 +6,7 @@ only copies its already-built CSS/icons, same as before.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import urllib.error
@@ -122,3 +123,20 @@ def apply_bookmarklets(profile_dir: Path, local_dir: str | None = None) -> str |
             _ddblm_fetch(f"icons/{name}.svg", icons_dir / f"{name}.svg", local_dir)
 
     return DDBLM_GALLERY
+
+
+def reapply_tweaks(install_dir: Path, profile_dir: Path | None, state) -> None:
+    """Applies the tweaks in paths.tweaks_dir() again (after reinstall or a
+    tweaks update), with the choices the install saved in `state`."""
+    from . import addons
+
+    apply_autoconfig(install_dir)
+    if profile_dir is None:
+        return
+    apply_chrome(profile_dir)
+    apply_theme_pref(profile_dir, state.get("theme", "dark"))
+    addons.fetch_themes(profile_dir, local_dir=os.environ.get("MYFOX_TWEAKS_LOCAL"))
+    if state.get("opt_plasma") and addons.is_plasma_session():
+        addons.apply_amo_addons(profile_dir, [addons.MYFOX_ADDON_PLASMA])
+    if state.get("opt_bl", True):
+        apply_bookmarklets(profile_dir, local_dir=os.environ.get("MYFOX_DDBLM_LOCAL"))

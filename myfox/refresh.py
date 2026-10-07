@@ -18,9 +18,10 @@ import re
 import sys
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable
 
-from . import gui_deps, i18n, version
+from . import apply, gui_deps, i18n, tweaks, version
 from .addons import TWEAKS_REPO
 from .install_form import Progress
 from .state import State
@@ -45,6 +46,8 @@ class TrackState:
     track: Track
     current: str | None
     latest: str | None
+    release: tweaks.Release | None = None   # tweaks track only
+    changes: list[str] = field(default_factory=list)  # what's new, from the changelog
 
     @property
     def label(self) -> str:
@@ -71,12 +74,35 @@ class RefreshPlan:
     def check(cls, state: State, force: bool = False) -> RefreshPlan:
         tracks = []
         for track in TRACKS:
+            release = None
             try:
-                latest = version.find_latest_tag(track.tag, repo=track.repo)
+                if track.key == "tweaks_version":
+                    release = tweaks.latest_release()
+                    latest = release.tag if release else None
+                else:
+                    latest = version.find_latest_tag(track.tag, repo=track.repo)
             except OSError as exc:
                 return cls(force=force, error=i18n.t("refresh_check_failed", getattr(exc, "reason", exc)))
-            tracks.append(TrackState(track, state.get(track.key), latest))
+            t = TrackState(track, state.get(track.key), latest, release)
+            if t.has_update and release is not None:
+                try:
+                    t.changes = tweaks.changes_since(t.current, release)
+                except OSError:
+                    pass  # no "what's new" is no reason not to update
+            tracks.append(t)
         return cls(tracks=tracks, force=force)
+
+    @property
+    def changes(self) -> list[str]:
+        return [line for t in self.todo for line in t.changes]
+
+    def changes_shown(self, limit: int) -> list[str]:
+        """At most `limit` lines of what's new, the last one saying how many
+        more there are when they don't fit."""
+        changes = self.changes
+        if len(changes) <= limit:
+            return changes
+        return changes[:limit - 1] + [i18n.t("refresh_more", len(changes) - limit + 1)]
 
     @property
     def todo(self) -> list[TrackState]:
@@ -91,31 +117,33 @@ class RefreshPlan:
 Updater = Callable[[RefreshPlan, Progress], None]
 
 
-def simulate_refresh(plan: RefreshPlan, progress: Progress) -> None:
-    """Stand-in until the release formats exist (pass 5): walks the stages
-    with the same messages, touches nothing."""
-    stages = []
-    for t in plan.todo:
+def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
+    """Tweaks: download, apply to the install and the profile, record the
+    version. Core: still a placeholder stage until core-* releases exist
+    (pass 5)."""
+    state = State()
+    install_dir, profile_dir = state.get("install_dir"), state.get("profile_dir")
+    todo = plan.todo
+    for i, t in enumerate(todo):
+        base, share = i / len(todo), 1 / len(todo)
         tag = t.latest or t.current or ""
         if t.track.key == "tweaks_version":
-            stages += [(i18n.t("progress_refresh_tweaks_download", tag), 2.0),
-                       (i18n.t("progress_refresh_tweaks_apply"), 1.0)]
+            progress(i18n.t("progress_refresh_tweaks_download", tag), base)
+            installed = tweaks.install(t.release)
+            progress(i18n.t("progress_refresh_tweaks_apply"), base + share / 2)
+            apply.reapply_tweaks(Path(install_dir), Path(profile_dir) if profile_dir else None, state)
+            state.set("tweaks_version", installed)
+            state.save()
         else:
-            stages += [(i18n.t("progress_refresh_core_download", tag), 2.0),
-                       (i18n.t("progress_refresh_core_replace"), 0.5)]
-    total = sum(seconds for _message, seconds in stages) or 1.0
-    done = 0.0
-    for message, seconds in stages:
-        steps = max(1, int(seconds * 20))
-        for step in range(steps):
-            progress(message, (done + seconds * step / steps) / total)
-            time.sleep(seconds / steps)
-        done += seconds
+            progress(i18n.t("progress_refresh_core_download", tag), base)
+            time.sleep(1)
+            progress(i18n.t("progress_refresh_core_replace"), base + share / 2)
+            time.sleep(0.5)
     progress(i18n.t("progress_refresh_done"), 1.0)
 
 
 def run(state: State, gui: bool = False, noninteractive: bool = False, force: bool = False,
-        update: Updater = simulate_refresh) -> int:
+        update: Updater = apply_updates) -> int:
     """Checks, then shows (or skips) the dialog the way the session allows."""
     plan = RefreshPlan.check(state, force)
     if plan.error or not plan.needed:

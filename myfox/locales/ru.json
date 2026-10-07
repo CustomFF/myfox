@@ -82,5 +82,7 @@
     "note_plasma_addon_failed": "Не удалось скачать дополнение Plasma Integration с addons.mozilla.org.",
     "progress_gui": "Установка графического интерфейса…",
     "note_gui_failed": "Не удалось установить графический интерфейс ({0}): окна MyFox открываться не будут, команды в терминале работают.",
-    "progress_tweaks_download": "Скачивание твиков…"
+    "progress_tweaks_download": "Скачивание твиков…",
+    "refresh_whats_new": "Что нового:",
+    "refresh_more": "…и ещё {0}"
 }

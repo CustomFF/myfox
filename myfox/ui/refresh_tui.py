@@ -28,10 +28,14 @@ def run(plan: RefreshPlan, update: Updater) -> bool:
     from picotui.screen import Screen
 
     _ensure_screen()
-    cols, _rows = Screen.screen_size()
+    cols, rows = Screen.screen_size()
     todo = plan.todo
     w = min(_MAX_W, cols - 2)
-    h = 2 * len(todo) + 5
+    news = []
+    for line in plan.changes_shown(max(1, rows - 2 * len(todo) - 9)):
+        news += textwrap.wrap(line, w - 8, initial_indent="- ", subsequent_indent="  ") or ["-"]
+    news_h = len(news) + 2 if news else 0  # heading + lines + gap
+    h = min(rows - 1, 2 * len(todo) + 5 + news_h)
     x, y = _centered(w, h)
     _clear()
     d = _FormDialog(x, y, w, h, title=i18n.t("refresh_title"))
@@ -40,6 +44,11 @@ def run(plan: RefreshPlan, update: Updater) -> bool:
     for i, t in enumerate(todo):
         d.add(2, 1 + 2 * i, _Label(t.label, label_w))
         d.add(2 + label_w, 1 + 2 * i, _Label(t.describe(), w - 4 - label_w))
+    if news:
+        top = 2 * len(todo)
+        d.add(2, top, _Label(i18n.t("refresh_whats_new"), w - 4))
+        for i, line in enumerate(news[:h - top - 5]):
+            d.add(4, top + 1 + i, _Label(line, w - 6))
 
     status, bar = _Label("", w - 4), _Label("", w - 4)
     d.add(2, h - 4, status)

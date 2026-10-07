@@ -55,25 +55,6 @@ def cmd_browser(firefox_args: list[str], state: State, ui) -> int:
     os.execv(target, [target, *firefox_args])  # never returns on success
 
 
-def _reapply_tweaks(install_dir: Path, profile_dir: Path | None, state: State) -> None:
-    """autoconfig/chrome/theme-pref from this local copy — never a network
-    fetch of a *different* copy (that's refresh's job once the tweaks-track
-    download exists; see cmd_refresh). Themes are the one exception: they're
-    built+signed in CustomFF/tweaks' own CI, not bundled here, so
-    fetch_themes() always goes to its releases (or a local tweaks checkout
-    via MYFOX_TWEAKS_LOCAL, dev use)."""
-    apply.apply_autoconfig(install_dir)
-    if profile_dir is None:
-        return
-    apply.apply_chrome(profile_dir)
-    apply.apply_theme_pref(profile_dir, state.get("theme", "dark"))
-    addons.fetch_themes(profile_dir, local_dir=os.environ.get("MYFOX_TWEAKS_LOCAL"))
-    if state.get("opt_plasma") and addons.is_plasma_session():
-        addons.apply_amo_addons(profile_dir, [addons.MYFOX_ADDON_PLASMA])
-    if state.get("opt_bl", True):
-        apply.apply_bookmarklets(profile_dir, local_dir=os.environ.get("MYFOX_DDBLM_LOCAL"))
-
-
 def cmd_uninstall(state: State, ui, noninteractive: bool) -> int:
     install_dir = state.get("install_dir")
     if not install_dir:
@@ -109,7 +90,7 @@ def cmd_reinstall(state: State, ui) -> int:
         new_version = firefox.install_tarball(install_dir, state.get("lang", "en-US"), state.get("channel", "stable"))
 
     profile_dir = state.get("profile_dir")
-    _reapply_tweaks(install_dir, Path(profile_dir) if profile_dir else None, state)
+    apply.reapply_tweaks(install_dir, Path(profile_dir) if profile_dir else None, state)
 
     state.set("firefox_version", new_version)
     state.save()

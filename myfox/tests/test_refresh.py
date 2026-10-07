@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 import io
 import unittest
+from pathlib import Path
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
-from myfox import i18n, refresh
+from myfox import i18n, refresh, tweaks
 from myfox.state import State
 from myfox.ui import refresh_plain, refresh_tui
 from picotui.defs import KEY_ENTER, KEY_ESC
@@ -14,11 +16,24 @@ from ._helpers import IsolatedStateCase
 from .test_form_tui import _drive
 
 
-def _latest(tweaks="151.3", core="core-5"):
-    """find_latest_tag stand-in answering per repo."""
-    def find(pattern, repo):
-        return tweaks if repo == refresh.TWEAKS_REPO else core
-    return find
+def _latest(tweaks="151.3", core="core-5", changes=("Rounded popup menus",)):
+    return {"tweaks": tweaks, "core": core, "changes": list(changes)}
+
+
+@contextlib.contextmanager
+def _releases(latest):
+    """Stands in for both release lookups (core tag, tweaks release) and the
+    tweaks changelog; an exception makes the lookups fail."""
+    if isinstance(latest, Exception):
+        with mock.patch("myfox.version.find_latest_tag", side_effect=latest), \
+             mock.patch("myfox.tweaks.latest_release", side_effect=latest):
+            yield
+        return
+    release = tweaks.Release(latest["tweaks"], "https://x/a.tar.gz", "https://x/c.json") if latest["tweaks"] else None
+    with mock.patch("myfox.version.find_latest_tag", return_value=latest["core"]), \
+         mock.patch("myfox.tweaks.latest_release", return_value=release), \
+         mock.patch("myfox.tweaks.changes_since", return_value=latest["changes"]):
+        yield
 
 
 def _state(tweaks="151.2", core="core-5") -> State:
@@ -30,7 +45,7 @@ def _state(tweaks="151.2", core="core-5") -> State:
 
 class PlanTests(IsolatedStateCase):
     def _check(self, force=False, **latest):
-        with mock.patch("myfox.version.find_latest_tag", side_effect=_latest(**latest)):
+        with _releases(_latest(**latest)):
             return refresh.RefreshPlan.check(_state(), force=force)
 
     def test_only_tracks_with_a_new_tag_are_todo(self):
@@ -46,8 +61,18 @@ class PlanTests(IsolatedStateCase):
         self.assertEqual(len(plan.todo), 2)
         self.assertEqual(plan.todo[0].describe(), "151.2")
 
+    def test_whats_new_comes_from_the_changelog(self):
+        self.assertEqual(self._check(changes=["A", "B"]).changes, ["A", "B"])
+
+    def test_long_whats_new_is_cut_with_a_count(self):
+        plan = self._check(changes=[str(i) for i in range(12)])
+        self.assertEqual(plan.changes_shown(5), ["0", "1", "2", "3", i18n.t("refresh_more", 8)])
+
+    def test_no_new_tweaks_means_no_whats_new_even_forced(self):
+        self.assertEqual(self._check(force=True, tweaks="151.2").changes, [])
+
     def test_check_failure_is_an_error(self):
-        with mock.patch("myfox.version.find_latest_tag", side_effect=OSError("rate limited")):
+        with _releases(OSError("rate limited")):
             plan = refresh.RefreshPlan.check(_state())
         self.assertEqual(plan.error, i18n.t("refresh_check_failed", "rate limited"))
 
@@ -63,7 +88,7 @@ class RunTests(IsolatedStateCase):
 
     def _run(self, latest, **kwargs):
         out, err = io.StringIO(), io.StringIO()
-        with mock.patch("myfox.version.find_latest_tag", side_effect=latest), redirect_stdout(out), redirect_stderr(err):
+        with _releases(latest), redirect_stdout(out), redirect_stderr(err):
             rc = refresh.run(_state(), update=self.update, **kwargs)
         return rc, out.getvalue(), err.getvalue()
 
@@ -102,7 +127,7 @@ class RunTests(IsolatedStateCase):
 
 class TuiDialogTests(IsolatedStateCase):
     def _plan(self):
-        with mock.patch("myfox.version.find_latest_tag", side_effect=_latest()):
+        with _releases(_latest()):
             return refresh.RefreshPlan.check(_state())
 
     def test_enter_updates_then_closes(self):
@@ -116,12 +141,31 @@ class TuiDialogTests(IsolatedStateCase):
             self.assertFalse(refresh_tui.run(self._plan(), lambda plan, progress: self.fail("updated")))
 
 
+class ApplyUpdatesTests(IsolatedStateCase):
+    def test_tweaks_are_installed_applied_and_recorded(self):
+        state = _state()
+        state.set("install_dir", "/opt/firefox")
+        state.set("profile_dir", "/p/myfox-1")
+        state.save()
+        with _releases(_latest()):
+            plan = refresh.RefreshPlan.check(State())
+        with mock.patch("myfox.tweaks.install", return_value="151.3") as install, \
+             mock.patch("myfox.apply.reapply_tweaks") as reapply:
+            refresh.apply_updates(plan, lambda message, fraction: None)
+        install.assert_called_once_with(plan.todo[0].release)
+        self.assertEqual(reapply.call_args.args[:2], (Path("/opt/firefox"), Path("/p/myfox-1")))
+        self.assertEqual(State().get("tweaks_version"), "151.3")
+
+
 class PlainDialogTests(IsolatedStateCase):
     def test_no_answer_cancels(self):
-        with mock.patch("myfox.version.find_latest_tag", side_effect=_latest()):
+        with _releases(_latest()):
             plan = refresh.RefreshPlan.check(_state())
-        with mock.patch("builtins.input", return_value="n"), redirect_stdout(io.StringIO()):
+        out = io.StringIO()
+        with mock.patch("builtins.input", return_value="n"), redirect_stdout(out):
             self.assertFalse(refresh_plain.run(plan, lambda plan, progress: self.fail("updated")))
+        self.assertIn(i18n.t("refresh_whats_new"), out.getvalue())
+        self.assertIn("Rounded popup menus", out.getvalue())
 
 
 if __name__ == "__main__":
