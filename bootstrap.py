@@ -4,8 +4,8 @@ myfox before downloading it.
 
 Installed already: with arguments they go to the installed `myfox`;
 without, it says so and offers to check for updates (`myfox refresh`).
-Not installed: downloads the core archive (myfox/ + autoconfig/ + chrome/)
-of the latest core-* release into a temp dir, adds dearpygui there for
+Not installed: downloads the core archive (the myfox/ package) of the
+latest core-* release into a temp dir, adds dearpygui there for
 --gui, and runs the install form from it (`python3 -m myfox.wizard`); the
 install copies MyFox into ~/.local/share/myfox.
 
