@@ -58,8 +58,8 @@ def main(argv: list[str] | None = None) -> int:
     install = simulate_install if args.dry_run else real_install
     answers = run(gui=args.gui, noninteractive=args.noninteractive, install=install)
     if answers and answers.notes:
-        if "myfox.ui.picotui_backend" in sys.modules:
-            sys.modules["myfox.ui.picotui_backend"].end_screen()
+        if "myfox.ui.picotui_base" in sys.modules:
+            sys.modules["myfox.ui.picotui_base"].end_screen()
         for note in answers.notes:
             print(note)
     return 0 if answers is not None else 1

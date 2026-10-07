@@ -14,9 +14,9 @@ from pathlib import Path
 
 from .. import i18n
 from ..install_form import Answers, Choice, InstallForm, Installer, Lang
-from .picotui_backend import BOX_BG, SGR_GRAY_ON_CYAN, SGR_WHITE_ON_GRAY, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
+from .picotui_base import BOX_BG, SGR_GRAY_ON_CYAN, SGR_WHITE_ON_GRAY, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
 
-from picotui.defs import (  # noqa: E402 (picotui_backend put it on sys.path)
+from picotui.defs import (  # noqa: E402 (picotui_base put it on sys.path)
     KEYMAP, KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_SHIFT_TAB,
     C_B_BLUE, C_BLACK, C_RED, C_WHITE,
 )

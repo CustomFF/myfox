@@ -20,32 +20,6 @@ def _run(argv: list[str]) -> tuple[int, str]:
     return rc, buf.getvalue()
 
 
-class _FakeUI:
-    """Duck-types ui.Backend without going through a real terminal/stdin —
-    the cmd_* functions are tested directly, argv/backend-selection wiring
-    is covered separately in DispatchWiringTests."""
-
-    def __init__(self, confirm_answer: bool = True):
-        self.messages: list[str] = []
-        self.confirm_answer = confirm_answer
-
-    def confirm(self, prompt, default=True):
-        return self.confirm_answer
-
-    def choose(self, header, options, default=None):
-        return default
-
-    def input_dir(self, prompt, initial):
-        return initial
-
-    def message(self, text):
-        self.messages.append(text)
-
-    @contextlib.contextmanager
-    def spin(self, title):
-        yield
-
-
 class UninstallTests(IsolatedStateCase):
     def setUp(self):
         super().setUp()
@@ -64,14 +38,14 @@ class UninstallTests(IsolatedStateCase):
         return state, install_dir
 
     def test_not_installed_is_a_noop(self):
-        ui = _FakeUI()
-        self.assertEqual(cli.cmd_uninstall(State(), ui, noninteractive=True), 0)
-        self.assertEqual(ui.messages, [i18n.t("err_not_installed")])
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(cli.cmd_uninstall(State(), noninteractive=True), 0)
+        self.assertEqual(err.getvalue().strip(), i18n.t("err_not_installed"))
 
     def test_noninteractive_removes_the_install_dir_and_clears_state(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
             state, install_dir = self._installed(d)
-            rc = cli.cmd_uninstall(state, _FakeUI(), noninteractive=True)
+            rc = cli.cmd_uninstall(state, noninteractive=True)
             self.assertEqual(rc, 0)
             self.assertFalse(install_dir.exists())
             self.assertIsNone(State().get("install_dir"))
@@ -81,7 +55,7 @@ class UninstallTests(IsolatedStateCase):
              contextlib.redirect_stderr(io.StringIO()) as err, \
              mock.patch("myfox.ui._has_tty", return_value=False):
             state, install_dir = self._installed(d)
-            rc = cli.cmd_uninstall(state, _FakeUI(), noninteractive=False)
+            rc = cli.cmd_uninstall(state, noninteractive=False)
             self.assertEqual(rc, 1)
             self.assertTrue(install_dir.exists())
             self.assertEqual(State().get("install_dir"), str(install_dir))
@@ -91,7 +65,7 @@ class UninstallTests(IsolatedStateCase):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stderr(io.StringIO()) as err, \
              mock.patch("myfox.firefox.running_pids", return_value=[42]):
             state, install_dir = self._installed(d)
-            self.assertEqual(cli.cmd_uninstall(state, _FakeUI(), noninteractive=True), 1)
+            self.assertEqual(cli.cmd_uninstall(state, noninteractive=True), 1)
             self.assertTrue(install_dir.exists())
         self.assertIn(i18n.t("err_firefox_running"), err.getvalue())
 
@@ -106,7 +80,7 @@ class UninstallTests(IsolatedStateCase):
 
             with mock.patch("myfox.profiles.remove_myfox_section") as remove_section, \
                  mock.patch("myfox.profiles.unpin_install") as unpin:
-                cli.cmd_uninstall(state, _FakeUI(), noninteractive=True)
+                cli.cmd_uninstall(state, noninteractive=True)
 
             remove_section.assert_called_once_with(profile_dir)
             unpin.assert_called_once_with("DEADBEEF")
@@ -123,13 +97,13 @@ class UninstallTests(IsolatedStateCase):
     def test_remove_profile_deletes_our_profile(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
             state, profile_dir = self._with_profile(d, created=True)
-            cli.cmd_uninstall(state, _FakeUI(), noninteractive=True, remove_profile=True)
+            cli.cmd_uninstall(state, noninteractive=True, remove_profile=True)
             self.assertFalse(profile_dir.exists())
 
     def test_remove_profile_spares_a_profile_myfox_did_not_create(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
             state, profile_dir = self._with_profile(d, created=False)
-            cli.cmd_uninstall(state, _FakeUI(), noninteractive=True, remove_profile=True)
+            cli.cmd_uninstall(state, noninteractive=True, remove_profile=True)
             self.assertTrue(profile_dir.exists())
 
     def test_without_yes_both_commands_are_named(self):
@@ -137,7 +111,7 @@ class UninstallTests(IsolatedStateCase):
              contextlib.redirect_stderr(io.StringIO()) as err, \
              mock.patch("myfox.ui._has_tty", return_value=False):
             state, profile_dir = self._with_profile(d, created=True)
-            self.assertEqual(cli.cmd_uninstall(state, _FakeUI(), noninteractive=False), 1)
+            self.assertEqual(cli.cmd_uninstall(state, noninteractive=False), 1)
             self.assertTrue(profile_dir.exists())
         self.assertEqual(err.getvalue().splitlines(), [
             i18n.t("needs_yes_uninstall", "myfox uninstall -y"),
@@ -170,7 +144,7 @@ class ReinstallTests(IsolatedStateCase):
         return state, install_dir
 
     def test_not_installed_returns_an_error(self):
-        self.assertEqual(cli.cmd_reinstall(State(), _FakeUI()), 1)
+        self.assertEqual(cli.cmd_reinstall(State()), 1)
 
     def test_swaps_in_the_new_firefox_and_reapplies_tweaks(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
@@ -181,7 +155,7 @@ class ReinstallTests(IsolatedStateCase):
             with mock.patch("myfox.firefox.install_tarball", side_effect=_fake_tarball) as install, \
                  mock.patch("myfox.profiles.pin_install", return_value="HASH") as pin, \
                  mock.patch("myfox.apply.reapply_tweaks") as reapply:
-                rc = cli.cmd_reinstall(state, _FakeUI(), noninteractive=True)
+                rc = cli.cmd_reinstall(state, noninteractive=True)
 
             self.assertEqual(rc, 0)
             self.assertEqual(install.call_args.args[1:], ("ru", "beta"))
@@ -198,7 +172,7 @@ class ReinstallTests(IsolatedStateCase):
              contextlib.redirect_stderr(io.StringIO()):
             state, install_dir = self._installed(d)
             with mock.patch("myfox.firefox.install_tarball", side_effect=OSError("offline")):
-                self.assertEqual(cli.cmd_reinstall(state, _FakeUI(), noninteractive=True), 1)
+                self.assertEqual(cli.cmd_reinstall(state, noninteractive=True), 1)
             self.assertEqual((install_dir / "firefox").read_text(encoding="utf-8"), "old")
             self.assertEqual([p.name for p in Path(d).iterdir()], ["firefox"])
 
@@ -208,20 +182,20 @@ class ReinstallTests(IsolatedStateCase):
             with mock.patch("myfox.firefox.install_tarball", side_effect=_fake_tarball), \
                  mock.patch("myfox.profiles.pin_install") as pin, \
                  mock.patch("myfox.apply.reapply_tweaks") as reapply:
-                self.assertEqual(cli.cmd_reinstall(state, _FakeUI(), noninteractive=True), 0)
+                self.assertEqual(cli.cmd_reinstall(state, noninteractive=True), 0)
             pin.assert_not_called()
             reapply.assert_not_called()
 
 
 class RefreshTests(IsolatedStateCase):
     def test_not_installed_returns_an_error(self):
-        self.assertEqual(cli.cmd_refresh(State(), _FakeUI(), force=False, gui=False, noninteractive=False), 1)
+        self.assertEqual(cli.cmd_refresh(State(), force=False, gui=False, noninteractive=False), 1)
 
     def test_installed_hands_over_to_refresh_run(self):
         state = State()
         state.set("install_dir", "/opt/firefox")
         with mock.patch("myfox.refresh.run", return_value=0) as run:
-            self.assertEqual(cli.cmd_refresh(state, _FakeUI(), force=True, gui=True, noninteractive=False), 0)
+            self.assertEqual(cli.cmd_refresh(state, force=True, gui=True, noninteractive=False), 0)
         run.assert_called_once_with(state, gui=True, noninteractive=False, force=True)
 
 
@@ -233,12 +207,12 @@ class DispatchWiringTests(IsolatedStateCase):
     def test_refresh_flags_are_forwarded(self):
         with mock.patch("myfox.__main__.cmd_refresh", return_value=0) as cmd:
             cli.main(["refresh", "--force", "--gui", "-y"])
-        cmd.assert_called_once_with(mock.ANY, mock.ANY, force=True, gui=True, noninteractive=True)
+        cmd.assert_called_once_with(mock.ANY, force=True, gui=True, noninteractive=True)
 
     def test_uninstall_forwards_remove_profile(self):
         with mock.patch("myfox.__main__.cmd_uninstall", return_value=0) as cmd:
             cli.main(["uninstall", "--remove-profile", "-y"])
-        cmd.assert_called_once_with(mock.ANY, mock.ANY, True, gui=False, remove_profile=True)
+        cmd.assert_called_once_with(mock.ANY, True, gui=False, remove_profile=True)
 
     def test_reinstall_dispatches(self):
         with mock.patch("myfox.__main__.cmd_reinstall", return_value=0) as cmd:
@@ -248,14 +222,15 @@ class DispatchWiringTests(IsolatedStateCase):
     def test_uninstall_forwards_the_noninteractive_flag(self):
         with mock.patch("myfox.__main__.cmd_uninstall", return_value=0) as cmd:
             cli.main(["uninstall", "-y"])
-        cmd.assert_called_once_with(mock.ANY, mock.ANY, True, gui=False, remove_profile=False)
+        cmd.assert_called_once_with(mock.ANY, True, gui=False, remove_profile=False)
 
 
 class BrowserCommandTests(IsolatedStateCase):
     def test_not_installed_reports_and_exits_nonzero(self):
-        rc, out = _run(["browser"])
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            rc, _out = _run(["browser"])
         self.assertEqual(rc, 1)
-        self.assertTrue(out.strip())  # some message was actually printed
+        self.assertEqual(err.getvalue().strip(), i18n.t("err_not_installed"))
 
     def test_execs_the_myfox_wrapper_when_present(self):
         state = State()

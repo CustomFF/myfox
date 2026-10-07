@@ -1,6 +1,7 @@
-"""Drives the real picotui form with a scripted key sequence (see
-test_picotui_backend.py for the approach); only key reading and terminal
-output are stubbed."""
+"""Drives the real picotui form with a scripted key sequence: the real
+widgets, focus and key handling run; only reading a key and the terminal
+(tty setup, screen size, output) are stubbed — those need a real pty and
+are checked live."""
 
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ from unittest import mock
 
 from myfox.install_form import InstallForm, Lang
 from myfox.ui import form_tui
-from myfox.ui.picotui_backend import Dialog, Screen
+from myfox.ui.picotui_base import Dialog, Screen
 from picotui.defs import KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_ESC, KEY_LEFT, KEY_SHIFT_TAB, KEY_TAB
 
 LANGS = [Lang("en-US", "English (US)", "English (US)"), Lang("ru", "Russian", "Русский")]

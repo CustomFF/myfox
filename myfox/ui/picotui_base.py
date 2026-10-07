@@ -1,28 +1,23 @@
-"""picotui-based terminal backend — real dialogs instead of plain
-input()/print(), used whenever stdin+stdout are both a tty (see
-ui/__init__.py's get_backend()).
+"""What the picotui views (form_tui, task_tui) share: the terminal session,
+the box and button look, and placing buttons.
 
 The terminal session (raw mode, alt screen, mouse reporting) is entered
-once, lazily, on first use and torn down via atexit — not per dialog.
-Re-entering the alt screen for every single confirm()/choose() call
-across a multi-page wizard would flash the screen between every page;
-entering once keeps the whole run on one steady screen and still
-guarantees cleanup (atexit fires even on an uncaught exception) so the
-real terminal content underneath is never clobbered.
+once, lazily, and torn down at exit: re-entering the alt screen per dialog
+would flash the screen, and atexit restores the terminal even after an
+uncaught exception.
 """
 
 from __future__ import annotations
 
 import atexit
-import contextlib
 from typing import Sequence
 
-from .. import _vendor, i18n
+from .. import _vendor
 
 _vendor.ensure_on_path()
 
 from picotui.screen import Screen  # noqa: E402 (must follow ensure_on_path())
-from picotui.widgets import Dialog, WButton, WLabel, ACTION_OK, ACTION_CANCEL  # noqa: E402
+from picotui.widgets import Dialog, WButton  # noqa: E402
 from picotui.defs import C_WHITE, C_BLACK, C_RED, C_BLUE  # noqa: E402
 
 BOX_BG = (C_BLACK, C_WHITE)
@@ -34,7 +29,6 @@ BTN_FOCUS_BG = (C_WHITE, C_RED)
 SGR_GRAY_ON_CYAN = "\x1b[90;46m"
 SGR_WHITE_ON_GRAY = "\x1b[37;100m"
 
-_MIN_W, _MAX_W = 30, 70
 
 _started = False
 
@@ -92,11 +86,6 @@ def _draw_shadow(x: int, y: int, w: int, h: int, dx: int = 2, dy: int = 1) -> No
     Screen.attr_reset()
 
 
-def _box_width(lines: Sequence[str], min_w: int = _MIN_W, max_w: int = _MAX_W) -> int:
-    longest = max((len(line) for line in lines), default=0)
-    return max(min_w, min(max_w, longest + 6))
-
-
 class BoxDialog(Dialog):
     """Overrides picotui's own dialog_box(): stock picotui fills the box
     interior with whatever color was last active (so it blends into
@@ -141,62 +130,3 @@ def _button_row(d: Dialog, box_w: int, row_y: int, buttons: Sequence[WButton]) -
 def _set_focus(d: Dialog, widget) -> None:
     d.focus_idx, d.focus_w = d.childs.index(widget), widget
     widget.focus = True
-
-
-class PicotuiBackend:
-    def confirm(self, prompt: str, default: bool = True) -> bool:
-        _ensure_screen()
-        lines = prompt.split("\n")
-        w = _box_width(lines)
-        h = len(lines) + 4
-        x, y = _centered(w, h)
-        _clear()
-        d = BoxDialog(x, y, w, h, title="MyFox")
-        for i, line in enumerate(lines):
-            d.add(2, 1 + i, WLabel(line, w=w - 4))
-        yes, no = ThemedButton(10, i18n.t("ui_yes")), ThemedButton(10, i18n.t("ui_no"))
-        yes.finish_dialog, no.finish_dialog = ACTION_OK, ACTION_CANCEL
-        _button_row(d, w, h - 2, [yes, no])
-        _set_focus(d, yes if default else no)
-        return d.loop() == ACTION_OK
-
-    def message(self, text: str) -> None:
-        _ensure_screen()
-        lines = text.split("\n")
-        w = _box_width(lines)
-        h = len(lines) + 4
-        x, y = _centered(w, h)
-        _clear()
-        d = BoxDialog(x, y, w, h, title="MyFox")
-        for i, line in enumerate(lines):
-            d.add(2, 1 + i, WLabel(line, w=w - 4))
-        ok = ThemedButton(10, i18n.t("ui_ok"))
-        ok.finish_dialog = ACTION_OK
-        _button_row(d, w, h - 2, [ok])
-        _set_focus(d, ok)
-        d.loop()
-
-    @contextlib.contextmanager
-    def spin(self, title: str):
-        """No event loop here: the caller's own blocking work runs inside
-        the `with` block, so nothing can process input concurrently — one
-        static frame, not animated, same depth as PlainBackend's.
-
-        Draws the frame by calling dialog_box()/WLabel.redraw() directly
-        instead of Dialog.redraw()/.loop() — a spinner has no buttons, and
-        Dialog.redraw() defaults focus_idx to -1, which makes it call
-        find_focusable_by_idx(), which spins forever if there is nothing
-        focusable to find (confirmed live: a bare Dialog + WLabel and
-        nothing else hangs picotui itself, not just this backend)."""
-        _ensure_screen()
-        w = _box_width([title])
-        h = 5
-        x, y = _centered(w, h)
-        _clear()
-        d = BoxDialog(x, y, w, h, title="MyFox")
-        _draw_shadow(x, y, w, h)
-        d.dialog_box(x, y, w, h, "MyFox")
-        label = WLabel(title, w=w - 4)
-        label.set_xy(x + 2, y + 1)
-        label.redraw()
-        yield

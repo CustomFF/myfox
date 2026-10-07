@@ -8,9 +8,9 @@ import textwrap
 from .. import i18n
 from ..task import Task
 from .form_tui import _bar, _Checkbox, _FormDialog, _Label
-from .picotui_backend import ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
+from .picotui_base import ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
 
-from picotui.defs import C_RED  # noqa: E402 (picotui_backend put it on sys.path)
+from picotui.defs import C_RED  # noqa: E402 (picotui_base put it on sys.path)
 from picotui.widgets import ACTION_CANCEL, ACTION_OK  # noqa: E402
 
 _MAX_W = 72

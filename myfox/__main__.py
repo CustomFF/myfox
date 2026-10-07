@@ -14,7 +14,6 @@ import sys
 
 from . import __version__, i18n, refresh, reinstall, task, uninstall
 from .state import State
-from .ui import get_backend
 
 
 def _common_parser() -> argparse.ArgumentParser:
@@ -48,33 +47,37 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def cmd_browser(firefox_args: list[str], state: State, ui) -> int:
+def _not_installed() -> None:
+    print(i18n.t("err_not_installed"), file=sys.stderr)
+
+
+def cmd_browser(firefox_args: list[str], state: State) -> int:
     install_dir = state.get("install_dir")
     if not install_dir:
-        ui.message(i18n.t("err_not_installed"))
+        _not_installed()
         return 1
     wrapper = os.path.join(install_dir, "firefox-myfox")
     target = wrapper if os.access(wrapper, os.X_OK) else os.path.join(install_dir, "firefox")
     os.execv(target, [target, *firefox_args])  # never returns on success
 
 
-def cmd_uninstall(state: State, ui, noninteractive: bool, gui: bool = False, remove_profile: bool = False) -> int:
+def cmd_uninstall(state: State, noninteractive: bool, gui: bool = False, remove_profile: bool = False) -> int:
     if not state.get("install_dir"):
-        ui.message(i18n.t("err_not_installed"))
+        _not_installed()
         return 0
     return 0 if task.show(uninstall.build(state, remove_profile), gui=gui, noninteractive=noninteractive) else 1
 
 
-def cmd_reinstall(state: State, ui, noninteractive: bool = False, gui: bool = False) -> int:
+def cmd_reinstall(state: State, noninteractive: bool = False, gui: bool = False) -> int:
     if not state.get("install_dir"):
-        ui.message(i18n.t("err_not_installed"))
+        _not_installed()
         return 1
     return 0 if task.show(reinstall.build(state), gui=gui, noninteractive=noninteractive) else 1
 
 
-def cmd_refresh(state: State, ui, force: bool, gui: bool, noninteractive: bool) -> int:
+def cmd_refresh(state: State, force: bool, gui: bool, noninteractive: bool) -> int:
     if not state.get("install_dir"):
-        ui.message(i18n.t("err_not_installed"))
+        _not_installed()
         return 1
     return refresh.run(state, gui=gui, noninteractive=noninteractive, force=force)
 
@@ -109,8 +112,7 @@ def main(argv: list[str] | None = None) -> int:
     # first token (confirmed CPython limitation) — and these need passing
     # through untouched anyway.
     if argv and argv[0] == "browser":
-        ui = get_backend(noninteractive=True)
-        return cmd_browser(argv[1:], state, ui)
+        return cmd_browser(argv[1:], state)
 
     parser = build_parser()
 
@@ -124,17 +126,16 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     noninteractive = getattr(args, "noninteractive", False)
-    ui = get_backend(noninteractive=noninteractive)
 
     if args.command in (None, "help"):
         print_top_help(parser)
         return 0
     if args.command == "refresh":
-        return cmd_refresh(state, ui, force=args.force, gui=args.gui, noninteractive=noninteractive)
+        return cmd_refresh(state, force=args.force, gui=args.gui, noninteractive=noninteractive)
     if args.command == "reinstall":
-        return cmd_reinstall(state, ui, noninteractive, gui=args.gui)
+        return cmd_reinstall(state, noninteractive, gui=args.gui)
     if args.command == "uninstall":
-        return cmd_uninstall(state, ui, noninteractive, gui=args.gui, remove_profile=args.remove_profile)
+        return cmd_uninstall(state, noninteractive, gui=args.gui, remove_profile=args.remove_profile)
 
     print_top_help(parser)
     return 1
