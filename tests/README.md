@@ -34,6 +34,17 @@ scratch/sandbox.sh /tmp/mf --fresh -- bash -c "cd /tmp && cat $R/get.sh | \
 - [ ] без терминала и без `-y` (`… < /dev/null`): сводка и «Установку нужно подтвердить. Запустите: … -y», ничего не установлено
 - [ ] повторный запуск `get.sh` при установленном: «MyFox уже установлен», с аргументами — уходит в установленный `myfox`
 
+### Чистый контейнер, другие дистрибутивы и aarch64
+
+```bash
+scratch/docker-test.sh debian:13 ubuntu:26.04 fedora:latest     # из рабочей копии
+scratch/docker-test.sh --arch arm64 debian:13                   # под qemu
+scratch/docker-test.sh --release debian:13                      # опубликованный MyFox с GitHub
+```
+Ставит `-y`, проверяет state (в том числе `install_hash`), `myfox browser --version`, импорт
+dearpygui и чистое удаление. Для `--arch arm64` на x86_64 нужна эмуляция:
+`sudo apt install qemu-user-static`.
+
 ## 2. Форма установки
 
 ```bash
