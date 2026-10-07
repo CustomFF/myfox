@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2 — 2026-10-07
+
+- The graphical window no longer hangs where OpenGL can't use the graphics card: it falls back to software rendering, or the install carries on in the terminal
+- The interface language follows LANGUAGE / LC_ALL / LC_MESSAGES / LANG even when the system lacks that locale
+- Tying the MyFox profile to Firefox no longer depends on the graphical session
+- Versions in the update progress no longer show the "core-" tag prefix
+
 ## 1.0.1 — 2026-10-07
 
 - After the install, a note in the terminal when the MyFox profile couldn't be tied to Firefox (Firefox didn't start); `myfox reinstall` now ties it
