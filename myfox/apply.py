@@ -57,7 +57,7 @@ def apply_chrome(profile_dir: Path) -> bool:
     shutil.copy2(src / "userChrome.css", c_dir / "userChrome.css")
 
     # myfox.cfg checks this marker first and refuses to touch any profile
-    # without it.
+    # without it (see docs/logic.md, profile locality).
     marker.touch()
     return backed_up
 
