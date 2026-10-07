@@ -7,7 +7,7 @@ from pathlib import Path
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
-from myfox import i18n, refresh, tweaks
+from myfox import core, i18n, refresh, tweaks
 from myfox.state import State
 from myfox.ui import refresh_plain, refresh_tui
 from picotui.defs import KEY_ENTER, KEY_ESC
@@ -25,12 +25,13 @@ def _releases(latest):
     """Stands in for both release lookups (core tag, tweaks release) and the
     tweaks changelog; an exception makes the lookups fail."""
     if isinstance(latest, Exception):
-        with mock.patch("myfox.version.find_latest_tag", side_effect=latest), \
+        with mock.patch("myfox.core.latest_release", side_effect=latest), \
              mock.patch("myfox.tweaks.latest_release", side_effect=latest):
             yield
         return
     release = tweaks.Release(latest["tweaks"], "https://x/a.tar.gz", "https://x/c.json") if latest["tweaks"] else None
-    with mock.patch("myfox.version.find_latest_tag", return_value=latest["core"]), \
+    core_release = core.Release(latest["core"], "https://x/core.tar.gz") if latest["core"] else None
+    with mock.patch("myfox.core.latest_release", return_value=core_release), \
          mock.patch("myfox.tweaks.latest_release", return_value=release), \
          mock.patch("myfox.tweaks.changes_since", return_value=latest["changes"]):
         yield
@@ -60,6 +61,10 @@ class PlanTests(IsolatedStateCase):
         plan = self._check(force=True, tweaks="151.2")
         self.assertEqual(len(plan.todo), 2)
         self.assertEqual(plan.todo[0].describe(), "151.2")
+
+    def test_force_skips_a_track_with_no_release(self):
+        plan = self._check(force=True, tweaks="151.2", core=None)
+        self.assertEqual([t.track.key for t in plan.todo], ["tweaks_version"])
 
     def test_whats_new_comes_from_the_changelog(self):
         self.assertEqual(self._check(changes=["A", "B"]).changes, ["A", "B"])
@@ -155,6 +160,20 @@ class ApplyUpdatesTests(IsolatedStateCase):
         install.assert_called_once_with(plan.todo[0].release)
         self.assertEqual(reapply.call_args.args[:2], (Path("/opt/firefox"), Path("/p/myfox-1")))
         self.assertEqual(State().get("tweaks_version"), "151.3")
+
+    def test_core_is_replaced_last_and_recorded(self):
+        state = _state()
+        state.set("install_dir", "/opt/firefox")
+        state.save()
+        with _releases(_latest(core="core-6")):
+            plan = refresh.RefreshPlan.check(State())
+        order = []
+        with mock.patch("myfox.tweaks.install", side_effect=lambda r: order.append("tweaks") or "151.3"), \
+             mock.patch("myfox.apply.reapply_tweaks"), \
+             mock.patch("myfox.core.install", side_effect=lambda r: order.append("core") or r.tag):
+            refresh.apply_updates(plan, lambda message, fraction: None)
+        self.assertEqual(order, ["tweaks", "core"])
+        self.assertEqual(State().get("core_version"), "core-6")
 
 
 class PlainDialogTests(IsolatedStateCase):

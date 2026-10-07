@@ -16,12 +16,11 @@ from __future__ import annotations
 
 import re
 import sys
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import apply, gui_deps, i18n, tweaks, version
+from . import apply, core, gui_deps, i18n, tweaks, version
 from .addons import TWEAKS_REPO
 from .install_form import Progress
 from .state import State
@@ -46,7 +45,7 @@ class TrackState:
     track: Track
     current: str | None
     latest: str | None
-    release: tweaks.Release | None = None   # tweaks track only
+    release: tweaks.Release | core.Release | None = None
     changes: list[str] = field(default_factory=list)  # what's new, from the changelog
 
     @property
@@ -76,15 +75,12 @@ class RefreshPlan:
         for track in TRACKS:
             release = None
             try:
-                if track.key == "tweaks_version":
-                    release = tweaks.latest_release()
-                    latest = release.tag if release else None
-                else:
-                    latest = version.find_latest_tag(track.tag, repo=track.repo)
+                release = (tweaks if track.key == "tweaks_version" else core).latest_release()
+                latest = release.tag if release else None
             except OSError as exc:
                 return cls(force=force, error=i18n.t("refresh_check_failed", getattr(exc, "reason", exc)))
             t = TrackState(track, state.get(track.key), latest, release)
-            if t.has_update and release is not None:
+            if t.has_update and isinstance(release, tweaks.Release):
                 try:
                     t.changes = tweaks.changes_since(t.current, release)
                 except OSError:
@@ -106,8 +102,11 @@ class RefreshPlan:
 
     @property
     def todo(self) -> list[TrackState]:
-        """What gets updated: everything with --force, else only what's new."""
-        return list(self.tracks) if self.force else [t for t in self.tracks if t.has_update]
+        """What gets updated: with --force every track that has a release to
+        download, else only what's new."""
+        if self.force:
+            return [t for t in self.tracks if t.release is not None]
+        return [t for t in self.tracks if t.has_update]
 
     @property
     def needed(self) -> bool:
@@ -119,8 +118,8 @@ Updater = Callable[[RefreshPlan, Progress], None]
 
 def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
     """Tweaks: download, apply to the install and the profile, record the
-    version. Core: still a placeholder stage until core-* releases exist
-    (pass 5)."""
+    version. Core last (TRACKS order): replace the installed package, which
+    takes effect on the next start."""
     state = State()
     install_dir, profile_dir = state.get("install_dir"), state.get("profile_dir")
     todo = plan.todo
@@ -136,9 +135,9 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
             state.save()
         else:
             progress(i18n.t("progress_refresh_core_download", tag), base)
-            time.sleep(1)
-            progress(i18n.t("progress_refresh_core_replace"), base + share / 2)
-            time.sleep(0.5)
+            installed = core.install(t.release)
+            state.set("core_version", installed)
+            state.save()
     progress(i18n.t("progress_refresh_done"), 1.0)
 
 

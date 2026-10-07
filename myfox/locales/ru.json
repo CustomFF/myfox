@@ -69,7 +69,6 @@
     "progress_refresh_tweaks_download": "Скачивание твиков {0}…",
     "progress_refresh_tweaks_apply": "Применение твиков…",
     "progress_refresh_core_download": "Скачивание MyFox {0}…",
-    "progress_refresh_core_replace": "Обновление MyFox…",
     "progress_refresh_done": "Готово: обновлено.",
     "progress_profile": "Настройка профиля…",
     "progress_tweaks_styles": "Применение твиков: стили…",
