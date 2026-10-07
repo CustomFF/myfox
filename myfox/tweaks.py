@@ -20,7 +20,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import changelog, net, paths, version
+from . import archive as archive_mod, changelog, net, paths, version
 from .addons import TWEAKS_REPO
 
 ARCHIVE = "myfox-tweaks.tar.gz"
@@ -81,7 +81,7 @@ def install(release: Release | None = None) -> str:
                     name = member.name
                     if name.startswith("/") or ".." in Path(name).parts or not (member.isfile() or member.isdir()):
                         raise OSError(f"unexpected entry in the tweaks archive: {name}")
-                tf.extractall(new)
+                archive_mod.extract_all(tf, new)
         for name in ("autoconfig", "chrome"):
             if not (new / name).is_dir():
                 raise OSError(f"{name}/ missing from the tweaks")

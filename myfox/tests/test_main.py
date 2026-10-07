@@ -125,6 +125,7 @@ class ReinstallTests(IsolatedStateCase):
 
             with mock.patch.dict("os.environ", {}, clear=False), \
                  mock.patch("myfox.firefox.install_tarball", return_value="158.0") as install, \
+                 mock.patch("myfox.profiles.pin_install", return_value="HASH") as pin, \
                  mock.patch("myfox.apply.apply_autoconfig") as autoconfig, \
                  mock.patch("myfox.apply.apply_chrome") as chrome, \
                  mock.patch("myfox.apply.apply_theme_pref") as theme, \
@@ -137,6 +138,8 @@ class ReinstallTests(IsolatedStateCase):
             install.assert_called_once_with(install_dir, "ru", "beta")
             autoconfig.assert_called_once_with(install_dir)
             chrome.assert_called_once_with(profile_dir)
+            pin.assert_called_once()
+            self.assertEqual(state.get("install_hash"), "HASH")
             theme.assert_called_once_with(profile_dir, "dark")
             themes.assert_called_once_with(profile_dir, local_dir=None)
             self.assertEqual(State().get("firefox_version"), "158.0")

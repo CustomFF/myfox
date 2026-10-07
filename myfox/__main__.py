@@ -91,6 +91,11 @@ def cmd_reinstall(state: State, ui) -> int:
         new_version = firefox.install_tarball(install_dir, state.get("lang", "en-US"), state.get("channel", "stable"))
 
     profile_dir = state.get("profile_dir")
+    if profile_dir and state.get("tweaks", True):
+        # Also what fixes a profile the install couldn't pin (Firefox didn't start then).
+        pinned = profiles.pin_install(install_dir, Path(profile_dir), saved_hash=state.get("install_hash"))
+        if pinned:
+            state.set("install_hash", pinned)
     apply.reapply_tweaks(install_dir, Path(profile_dir) if profile_dir else None, state)
 
     state.set("firefox_version", new_version)

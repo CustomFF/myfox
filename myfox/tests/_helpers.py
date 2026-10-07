@@ -27,15 +27,18 @@ def make_tweaks(root: Path) -> Path:
 
 
 class IsolatedStateCase(unittest.TestCase):
-    """Points XDG_STATE_HOME and XDG_DATA_HOME at throwaway directories for
-    the test's duration, so tests never touch ~/.local/state/myfox or
-    ~/.local/share/myfox — real or otherwise."""
+    """Points HOME and the XDG state/data/config dirs at a throwaway
+    directory for the test's duration, so tests never touch the real
+    ~/.local/{state,share}/myfox or the real Firefox profiles.ini."""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
-        self._env_patch = mock.patch.dict("os.environ", {"XDG_STATE_HOME": self._tmp.name,
-                                                         "XDG_DATA_HOME": str(Path(self._tmp.name) / "data")})
+        root = Path(self._tmp.name)
+        self._env_patch = mock.patch.dict("os.environ", {
+            "XDG_STATE_HOME": str(root), "XDG_DATA_HOME": str(root / "data"),
+            "XDG_CONFIG_HOME": str(root / "config"), "HOME": str(root / "home"),
+        })
         self._env_patch.start()
         self.addCleanup(self._env_patch.stop)
 

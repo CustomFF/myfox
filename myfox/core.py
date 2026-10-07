@@ -20,7 +20,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import net, paths, version
+from . import archive as archive_mod, net, paths, version
 
 ARCHIVE = "myfox-core.tar.gz"
 
@@ -83,7 +83,7 @@ def install(release: Release) -> str:
                 name = member.name
                 if name.startswith("/") or ".." in Path(name).parts or not (member.isfile() or member.isdir()):
                     raise OSError(f"unexpected entry in the core archive: {name}")
-            tf.extractall(unpacked)
+            archive_mod.extract_all(tf, unpacked)
         if not (unpacked / "myfox" / "__main__.py").is_file():
             raise OSError("myfox/ missing from the core archive")
         installed = package_version(unpacked / "myfox")

@@ -73,6 +73,8 @@ def install(answers: Answers, progress: Progress) -> None:
 
         # Pinning runs the install headless once, so it can take a while.
         install_hash = profiles.pin_install(install_dir, profile_dir, saved_hash=None)
+        if install_hash is None:
+            answers.notes.append(i18n.t("note_pin_failed"))
 
         stages.report("styles", i18n.t("progress_tweaks_styles"))
         apply.apply_autoconfig(install_dir)

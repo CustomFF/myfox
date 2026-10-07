@@ -83,5 +83,6 @@
     "note_gui_failed": "Could not install the graphical interface ({0}): MyFox windows won't open, the terminal commands work.",
     "progress_tweaks_download": "Downloading the tweaks…",
     "refresh_whats_new": "What's new:",
-    "refresh_more": "…and {0} more"
+    "refresh_more": "…and {0} more",
+    "note_pin_failed": "Could not tie the MyFox profile to this Firefox: Firefox didn't start (missing system libraries?). Firefox may open another profile; run `myfox reinstall` once it starts."
 }

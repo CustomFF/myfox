@@ -21,7 +21,7 @@ import urllib.request
 from configparser import ConfigParser
 from pathlib import Path
 
-from . import net
+from . import archive, net
 
 LANGUAGES_URL = "https://product-details.mozilla.org/1.0/languages.json"
 
@@ -205,7 +205,7 @@ def download_and_extract(url: str, install_dir: Path, on_download=None, on_extra
                 for i, member in enumerate(members, 1):
                     if member.name != prefix.rstrip("/"):
                         member.name = member.name[len(prefix):]
-                        tf.extract(member, install_dir)
+                        archive.extract(tf, member, install_dir)
                     if on_extract:
                         on_extract(i, len(members))
         finally:

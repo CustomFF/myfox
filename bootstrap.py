@@ -99,7 +99,9 @@ def fetch_core(dest: Path) -> str:
         for member in tf.getmembers():
             if member.name.startswith(("/", "..")) or "/../" in member.name:
                 raise OSError(f"unsafe path in the archive: {member.name}")
-        tf.extractall(dest)
+        # "data" filter where Python has it (3.12+, 3.8.17+): 3.14 makes
+        # it the default and earlier versions warn about the change.
+        tf.extractall(dest, **({"filter": "data"} if hasattr(tarfile, "data_filter") else {}))
     archive.unlink()
     return tag
 
