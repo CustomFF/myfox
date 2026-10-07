@@ -1,0 +1,61 @@
+name: Release core
+
+on:
+  push:
+    tags:
+      - "core-*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and upload the archive to this run only; don't create a release"
+        type: boolean
+        default: true
+      tag:
+        description: "Version to release (core-<n>); required unless dry_run"
+        type: string
+        default: ""
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # GITHUB_TOKEN defaults to read-only; release creation needs write
+    env:
+      TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+      RELEASE: ${{ github.event_name == 'push' || !inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the version
+        run: |
+          if [[ -z "$TAG" && "$RELEASE" == "true" ]]; then
+            echo "::error::a release needs a tag (set the 'tag' input)"
+            exit 1
+          fi
+          if [[ -n "$TAG" && ! "$TAG" =~ ^core-[0-9A-Za-z.-]+$ ]]; then
+            echo "::error::tag $TAG is not core-<n>"
+            exit 1
+          fi
+
+      # A broken core must not reach `myfox refresh`.
+      - name: Tests
+        run: python3 -m unittest discover -t . -s myfox/tests -p "test_*.py"
+
+      - name: Build the archive
+        run: ./scripts/build-core-dist.sh build/dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: myfox-core
+          path: build/dist/
+
+      - name: Create the release
+        if: env.RELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" build/dist/myfox-core.tar.gz \
+            --title "MyFox core $TAG" \
+            --notes "MyFox's own code (the myfox package), built from $(git rev-parse --short HEAD). Installed by get.sh / bootstrap.py, updated by \`myfox refresh\`." \
+            --target "$GITHUB_SHA" \
+            --latest
