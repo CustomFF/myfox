@@ -1,121 +1,85 @@
 # Тесты MyFox
 
-Автотестов нет — здесь чек-листы и команды для проверки инсталлера. Чек-лист для
-самих твиков (CSS/JS в `autoconfig/`/`chrome/`) переехал в
-[CustomFF/tweaks](https://github.com/CustomFF/tweaks/blob/master/TESTING.md) вместе с ними.
-
-Все прогоны инсталлера — только в песочнице (`scratch/sandbox.sh` подставляет свой `$HOME` и все `$XDG_*`,
-для `install` сам добавляет `--prefix <sandbox>/install`). Реальный профиль и `$HOME` не трогать.
+Автотесты — `unittest` из stdlib в `myfox/tests/` (без pytest и pip):
 
 ```bash
-scratch/sandbox.sh /tmp/mf --fresh -- ./bin/myfox-core install -y --nobl   # с нуля
-scratch/sandbox.sh /tmp/mf -- ./bin/myfox-core update -y
-scratch/sandbox.sh /tmp/mf -- ./bin/myfox-core uninstall -y
+python3 -m unittest discover -t . -s myfox/tests -p "test_*.py" < /dev/null
+python3 -m unittest myfox.tests.test_task          # один модуль
 ```
 
-## 0. Статические проверки
+Всё, что ниже, — ручные проверки: GUI автотестов не имеет, а настоящую установку, профиль и
+Firefox тесты не трогают. Чек-лист самих твиков (CSS/JS в `autoconfig/`/`chrome/`) — в
+[CustomFF/tweaks](https://github.com/CustomFF/tweaks/blob/master/TESTING.md).
+
+Все прогоны — только в песочнице (`scratch/sandbox.sh` подставляет свой `$HOME` и все `$XDG_*`).
+Реальный профиль и `$HOME` не трогать.
+
+## 1. Установка: настоящий путь `curl | sh`, из рабочей копии
 
 ```bash
-bash -n get.sh bin/myfox-core lib/*.sh scripts/*.sh
-shellcheck -S error get.sh bin/myfox-core lib/*.sh scripts/*.sh
+R=$PWD
+scratch/sandbox.sh /tmp/mf --fresh -- bash -c "cd /tmp && cat $R/get.sh | \
+    MYFOX_BOOTSTRAP_URL=file://$R/bootstrap.py MYFOX_CORE_DIR=$R sh -s -- -y"
 ```
+`-y` — без вопросов, по умолчанию; без него — форма (TUI в терминале, `--gui` — окно).
+Ядро из архива вместо рабочей копии: `MYFOX_CORE_URL=<путь или URL myfox-core.tar.gz>`
+(собрать — `scripts/build-core-dist.sh`).
 
-## 1. Справка и разбор флагов (без сети)
+- [ ] `<data>/myfox/`: `myfox/` (пакет), `tweaks/`, `dearpygui/` (с `.myfox-wheel`), `firefox/`, `bin/myfox`; `~/.local/bin/myfox` — симлинк на `bin/myfox`
+- [ ] в `firefox/`: `defaults/pref/autoconfig.js`, `myfox.cfg`, `myfox/*.js`, `.myfox-installed`, обёртка `firefox-myfox`
+- [ ] профиль `<config>/mozilla/firefox/myfox-1` (при существующем `~/.mozilla/firefox` — там): `.myfox`, `chrome/`, `user.js` с `myfox.theme`, в `extensions/` две темы
+- [ ] пиннинг: `[Install<HASH>]` с `Default=myfox-1` в `profiles.ini` и `installs.ini`; `install_hash` в state; мусорного `default-*` профиля нет
+- [ ] `<data>/applications/firefox-myfox.desktop` («Firefox (myfox)»), в меню действий «Обновить MyFox», пункта «Удалить» нет
+- [ ] `state/myfox/state.json`: `install_dir`, `profile_dir`, `firefox_version`, `install_hash`, `lang`, `channel`, `theme`, `tweaks`, `core_version`, `tweaks_version`
+- [ ] без терминала и без `-y` (`… < /dev/null`): сводка и «Установку нужно подтвердить. Запустите: … -y», ничего не установлено
+- [ ] повторный запуск `get.sh` при установленном: «MyFox уже установлен», с аргументами — уходит в установленный `myfox`
+
+## 2. Форма установки
 
 ```bash
-./bin/myfox-core --help ; ./bin/myfox-core help install ; ./bin/myfox-core update --help
+python3 -m myfox.wizard --dry-run [--gui]     # ничего не ставит, только этапы
 ```
-- [ ] справка по каждой подкоманде, по-русски при `LANG=ru_RU.UTF-8`, по-английски иначе
-- [ ] `./bin/myfox-core uninstall --lang ru` → `Unknown option for 'uninstall': --lang`, код 1 (то же для `update --theme light`, `update --prefix x`)
-- [ ] `--prefix` без значения → `Option '--prefix' requires a value.`; `--reinstall --browser-only` → «взаимоисключающие»
-- [ ] `--lang=ru` и `--lang ru` эквивалентны; `--theme purple` → переведённая ошибка «Неизвестное оформление»
-- [ ] `--list-languages` печатает коды и выходит (нужна сеть)
+- [ ] TUI: Tab/Shift+Tab по полям, поиск языка, «Обзор…» открывает выбор каталога; зажатая стрелка не теряет нажатий
+- [ ] GUI: та же форма; выбор каталога через портал; клавиши поиск → список → кнопки
+- [ ] нет сети до Mozilla → ошибка в форме, «Установить» не работает
+- [ ] «Твики: нет» → строки «Оформление» нет
 
-## 2. Установка (песочница, нужна сеть)
+## 3. `myfox refresh`
 
-### 2.1 Полная установка, `-y`
-```bash
-scratch/sandbox.sh /tmp/mf --fresh -- ./bin/myfox-core install -y --nobl
-```
-- [ ] тарбол распакован; `<prefix>/defaults/pref/autoconfig.js`, `<prefix>/myfox.cfg`, `<prefix>/myfox/*.js`, `<prefix>/.myfox-installed`, wrapper `<prefix>/firefox-myfox`
-- [ ] профиль создан в `<config>/mozilla/firefox/myfox-1` (свежий `$HOME` без `~/.mozilla/firefox` → каталог XDG; при существующем `~/.mozilla/firefox` — он)
-- [ ] в профиле: `.myfox`, `.myfox-created`, `chrome/userChrome.css`, `chrome/user/*.css`, `chrome/agent/*.css`, `user.js` с `myfox.theme`
-- [ ] в `extensions/` ровно две XPI тем (`{9631ec37-…}`, `{1fd1213e-…}`); Plasma — нет (не сессия Plasma)
-- [ ] **пиннинг**: в `profiles.ini` и `installs.ini` секция `[Install<HASH>]` с `Default=myfox-1`, `Locked=1`; `install_hash` в state; мусорного `default-*` профиля нет
-- [ ] `~/.local/share/applications/firefox-myfox.desktop` («Firefox (myfox)»)
-- [ ] `~/.local/share/myfox/{bin/myfox,bin/myfox-core,lib,i18n,assets}` и симлинк `~/.local/bin/myfox` → `…/share/myfox/bin/myfox`
-- [ ] state (`~/.local/state/myfox/state`): `install_dir`, `profile_dir`, `firefox_version`, `opt_lang`, `opt_channel`, `opt_theme`, `opt_bl`, `opt_plasma`
+- [ ] нового нет → одна строка (с `--gui` — уведомление), диалога нет
+- [ ] есть новое → диалог: строки «старая → новая», «Что нового» из changelog; `-y` — без диалога
+- [ ] `--force` → все треки заново
+- [ ] самообновление: поставить старое ядро (`MYFOX_CORE_URL=…/core-1.0.2/myfox-core.tar.gz`), затем `myfox refresh -y` → `myfox --version` новый, `core_version` в state обновлён
 
-### 2.2 Повторный запуск
-- [ ] `install -y` при уже установленном → ошибка «pass --force»; с `--force` — переустановка
-- [ ] интерактивно без `-y` — вопрос «переустановить?» (по умолчанию «нет»)
-- [ ] из лаунчера `myfox install` без `--force` → строка статуса + справка (как у `myfox`), без скачивания; из bootstrap (`get.sh` вне лаунчера) → сообщение «уже установлен…»
+## 4. `myfox reinstall`
 
-### 2.3 Тема
-```bash
-… install -y --nobl --theme light      # и --theme dark, и без флага
-```
-- [ ] `user.js` содержит `user_pref("myfox.theme", "light")` (без дублей при повторной установке)
-- [ ] обе XPI на месте при любом выборе
-- [ ] настоящий запуск Firefox (не `--headless --screenshot`: он завершается раньше асинхронной активации) → в `prefs.js`: `extensions.activeThemeID` = ID выбранной темы, `myfox.themeApplied=true`, `layout.css.prefers-color-scheme.content-override` = 1 (light) / 0 (dark)
-- [ ] `update` тему не трогает
+- [ ] TUI и `--gui`: строки Firefox/канал/каталог, «Переустановить» → прогресс → «Закрыть»
+- [ ] после: Firefox новый, обёртка, ярлык, пиннинг и твики на месте; временных `.firefox-new-*`/`-old-*` нет
+- [ ] обрыв загрузки (нет сети) → старый Firefox цел
 
-### 2.4 KDE Plasma (`MYFOX_SANDBOX_KEEP_DESKTOP=1`, `MYFOX_NMH_DIRS=<пустой каталог>` — имитация «пакета нет»)
-- [ ] Plasma-сессия + пакет есть → XPI ставится, тихо
-- [ ] Plasma-сессия + пакета нет → XPI ставится, предупреждение и подсказка `sudo <pm> install plasma-browser-integration` в логе И в итоговой сводке; код 0
-- [ ] не-Plasma + `--plasma-integration` → то же, принудительно; `--noplasma` под Plasma → не ставится
-- [ ] не-Plasma без флага → плазма не трогается, предупреждений нет
+## 5. `myfox uninstall`
 
-### 2.5 `--browser-only`, язык, канал
-- [ ] `--browser-only` → тарбол + ярлык + лаунчер; `profiles.ini` не создаётся, профиля и твиков нет; `opt_browser_only=true`
-- [ ] `--lang de` → язык в `application.ini`/`browser/de`; неизвестный код → ошибка
-- [ ] канал beta — только через мастер (2.7)
+- [ ] фокус сразу на «Отмена», Enter ничего не удаляет; Escape закрывает
+- [ ] без галочки: Firefox, ярлык, `myfox`, `<data>/myfox` удалены; профиль на диске, его `[ProfileN]` и `[Install<HASH>]` убраны; state пуст
+- [ ] с галочкой / `--remove-profile`: и каталог профиля удалён (только с меткой `.myfox`)
+- [ ] без терминала и без `-y`: сводка и обе подсказки (`myfox uninstall -y`, `… --remove-profile`), ничего не удалено
+- [ ] GUI удаляет и себя (`<data>/myfox/dearpygui`) — окно не падает до «Закрыть»
 
-### 2.6 Занятая директория
-- [ ] в `--prefix` лежит чужой непустой каталог без `.myfox-installed` → ошибка, каталог НЕ тронут
+## 6. Общее для reinstall/uninstall/refresh в GUI
 
-### 2.7 Мастер (интерактивно, реальный tty, `dialog`/`whiptail`)
-```bash
-scratch/sandbox.sh /tmp/mf-wiz --fresh -- ./bin/myfox-core install
-```
-- [ ] шаги: приветствие → каталог → канал → язык → профиль (пропускается без своих профилей) → твики → оформление → сводка; экран не мигает между шагами
-- [ ] «Назад» на каждом шаге, кроме первого; из сводки — на «оформление» при «твики: да» и на «твики» при «нет»
-- [ ] «твики: нет» → шага оформления нет, в сводке «Твики: нет», профиль чистый (без `.myfox`, стилей, тем)
-- [ ] в сводке нет строки про букмарклеты; подпись шага — «Оформление» (не «веб-сайтов»)
-- [ ] шаг языка: фильтр по подстроке (`german`), Enter выбирает первый результат
-- [ ] после «Установить» — спиннеры этапов `[✔]`, итоговая сводка на обычном экране; ошибка (нет сети) не оставляет терминал в alt-экране
-- [ ] без `dialog`/`whiptail` — обычные вопросы
+- [ ] во время работы «Отмена» и крестик окна не срабатывают; после — «Закрыть», крестик закрывает
+- [ ] запущен Firefox из этой установки → «Сначала закройте Firefox: он запущен.», действие недоступно (и с `-y`)
+- [ ] длинные пути переносятся, окно по высоте содержимого
 
-## 3. Лаунчер
+## 7. KDE Plasma (`MYFOX_SANDBOX_KEEP_DESKTOP=1`, `MYFOX_NMH_DIRS=<пустой каталог>` — «пакета нет»)
 
-```bash
-L=<sandbox>/home/.local/bin/myfox     # с теми же XDG-переменными, что у песочницы
-$L ; $L help ; $L browser --version ; $L ff --version ; $L update -y ; $L uninstall -y
-```
-- [ ] `myfox` без аргументов: строка «MyFox установлен: <путь> (Firefox <версия>)» + справка, браузер НЕ стартует
-- [ ] `myfox browser`/`ff` печатают версию и передают код; аргументы уходят в Firefox
-- [ ] до установки `myfox browser` → «MyFox is not installed.», код 1
-- [ ] `update` не дублирует файлы в `~/.local/share/myfox`, симлинк цел
-- [ ] `uninstall` работает офлайн и полностью убирает симлинк и `~/.local/share/myfox` (в т.ч. самого себя)
-- [ ] чужой файл/симлинк на месте `~/.local/bin/myfox` при `uninstall` остаётся нетронутым
+- [ ] сессия Plasma → аддон ставится; без пакета `plasma-browser-integration` — заметка с командой установки в конце
+- [ ] не Plasma → аддон не ставится
 
-## 4. Удаление
+## 8. Где смотреть результаты
 
-- [ ] `uninstall -y` для созданного профиля: `[Install<HASH>]` убран из `profiles.ini`/`installs.ini`, `[ProfileN] Name=myfox` убран, каталог профиля удалён; autoconfig, ярлык, state, симлинк, `~/.local/share/myfox` удалены
-- [ ] интерактивно: два экрана («удалить приложение?» → «удалить профиль?» / для чужого профиля «снять твики?»), затем сводка; «Назад» работает
-- [ ] «оставить профиль»: каталог `myfox-N` и `.myfox-created` остаются, запись `[ProfileN]` удалена; повторная установка видит его в мастере (без дублей) и корректно пиннит
-- [ ] чужой профиль (`--profile <dir>` с собственным `userChrome.css`): при установке бэкап `userChrome.css.myfox-backup` (один раз; `update` его не пересоздаёт); при удалении `userChrome.css` возвращён из бэкапа, `chrome/agent`, `chrome/user`, `.myfox` убраны, профиль цел
-- [ ] запущенный наш Firefox: `uninstall` просит закрыть (SIGTERM, через 10 с SIGKILL)
-- [ ] деградация пиннинга: сломать тарбол (`libxul.so`) и `--reinstall -y` → предупреждение «headless failed», установка завершается, `install_hash` пуст, uninstall не падает
-
-## 5. Регрессия после правок
-
-- [ ] `scripts/dev-serve.sh` + реальный `curl | bash` в изолированном `$HOME`: install → `myfox` → `myfox browser --version` → `update` → `uninstall`
-
-## 6. Где смотреть результаты
-
-- state: `~/.local/state/myfox/state`
-- инсталлер: `~/.local/share/myfox/`, `~/.local/bin/myfox`
+- state: `~/.local/state/myfox/state.json`
+- MyFox и Firefox: `~/.local/share/myfox/`, `~/.local/bin/myfox`
 - ярлык: `~/.local/share/applications/firefox-myfox.desktop`
 - профили/пиннинг: `~/.mozilla/firefox/` или `~/.config/mozilla/firefox/` (`profiles.ini`, `installs.ini`)
-- локальный ddblm: `/home/daydve/development/ddblm` (источник для `MYFOX_DDBLM_LOCAL`)
+- твики из локальной копии: `MYFOX_TWEAKS_LOCAL=<CustomFF/tweaks>`; букмарклеты: `MYFOX_DDBLM_LOCAL=<ddblm>`

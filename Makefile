@@ -1,9 +1,6 @@
-# Makefile — для тех, кто работает с клоном репозитория (не curl|bash).
-# Идёт переход на Python (docs/python-rewrite-plan.md) — цели ниже дёргают
-# новый python3 -m myfox прямо из рабочей копии, без сборки архивов (та
-# нужна только для настоящего релиза). `install` пока недоступна: мастер
-# первой установки живёт в bootstrap.py (проход 5), которого ещё нет —
-# см. план.
+# Makefile — the installed commands run straight from a working copy
+# (python3 -m myfox <cmd>); they act on the real MyFox install, so use the
+# sandbox (scratch/sandbox.sh) while developing.
 
 ROOT := $(CURDIR)
 ARGS ?=
@@ -18,3 +15,4 @@ reinstall:
 
 uninstall:
 	cd "$(ROOT)" && python3 -m myfox uninstall $(ARGS)
+
