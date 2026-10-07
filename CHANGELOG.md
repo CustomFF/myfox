@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2 — 2026-10-07
+
+- Installing on aarch64 works: it asked Mozilla for a download that doesn't exist
+- Uninstalling no longer leaves an empty state file behind
+
 ## 1.1.1 — 2026-10-07
 
 - Uninstalling with "also delete the profile" now also deletes a profile installed without the tweaks
