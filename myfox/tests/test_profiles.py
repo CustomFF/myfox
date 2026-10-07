@@ -310,5 +310,18 @@ class PinInstallTests(IsolatedHomeCase):
         self.assertNotIn("[CAFE]", (store / "installs.ini").read_text(encoding="utf-8"))
 
 
+
+
+class HeadlessEnvTests(unittest.TestCase):
+    def test_headless_firefox_runs_without_the_display(self):
+        from myfox import profiles as profiles_mod
+
+        env = {"DISPLAY": ":0", "WAYLAND_DISPLAY": "wayland-0", "XAUTHORITY": "/x", "HOME": "/h"}
+        with mock.patch.dict("os.environ", env):
+            headless = profiles_mod._headless_env()
+        self.assertEqual({k: headless.get(k) for k in env}, {"DISPLAY": None, "WAYLAND_DISPLAY": None,
+                                                              "XAUTHORITY": None, "HOME": "/h"})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import locale as _locale
+import os
 from pathlib import Path
 
 _LOCALES_DIR = Path(__file__).parent / "locales"
@@ -21,9 +22,21 @@ def _normalize(code: str) -> str:
     return code.split(".")[0].split("_")[0].split("-")[0].lower()
 
 
+def _env_language() -> str | None:
+    """The first of LANGUAGE (its first entry), LC_ALL, LC_MESSAGES, LANG
+    that is set — gettext's order. Read directly: locale.getlocale() says
+    "C" when the system lacks the generated locale."""
+    for var in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
+        value = (os.environ.get(var) or "").split(":")[0]
+        if value:
+            return value
+    return None
+
+
 def detect(preferred: str | None = None) -> str:
-    """Explicit code, else $LANG, else en — falls back to en if no catalog."""
-    candidate = preferred or _locale.getlocale()[0] or "en"
+    """Explicit code, else the environment, else the C library's locale, else
+    en — and en if there's no catalog for it."""
+    candidate = preferred or _env_language() or _locale.getlocale()[0] or "en"
     code = _normalize(candidate)
     return code if (_LOCALES_DIR / f"{code}.json").is_file() else "en"
 

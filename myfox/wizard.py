@@ -35,9 +35,10 @@ def run(gui: bool = False, noninteractive: bool = False, install: Installer = re
             gui_deps.prepare()
             from .ui import form_gui
         except (ImportError, OSError, RuntimeError) as exc:
+            # Started from a terminal anyway (curl | sh): carry on there.
             print(i18n.t("err_gui_unavailable", exc), file=sys.stderr)
-            return None
-        return form_gui.run(form, install)
+        else:
+            return form_gui.run(form, install)
     if _has_tty():
         from .ui import form_tui
 

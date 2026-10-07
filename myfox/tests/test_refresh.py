@@ -175,12 +175,13 @@ class ApplyUpdatesTests(IsolatedStateCase):
         state.save()
         with _releases(_latest(core="core-6")):
             plan = refresh.RefreshPlan.check(State())
-        order = []
+        order, messages = [], []
         with mock.patch("myfox.tweaks.install", side_effect=lambda r: order.append("tweaks") or "151.3"), \
              mock.patch("myfox.apply.reapply_tweaks"), \
              mock.patch("myfox.core.install", side_effect=lambda r: order.append("core") or r.tag):
-            refresh.apply_updates(plan, lambda message, fraction: None)
+            refresh.apply_updates(plan, lambda message, fraction: messages.append(message))
         self.assertEqual(order, ["tweaks", "core"])
+        self.assertIn(i18n.t("progress_refresh_core_download", "6"), messages)  # no "core-" prefix
         self.assertEqual(State().get("core_version"), "core-6")
 
 

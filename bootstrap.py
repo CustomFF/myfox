@@ -45,8 +45,18 @@ _MESSAGES = {
 }
 
 
+def _lang() -> str:
+    # gettext's order, read directly: locale.getlocale() says "C" when the
+    # system lacks the generated locale.
+    for var in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
+        value = (os.environ.get(var) or "").split(":")[0]
+        if value:
+            return value[:2].lower()
+    return (locale.getlocale()[0] or "en")[:2].lower()
+
+
 def t(key: str, *args: object) -> str:
-    lang = (locale.getlocale()[0] or os.environ.get("LANG") or "en")[:2].lower()
+    lang = _lang()
     text = _MESSAGES.get(lang, _MESSAGES["en"]).get(key) or _MESSAGES["en"][key]
     return text.format(*args)
 

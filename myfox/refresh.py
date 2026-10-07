@@ -126,7 +126,7 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
     todo = plan.todo
     for i, t in enumerate(todo):
         base, share = i / len(todo), 1 / len(todo)
-        tag = t.latest or t.current or ""
+        tag = changelog.display(t.latest or t.current)
         if t.track.key == "tweaks_version":
             progress(i18n.t("progress_refresh_tweaks_download", tag), base)
             installed = tweaks.install(t.release)

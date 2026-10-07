@@ -310,7 +310,7 @@ def headless_once(install_dir: Path, our_profile: Path) -> str | None:
             try:
                 subprocess.run(
                     [str(binary), "--headless", "--screenshot", shot.name, "about:blank"],
-                    timeout=180, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=180, env=_headless_env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 )
             except (subprocess.SubprocessError, OSError):
                 break
@@ -329,6 +329,13 @@ def headless_once(install_dir: Path, our_profile: Path) -> str | None:
     return found_hash
 
 
+def _headless_env() -> dict[str, str]:
+    """The environment without the display: headless Firefox needs none, and
+    a foreign or broken one can still stop it (e.g. root with a user's
+    XAUTHORITY: "running Firefox as root in a regular user's session")."""
+    return {k: v for k, v in os.environ.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY")}
+
+
 def install_hash_fresh(install_dir: Path) -> str | None:
     """Fallback for headless_once: runs Firefox with a throwaway $HOME so
     whatever hash it computes lands in a profiles.ini we can just read, no
@@ -339,7 +346,7 @@ def install_hash_fresh(install_dir: Path) -> str | None:
     with tempfile.TemporaryDirectory() as tmp_home:
         tmp = Path(tmp_home)
         shot = tmp / ".myfox-shot.png"
-        env = dict(os.environ)
+        env = _headless_env()
         env.update(HOME=str(tmp), XDG_CONFIG_HOME=str(tmp / ".config"), XDG_DATA_HOME=str(tmp / ".local" / "share"))
         try:
             subprocess.run(

@@ -32,6 +32,15 @@ class NormalizeAndDetectTests(I18nStateGuard):
     def test_detect_falls_back_to_en_for_a_locale_without_a_catalog(self):
         self.assertEqual(i18n.detect("xx_XX"), "en")
 
+    def test_detect_reads_the_environment_in_gettext_order(self):
+        env = {"LANGUAGE": "", "LC_ALL": "", "LC_MESSAGES": "ru_RU.UTF-8", "LANG": "en_US.UTF-8"}
+        with mock.patch.dict("os.environ", env), mock.patch("locale.getlocale", return_value=("C", "UTF-8")):
+            self.assertEqual(i18n.detect(), "ru")
+
+    def test_language_list_uses_its_first_entry(self):
+        with mock.patch.dict("os.environ", {"LANGUAGE": "ru:en", "LANG": "en_US.UTF-8"}):
+            self.assertEqual(i18n.detect(), "ru")
+
     def test_detect_accepts_a_locale_that_has_a_catalog(self):
         self.assertEqual(i18n.detect("ru_RU.UTF-8"), "ru")
 

@@ -78,15 +78,19 @@ class DispatchTests(unittest.TestCase):
     def test_gui_flag_uses_the_gui_view(self):
         fake = mock.Mock()
         with mock.patch.dict("sys.modules", {"myfox.ui.form_gui": fake}), \
-             mock.patch("myfox.ui.form_gui", fake, create=True):
+             mock.patch("myfox.ui.form_gui", fake, create=True), \
+             mock.patch("myfox.gui_deps.prepare"):
             wizard.run(gui=True)
         fake.run.assert_called_once()
         self.assertIs(fake.run.call_args[0][0], self.form)
 
-    def test_gui_unavailable_is_reported(self):
-        with mock.patch.dict("sys.modules", {"myfox.ui.form_gui": None}), redirect_stderr(io.StringIO()) as err:
-            self.assertIsNone(wizard.run(gui=True))
-        self.assertTrue(err.getvalue().strip())
+    def test_gui_unavailable_is_reported_and_the_terminal_takes_over(self):
+        with mock.patch("myfox.gui_deps.prepare", side_effect=RuntimeError("no window")), \
+             mock.patch("myfox.wizard._has_tty", return_value=True), \
+             mock.patch("myfox.ui.form_tui.run") as tui, redirect_stderr(io.StringIO()) as err:
+            wizard.run(gui=True)
+        self.assertIn("no window", err.getvalue())
+        self.assertIs(tui.call_args[0][0], self.form)
 
     def test_tty_uses_the_tui_view(self):
         with mock.patch("myfox.wizard._has_tty", return_value=True), \

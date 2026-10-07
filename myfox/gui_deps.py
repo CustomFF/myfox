@@ -17,6 +17,7 @@ import hashlib
 import importlib.util
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -112,12 +113,41 @@ def install_into(target: Path, reuse_importable: bool = True) -> None:
     (dest / MARKER).write_text(f"{tag}\n", encoding="utf-8")
 
 
+# A tiny off-screen window and one frame. Run in a child process: where
+# Mesa sees the GPU but can't open it, creating the window hangs inside
+# dearpygui for good (holding the GIL), which only a timeout can catch.
+_PROBE = (
+    "import dearpygui.dearpygui as d; d.create_context(); "
+    "d.create_viewport(title='MyFox', width=1, height=1, x_pos=-100, y_pos=-100, decorated=False); "
+    "d.setup_dearpygui(); d.show_viewport(); d.render_dearpygui_frame(); d.destroy_context()"
+)
+PROBE_TIMEOUT = 10
+
+
+def window_works(env_extra: dict | None = None) -> bool:
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(p for p in sys.path if p), **(env_extra or {}))
+    try:
+        result = subprocess.run([sys.executable, "-c", _PROBE], env=env, timeout=PROBE_TIMEOUT,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (subprocess.SubprocessError, OSError):
+        return False
+    return result.returncode == 0
+
+
 def prepare() -> None:
     """Call before importing dearpygui. In the installed copy, makes sure its
     dearpygui is the one for this Python (fetching it if not); a working
-    copy is left to whatever is on sys.path."""
+    copy is left to whatever is on sys.path. Then checks a window can
+    actually open, falling back to Mesa's software rendering; raises
+    RuntimeError when neither works."""
     from . import launcher, paths
 
     share = launcher.share_dir()
     if paths.myfox_root().resolve() == share.resolve():
         ensure_current(share)
+    if window_works():
+        return
+    if window_works({"LIBGL_ALWAYS_SOFTWARE": "1"}):
+        os.environ["LIBGL_ALWAYS_SOFTWARE"] = "1"  # read when this process opens its window
+        return
+    raise RuntimeError("no window could be opened (OpenGL)")

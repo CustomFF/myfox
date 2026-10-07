@@ -110,5 +110,12 @@ class FreshTests(_Env):
         self.assertTrue(run.call_args.kwargs["env"]["PYTHONPATH"].startswith("/work/myfox"))
 
 
+class LanguageTests(unittest.TestCase):
+    def test_environment_wins_over_the_c_locale(self):
+        env = {"LANGUAGE": "", "LC_ALL": "", "LC_MESSAGES": "", "LANG": "ru_RU.UTF-8"}
+        with mock.patch.dict("os.environ", env), mock.patch("locale.getlocale", return_value=("C", "UTF-8")):
+            self.assertEqual(bootstrap.t("check_updates"), bootstrap._MESSAGES["ru"]["check_updates"])
+
+
 if __name__ == "__main__":
     unittest.main()

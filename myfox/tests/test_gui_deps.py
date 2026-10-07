@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import io
+import os
+import subprocess
 import tempfile
 import unittest
 import zipfile
@@ -112,16 +114,54 @@ class CurrentTests(unittest.TestCase):
 
     def test_working_copy_is_not_touched(self):
         with mock.patch("myfox.gui_deps.ensure_current") as ensure, \
+             mock.patch("myfox.gui_deps.window_works", return_value=True), \
              mock.patch("myfox.launcher.share_dir", return_value=self.share):
             gui_deps.prepare()
         ensure.assert_not_called()
 
     def test_installed_copy_is_checked(self):
         with mock.patch("myfox.gui_deps.ensure_current") as ensure, \
+             mock.patch("myfox.gui_deps.window_works", return_value=True), \
              mock.patch("myfox.launcher.share_dir", return_value=self.share), \
              mock.patch("myfox.paths.myfox_root", return_value=self.share):
             gui_deps.prepare()
         ensure.assert_called_once_with(self.share)
+
+
+class WindowProbeTests(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.dict("os.environ", {}, clear=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        os.environ.pop("LIBGL_ALWAYS_SOFTWARE", None)
+
+    def _prepare(self, results):
+        calls = []
+
+        def works(env_extra=None):
+            calls.append(env_extra)
+            return results[len(calls) - 1]
+
+        with mock.patch("myfox.gui_deps.window_works", side_effect=works), \
+             mock.patch("myfox.paths.myfox_root", return_value=Path("/nowhere")):
+            gui_deps.prepare()
+        return calls
+
+    def test_working_window_needs_nothing(self):
+        self.assertEqual(self._prepare([True]), [None])
+        self.assertNotIn("LIBGL_ALWAYS_SOFTWARE", os.environ)
+
+    def test_falls_back_to_software_rendering(self):
+        self.assertEqual(self._prepare([False, True]), [None, {"LIBGL_ALWAYS_SOFTWARE": "1"}])
+        self.assertEqual(os.environ["LIBGL_ALWAYS_SOFTWARE"], "1")
+
+    def test_no_window_at_all_is_an_error(self):
+        with self.assertRaises(RuntimeError):
+            self._prepare([False, False])
+
+    def test_a_hanging_probe_counts_as_not_working(self):
+        with mock.patch("subprocess.run", side_effect=subprocess.TimeoutExpired("python3", 10)):
+            self.assertFalse(gui_deps.window_works())
 
 
 if __name__ == "__main__":
