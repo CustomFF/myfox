@@ -118,6 +118,7 @@ def simulate_install(answers: Answers, progress: Progress) -> None:
     stages = [("progress_firefox_download", 4.0), ("progress_firefox_install", 2.0), ("progress_profile", 1.0)]
     if answers.tweaks:
         stages += [
+            ("progress_tweaks_download", 0.6),
             ("progress_tweaks_styles", 0.6),
             ("progress_tweaks_themes_download", 1.0),
             ("progress_tweaks_bookmarklets", 0.6),

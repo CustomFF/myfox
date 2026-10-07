@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import addons, apply, desktop, firefox, gui_deps, i18n, launcher, profiles
+from . import addons, apply, desktop, firefox, gui_deps, i18n, launcher, profiles, tweaks
 from .install_form import Answers, Progress
 from .state import State
 
@@ -39,7 +39,7 @@ def install(answers: Answers, progress: Progress) -> None:
     weights = [("download", 0 if reuse else 60), ("extract", 0 if reuse else 15), ("profile", 10)]
     plasma = answers.tweaks and addons.is_plasma_session()
     if answers.tweaks:
-        weights += [("styles", 2), ("themes", 5), ("bookmarklets", 3)]
+        weights += [("tweaks", 3), ("styles", 2), ("themes", 5), ("bookmarklets", 3)]
     if plasma:
         weights += [("plasma", 3)]
     weights += [("gui", 5), ("shortcut", 2)]
@@ -65,8 +65,11 @@ def install(answers: Answers, progress: Progress) -> None:
     # Profile: an existing MyFox one, or a new myfox-N.
     stages.report("profile", i18n.t("progress_profile"))
     profile_dir = Path(answers.profile_dir) if answers.profile_dir else profiles.create_new()
-    install_hash = None
+    install_hash = tweaks_version = None
     if answers.tweaks:
+        stages.report("tweaks", i18n.t("progress_tweaks_download"))
+        tweaks_version = tweaks.install()
+
         # Pinning runs the install headless once, so it can take a while.
         install_hash = profiles.pin_install(install_dir, profile_dir, saved_hash=None)
 
@@ -107,7 +110,7 @@ def install(answers: Answers, progress: Progress) -> None:
         ("lang", answers.lang), ("channel", answers.channel), ("theme", answers.theme),
         ("tweaks", answers.tweaks), ("opt_bl", answers.tweaks), ("opt_plasma", plasma),
         # Set by bootstrap.py: the core-* release this copy came from.
-        ("core_version", os.environ.get("MYFOX_CORE_VERSION")),
+        ("core_version", os.environ.get("MYFOX_CORE_VERSION")), ("tweaks_version", tweaks_version),
     ):
         state.set(key, value)
     state.save()

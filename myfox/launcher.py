@@ -1,7 +1,7 @@
 """The installed copy of MyFox itself: ~/.local/share/myfox holds the
-package plus autoconfig/ and chrome/ (what update/uninstall/refresh need
-offline), dearpygui/ (gui_deps.py) and, by default, the browser in
-firefox/; ~/.local/bin/myfox is a symlink to its launcher script.
+package, tweaks/ (tweaks.py), dearpygui/ (gui_deps.py) and, by default,
+the browser in firefox/; ~/.local/bin/myfox is a symlink to its launcher
+script.
 """
 
 from __future__ import annotations
@@ -14,8 +14,7 @@ from . import paths
 
 
 def share_dir() -> Path:
-    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(base) / "myfox"
+    return paths.share_dir()
 
 
 def launcher_path() -> Path:
@@ -31,11 +30,10 @@ def install_self() -> Path:
     dir. Returns the launcher path (what the .desktop action runs)."""
     share, source = share_dir(), paths.myfox_root()
     if source.resolve() != share.resolve():
-        # Only our own parts: the browser may live in share/firefox.
-        ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "tests")
-        for name in ("myfox", "autoconfig", "chrome"):
-            shutil.rmtree(share / name, ignore_errors=True)
-            shutil.copytree(source / name, share / name, ignore=ignore)
+        # Only the package: the browser and the tweaks live next to it.
+        shutil.rmtree(share / "myfox", ignore_errors=True)
+        shutil.copytree(source / "myfox", share / "myfox",
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "tests"))
 
     launcher = launcher_path()
     launcher.parent.mkdir(parents=True, exist_ok=True)

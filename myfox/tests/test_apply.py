@@ -5,14 +5,21 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from myfox import apply
+from myfox import apply, paths
+
+from ._helpers import IsolatedStateCase, make_tweaks
 
 
-class ApplyAutoconfigTests(unittest.TestCase):
-    """Copies from the *real* autoconfig/ in this checkout (paths.py
-    resolves relative to myfox/, which lives in this repo) into a throwaway
-    destination — exercises the real current tweaks, never touches the
-    source, destination is always a tmp dir."""
+class _TweaksCase(IsolatedStateCase):
+    """A small tweaks tree in paths.tweaks_dir() (under a throwaway
+    XDG_DATA_HOME), which apply.py copies from."""
+
+    def setUp(self):
+        super().setUp()
+        make_tweaks(paths.tweaks_dir())
+
+
+class ApplyAutoconfigTests(_TweaksCase):
 
     def test_copies_autoconfig_js_cfg_and_module_dir(self):
         with tempfile.TemporaryDirectory() as d:
@@ -40,7 +47,7 @@ class ApplyAutoconfigTests(unittest.TestCase):
             self.assertFalse(stray.exists())
 
 
-class ApplyChromeTests(unittest.TestCase):
+class ApplyChromeTests(_TweaksCase):
     def test_copies_agent_user_and_userchrome_sets_the_marker(self):
         with tempfile.TemporaryDirectory() as d:
             profile_dir = Path(d)

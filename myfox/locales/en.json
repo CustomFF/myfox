@@ -81,5 +81,6 @@
     "note_plasma_pkg_missing_manual": "KDE Plasma integration needs the system package «plasma-browser-integration»; install it with your package manager.",
     "note_plasma_addon_failed": "Could not download the Plasma Integration add-on from addons.mozilla.org.",
     "progress_gui": "Installing the graphical interface…",
-    "note_gui_failed": "Could not install the graphical interface ({0}): MyFox windows won't open, the terminal commands work."
+    "note_gui_failed": "Could not install the graphical interface ({0}): MyFox windows won't open, the terminal commands work.",
+    "progress_tweaks_download": "Downloading the tweaks…"
 }

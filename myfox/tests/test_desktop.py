@@ -53,7 +53,6 @@ class LauncherTests(unittest.TestCase):
         share = launcher.share_dir()
         self.assertTrue((share / "myfox" / "launcher.py").is_file())
         self.assertFalse((share / "myfox" / "tests").exists())
-        self.assertTrue((share / "autoconfig").is_dir() and (share / "chrome").is_dir())
         self.assertEqual(Path(os.readlink(launcher.link_path())), path)
         self.assertIn(f'PYTHONPATH="{share}', path.read_text(encoding="utf-8"))
 

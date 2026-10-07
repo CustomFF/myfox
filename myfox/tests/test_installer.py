@@ -36,6 +36,7 @@ class InstallTests(IsolatedStateCase):
              mock.patch("myfox.addons.pkg_installed", return_value=pkg), \
              mock.patch("myfox.addons.pkg_install_hint", return_value="sudo apt install plasma-browser-integration"), \
              mock.patch("myfox.firefox.install_tarball", side_effect=self._fake_tarball), \
+             mock.patch("myfox.tweaks.install", side_effect=lambda: self.calls.append("tweaks") or "158.0"), \
              mock.patch("myfox.profiles.create_new", return_value=self.profile_dir), \
              mock.patch("myfox.profiles.pin_install", side_effect=lambda *a, **k: self.calls.append("pin") or "HASH"), \
              mock.patch("myfox.apply.apply_autoconfig", side_effect=record("autoconfig")), \
@@ -50,13 +51,14 @@ class InstallTests(IsolatedStateCase):
 
     def test_full_install_runs_every_step_and_saves_state(self):
         self._install(Answers(install_dir=str(self.install_dir), lang="ru", theme="light"))
-        self.assertEqual(self.calls, ["tarball", "pin", "autoconfig", "chrome", "theme", "themes", "bookmarklets",
-                                      "gui", "desktop"])
+        self.assertEqual(self.calls, ["tarball", "tweaks", "pin", "autoconfig", "chrome", "theme", "themes",
+                                      "bookmarklets", "gui", "desktop"])
         self.assertTrue((self.install_dir / ".myfox-installed").is_file())
         state = State()
         self.assertEqual((state.get("install_dir"), state.get("profile_dir"), state.get("install_hash")),
                          (str(self.install_dir), str(self.profile_dir), "HASH"))
         self.assertEqual((state.get("firefox_version"), state.get("lang"), state.get("theme")), ("152.0", "ru", "light"))
+        self.assertEqual(state.get("tweaks_version"), "158.0")
 
     def test_progress_only_goes_up_and_ends_done(self):
         self._install(Answers(install_dir=str(self.install_dir)))

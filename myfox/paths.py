@@ -1,18 +1,14 @@
-"""Where things live relative to this installed copy of myfox/ — the
-equivalent of lib/common.sh's MYFOX_ROOT and its derived paths.
+"""Where things live relative to this copy of myfox/.
 
-autoconfig/chrome ship from the CustomFF/tweaks repo (see
-docs/python-rewrite-plan.md) but land as siblings of myfox/ in the same
-installed tree, exactly like today's ~/.local/share/myfox layout — refresh
-updates each track independently, but apply.py etc. always find them next
-to itself, never needing to know which track last touched them. Themes are
-the exception: addons.py fetches their signed .xpi straight from
-CustomFF/tweaks' releases into the profile, never landing under myfox_root()
-at all.
+The tweaks (autoconfig/ + chrome/) aren't part of MyFox: tweaks.py fetches
+them from CustomFF/tweaks' releases into share_dir()/tweaks, and apply.py
+copies them from there into the install and the profile. Themes come from
+the same repo's releases straight into the profile (addons.py).
 """
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
@@ -20,9 +16,18 @@ def myfox_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def share_dir() -> Path:
+    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(base) / "myfox"
+
+
+def tweaks_dir() -> Path:
+    return share_dir() / "tweaks"
+
+
 def autoconfig_dir() -> Path:
-    return myfox_root() / "autoconfig"
+    return tweaks_dir() / "autoconfig"
 
 
 def chrome_dir() -> Path:
-    return myfox_root() / "chrome"
+    return tweaks_dir() / "chrome"
