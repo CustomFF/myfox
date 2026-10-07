@@ -11,7 +11,7 @@ on:
         type: boolean
         default: true
       tag:
-        description: "Version to release (core-<n>); required unless dry_run"
+        description: "Tag to release (core-<major>.<minor>.<patch>); required unless dry_run"
         type: string
         default: ""
 
@@ -26,16 +26,30 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # A broken changelog must fail the dry run too, not only a release.
+      - name: Check the changelog
+        run: python3 scripts/changelog_to_json.py -o /dev/null
+
       - name: Check the version
         run: |
-          if [[ -z "$TAG" && "$RELEASE" == "true" ]]; then
-            echo "::error::a release needs a tag (set the 'tag' input)"
+          if [[ -z "$TAG" ]]; then
+            if [[ "$RELEASE" == "true" ]]; then
+              echo "::error::a release needs a tag (set the 'tag' input)"
+              exit 1
+            fi
+            exit 0
+          fi
+          if ! [[ "$TAG" =~ ^core-[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::tag $TAG is not core-<major>.<minor>.<patch>"
             exit 1
           fi
-          if [[ -n "$TAG" && ! "$TAG" =~ ^core-[0-9A-Za-z.-]+$ ]]; then
-            echo "::error::tag $TAG is not core-<n>"
+          # The tag, the code's own version and the changelog must agree.
+          package=$(python3 scripts/changelog_to_json.py --package-version)
+          if [[ "${TAG#core-}" != "$package" ]]; then
+            echo "::error::tag $TAG doesn't match myfox/__init__.py's __version__ ($package)"
             exit 1
           fi
+          python3 scripts/changelog_to_json.py --check "$package"
 
       # A broken core must not reach `myfox refresh`.
       - name: Tests
@@ -54,8 +68,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$TAG" build/dist/myfox-core.tar.gz \
-            --title "MyFox core $TAG" \
-            --notes "MyFox's own code (the myfox package), built from $(git rev-parse --short HEAD). Installed by get.sh / bootstrap.py, updated by \`myfox refresh\`." \
+          python3 scripts/changelog_to_json.py --notes "${TAG#core-}" > build/notes.md
+          gh release create "$TAG" build/dist/myfox-core.tar.gz build/dist/changelog.json \
+            --title "MyFox ${TAG#core-}" \
+            --notes-file build/notes.md \
             --target "$GITHUB_SHA" \
             --latest
