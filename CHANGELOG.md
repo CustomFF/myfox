@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.7 — 2026-10-08
+
+- After the tweaks are updated, `myfox refresh` offers to restart a running Firefox so they apply right away, with all windows and tabs restored (needs tweaks 158.1 or newer already running)
+
 ## 1.1.6 — 2026-10-08
 
 - No more pause after downloading Firefox: it is unpacked in a single pass, and the progress bar moves right away
