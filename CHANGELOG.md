@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.6 — 2026-10-08
+
+- No more pause after downloading Firefox: it is unpacked in a single pass, and the progress bar moves right away
+- On KDE Plasma a new or removed shortcut is picked up at once
+
 ## 1.1.5 — 2026-10-08
 
 - In the terminal interface the focused field, checkbox or list row is highlighted like a focused button, so it's clear where the keyboard is
