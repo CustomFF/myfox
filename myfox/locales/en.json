@@ -57,6 +57,7 @@
     "refresh_none": "No updates.",
     "refresh_check_failed": "Could not check for updates: {0}",
     "refresh_update": "Update",
+    "refresh_restart_firefox": "Restart Firefox to apply the tweaks",
     "progress_refresh_tweaks_download": "Downloading tweaks {0}…",
     "progress_refresh_tweaks_apply": "Applying tweaks…",
     "progress_refresh_core_download": "Downloading MyFox {0}…",

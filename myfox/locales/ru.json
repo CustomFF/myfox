@@ -57,6 +57,7 @@
     "refresh_none": "Обновлений нет.",
     "refresh_check_failed": "Не удалось проверить обновления: {0}",
     "refresh_update": "Обновить",
+    "refresh_restart_firefox": "Перезапустить Firefox, чтобы применить твики",
     "progress_refresh_tweaks_download": "Скачивание твиков {0}…",
     "progress_refresh_tweaks_apply": "Применение твиков…",
     "progress_refresh_core_download": "Скачивание MyFox {0}…",

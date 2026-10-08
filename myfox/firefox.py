@@ -8,6 +8,7 @@ import json
 import os
 import platform
 import re
+import subprocess
 import tarfile
 import tempfile
 import urllib.error
@@ -219,6 +220,15 @@ def running_pids(install_dir: Path) -> list[int]:
         if root in exe.parents:
             pids.append(int(proc.name))
     return pids
+
+
+def request_restart(install_dir: Path) -> None:
+    """Asks this install's running Firefox to restart: Firefox's remoting
+    hands the flag to it, and the tweaks' command-line handler restarts it
+    the way Firefox's own Restart does (prompts, session restored).
+    Detached, so closing MyFox's window doesn't take it along."""
+    subprocess.Popen([str(install_dir / "firefox-myfox"), "--myfox-restart"], stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 
 
 def install_tarball(install_dir: Path, lang: str, channel: str, on_download=None, on_extract=None) -> str:

@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import apply, changelog, core, i18n, tweaks, version
+from . import apply, changelog, core, firefox, i18n, tweaks, version
 from . import task as task_mod
 from .addons import TWEAKS_REPO
 from .install_form import Progress
@@ -109,6 +109,21 @@ class RefreshPlan:
 
 Updater = Callable[[RefreshPlan, Progress], None]
 
+# The first tweaks release whose autoconfig handles --myfox-restart.
+RESTART_SINCE_TWEAKS = "158.1"
+
+
+def restart_offer(plan: RefreshPlan, state: State) -> Callable[[], None] | None:
+    """New tweaks take effect when Firefox starts: if this install's
+    Firefox is running with tweaks that can restart it, how to do that."""
+    install_dir = state.get("install_dir")
+    if not install_dir or not any(t.track.key == "tweaks_version" for t in plan.todo):
+        return None
+    running = state.get("tweaks_version")
+    if changelog.is_newer(RESTART_SINCE_TWEAKS, running) or not firefox.running_pids(Path(install_dir)):
+        return None
+    return lambda: firefox.request_restart(Path(install_dir))
+
 
 def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
     """Tweaks: download, apply to the install and the profile, record the
@@ -135,16 +150,24 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
     progress(i18n.t("progress_refresh_done"), 1.0)
 
 
-def to_task(plan: RefreshPlan, update: Updater) -> task_mod.Task:
+def to_task(plan: RefreshPlan, update: Updater, restart: Callable[[], None] | None = None) -> task_mod.Task:
+    options = [task_mod.Option(i18n.t("refresh_restart_firefox"), True)] if restart else []
+
+    def run(progress: Progress) -> None:
+        update(plan, progress)
+        if restart and options[0].value:
+            restart()
+
     return task_mod.Task(
         title=i18n.t("refresh_title"),
         subtitle=i18n.t("refresh_subtitle_force" if plan.force else "refresh_subtitle"),
         rows=[(t.label, t.describe()) for t in plan.todo],
         heading=i18n.t("refresh_whats_new") if plan.changes else "",
         lines=plan.changes,
+        options=options,
         action=i18n.t("refresh_update"),
         unconfirmed=[i18n.t("needs_yes_refresh", "myfox refresh --force -y" if plan.force else "myfox refresh -y")],
-        run=lambda progress: update(plan, progress),
+        run=run,
     )
 
 
@@ -161,4 +184,5 @@ def run(state: State, gui: bool = False, noninteractive: bool = False, force: bo
                 return 1 if plan.error else 0
         print(text, file=sys.stderr if plan.error else sys.stdout)
         return 1 if plan.error else 0
-    return 0 if task_mod.show(to_task(plan, update), gui=gui, noninteractive=noninteractive) else 1
+    task = to_task(plan, update, restart_offer(plan, state))
+    return 0 if task_mod.show(task, gui=gui, noninteractive=noninteractive) else 1

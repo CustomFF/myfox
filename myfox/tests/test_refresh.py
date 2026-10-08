@@ -138,6 +138,45 @@ class RunTests(IsolatedStateCase):
         tui.assert_called_once()
 
 
+class RestartTests(IsolatedStateCase):
+    """New tweaks apply when Firefox starts: a running one is offered a restart."""
+
+    def _offer(self, running=True, since="151.2", current="151.2", **latest):
+        state = _state(tweaks=current)
+        state.set("install_dir", "/opt/ff")
+        with _releases(_latest(**latest)):
+            plan = refresh.RefreshPlan.check(state)
+        with mock.patch("myfox.firefox.running_pids", return_value=[42] if running else []), \
+             mock.patch.object(refresh, "RESTART_SINCE_TWEAKS", since):
+            return plan, refresh.restart_offer(plan, state)
+
+    def test_running_firefox_with_restart_capable_tweaks_is_offered_one(self):
+        plan, restart = self._offer()
+        with mock.patch("myfox.firefox.request_restart") as request:
+            restart()
+        request.assert_called_once_with(Path("/opt/ff"))
+        task = refresh.to_task(plan, lambda plan, progress: None, restart)
+        self.assertEqual([(o.label, o.value) for o in task.options], [(i18n.t("refresh_restart_firefox"), True)])
+
+    def test_not_offered_without_a_running_firefox(self):
+        self.assertIsNone(self._offer(running=False)[1])
+
+    def test_not_offered_when_running_tweaks_predate_the_handler(self):
+        self.assertIsNone(self._offer(since="151.3", current="151.2", tweaks="151.4")[1])
+
+    def test_not_offered_for_a_core_only_update(self):
+        self.assertIsNone(self._offer(tweaks="151.2", core="core-6")[1])
+
+    def test_restart_comes_after_the_update_and_only_if_ticked(self):
+        plan, _restart = self._offer()
+        calls = []
+        task = refresh.to_task(plan, lambda plan, progress: calls.append("update"), lambda: calls.append("restart"))
+        task.run(lambda message, fraction: None)
+        task.options[0].value = False
+        task.run(lambda message, fraction: None)
+        self.assertEqual(calls, ["update", "restart", "update"])
+
+
 class TuiDialogTests(IsolatedStateCase):
     def _plan(self):
         with _releases(_latest()):
