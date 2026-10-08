@@ -166,7 +166,8 @@ def download_and_extract(url: str, install_dir: Path, on_download=None, on_extra
     """Streams the tarball to a temp file, then extracts it with
     --strip-components=1 semantics (Mozilla's tarball has one top-level
     "firefox/" directory). on_download(bytes_done, bytes_total or None) and
-    on_extract(files_done, files_total) report progress if given."""
+    on_extract(archive_bytes_done, archive_bytes_total) report progress if
+    given."""
     install_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(suffix=".tar.xz", delete=False) as tmp:
         tmp_path = Path(tmp.name)
@@ -183,18 +184,22 @@ def download_and_extract(url: str, install_dir: Path, on_download=None, on_extra
                     if on_download:
                         on_download(written, total)
             tmp.flush()
-            with tarfile.open(tmp_path, mode="r:xz") as tf:
-                members = tf.getmembers()
-                top_dirs = {m.name.split("/", 1)[0] for m in members}
-                if len(top_dirs) != 1:
-                    raise RuntimeError(f"unexpected tarball layout: {top_dirs!r}")
-                prefix = next(iter(top_dirs)) + "/"
-                for i, member in enumerate(members, 1):
-                    if member.name != prefix.rstrip("/"):
-                        member.name = member.name[len(prefix):]
+            # One streamed pass: listing the members first decompresses the
+            # whole archive once more, a long pause with nothing to report.
+            size = tmp_path.stat().st_size
+            with open(tmp_path, "rb") as raw, tarfile.open(fileobj=raw, mode="r|xz") as tf:
+                top = None
+                for member in tf:
+                    head, _, rest = member.name.partition("/")
+                    if top is None:
+                        top = head
+                    elif head != top:
+                        raise RuntimeError(f"unexpected tarball layout: {member.name!r}")
+                    if rest:
+                        member.name = rest
                         archive.extract(tf, member, install_dir)
                     if on_extract:
-                        on_extract(i, len(members))
+                        on_extract(raw.tell(), size)
         finally:
             tmp_path.unlink(missing_ok=True)
 
