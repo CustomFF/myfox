@@ -28,6 +28,8 @@ class DesktopTests(unittest.TestCase):
         self.assertIn(f"Exec={wrapper} %u", text)
         self.assertIn("[Desktop Action myfox-refresh]\nExec=/x/bin/myfox refresh --gui", text)
         self.assertIn("myfox-refresh;", text.splitlines()[1])
+        self.assertIn(f"[Desktop Action restart]\nExec={wrapper} --myfox-restart", text)
+        self.assertIn("restart;", text.splitlines()[1])
         self.assertTrue(os.access(wrapper, os.X_OK))
         self.assertIn(f'exec "{self.install_dir / "firefox"}" "$@"', wrapper.read_text(encoding="utf-8"))
 

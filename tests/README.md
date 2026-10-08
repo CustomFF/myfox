@@ -29,7 +29,7 @@ scratch/sandbox.sh /tmp/mf --fresh -- bash -c "cd /tmp && cat $R/get.sh | \
 - [ ] в `firefox/`: `defaults/pref/autoconfig.js`, `myfox.cfg`, `myfox/*.js`, `.myfox-installed`, обёртка `firefox-myfox`
 - [ ] профиль `<config>/mozilla/firefox/myfox-1` (при существующем `~/.mozilla/firefox` — там): `.myfox`, `chrome/`, `user.js` с `myfox.theme`, в `extensions/` две темы
 - [ ] пиннинг: `[Install<HASH>]` с `Default=myfox-1` в `profiles.ini` и `installs.ini`; `install_hash` в state; мусорного `default-*` профиля нет
-- [ ] `<data>/applications/firefox-myfox.desktop` («Firefox (myfox)»), в меню действий «Обновить MyFox», пункта «Удалить» нет
+- [ ] `<data>/applications/firefox-myfox.desktop` («Firefox (myfox)»), в меню действий «Перезапустить» и «Обновить MyFox», пункта «Удалить» нет; «Перезапустить» при запущенном Firefox перезапускает его с вкладками, без лишнего окна, при незапущенном — просто запускает
 - [ ] `state/myfox/state.json`: `install_dir`, `profile_dir`, `firefox_version`, `install_hash`, `lang`, `channel`, `theme`, `tweaks`, `core_version`, `tweaks_version`
 - [ ] без терминала и без `-y` (`… < /dev/null`): сводка и «Установку нужно подтвердить. Запустите: … -y», ничего не установлено
 - [ ] повторный запуск `get.sh` при установленном: «MyFox уже установлен», с аргументами — уходит в установленный `myfox`

@@ -129,7 +129,7 @@ Firefox качается в соседний временный каталог �
 | `<install>/` | Firefox, `defaults/pref/autoconfig.js`, `myfox.cfg`, `myfox/*.js`, `.myfox-installed`, обёртка `firefox-myfox` |
 | `<profile>/` | `.myfox` (твики), `.myfox-created`, `chrome/`, `user.js`, `extensions/` |
 | `~/.local/bin/myfox` | симлинк на `~/.local/share/myfox/bin/myfox` |
-| `~/.local/share/applications/firefox-myfox.desktop` | «Firefox (myfox)» с действием «Обновить MyFox» |
+| `~/.local/share/applications/firefox-myfox.desktop` | «Firefox (myfox)» с действиями «Перезапустить» (`--myfox-restart`) и «Обновить MyFox» |
 | `~/.local/state/myfox/state.json` | `install_dir`, `profile_dir`, `firefox_version`, `install_hash`, `lang`, `channel`, `theme`, `tweaks`, `core_version`, `tweaks_version`, … |
 
 ## Профиль-локальность

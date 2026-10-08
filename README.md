@@ -64,7 +64,9 @@ Every command shows what it is about to do and asks first — in the terminal, o
 what it would do and the command to run with `-y`.
 
 - **Updating.** Firefox updates itself. `myfox refresh` updates the tweaks and MyFox and shows
-  what's new; the shortcut's context menu has «Update MyFox» too. Restart Firefox afterwards.
+  what's new; the shortcut's context menu has «Update MyFox» too. New tweaks apply once Firefox
+  restarts: `refresh` offers to restart it, and the shortcut's menu has «Restart» (windows and tabs
+  come back).
 - **Reinstalling.** `myfox reinstall` replaces Firefox only once the new copy is fully downloaded;
   your profile stays as it is.
 - **Uninstalling.** `myfox uninstall` removes Firefox, the shortcut, the `myfox` command and

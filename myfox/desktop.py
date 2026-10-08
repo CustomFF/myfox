@@ -67,6 +67,9 @@ def write_entry(install_dir: Path, launcher: Path) -> Path:
         ("preferences", f"{wrapper} --preferences", "settings-configure-symbolic", "Preferences", "Настройки"),
         ("profile-manager", f"{wrapper} --ProfileManager", "user-group-properties-symbolic",
          "Profile Manager", "Менеджер профилей"),
+        # Handled by the tweaks (158.1+): the running Firefox restarts itself,
+        # session restored; when it isn't running, this just starts it.
+        ("restart", f"{wrapper} --myfox-restart", "view-refresh-symbolic", "Restart", "Перезапустить"),
         ("myfox-refresh", f"{launcher} refresh --gui", "system-software-update", "Update MyFox", "Обновить MyFox"),
     ]
     lines = [
