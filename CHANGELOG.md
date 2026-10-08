@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.9 — 2026-10-08
+
+- `myfox refresh` keeps the shortcut up to date: new context-menu items, such as «Restart», arrive with the update, no reinstall needed
+
 ## 1.1.8 — 2026-10-08
 
 - The shortcut's context menu has «Restart»: Firefox restarts with its windows and tabs back (needs tweaks 158.1 or newer; an existing install gets it after `myfox reinstall`)
