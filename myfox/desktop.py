@@ -108,8 +108,9 @@ def remove_entry() -> None:
 
 def _refresh_menu_cache() -> None:
     """Desktops pick up a new/removed entry faster when told; failing to
-    tell them is harmless."""
-    for cmd in (["update-desktop-database", str(applications_dir())], ["kbuildsycoca6"], ["kbuildsycoca5"]):
-        if shutil.which(cmd[0]):
+    tell them is harmless. The MIME cache and KDE's service cache are
+    separate: both are refreshed, KDE's with whichever version exists."""
+    kde = next((name for name in ("kbuildsycoca6", "kbuildsycoca5") if shutil.which(name)), None)
+    for cmd in (["update-desktop-database", str(applications_dir())], [kde] if kde else None):
+        if cmd and shutil.which(cmd[0]):
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-            return

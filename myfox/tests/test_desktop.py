@@ -31,6 +31,14 @@ class DesktopTests(unittest.TestCase):
         self.assertTrue(os.access(wrapper, os.X_OK))
         self.assertIn(f'exec "{self.install_dir / "firefox"}" "$@"', wrapper.read_text(encoding="utf-8"))
 
+    def test_menu_cache_refresh_tells_both_caches(self):
+        present = {"update-desktop-database", "kbuildsycoca6", "kbuildsycoca5"}
+        with mock.patch("shutil.which", side_effect=lambda name: name if name in present else None), \
+             mock.patch("subprocess.run") as run:
+            desktop._refresh_menu_cache()
+        ran = [call.args[0][0] for call in run.call_args_list]
+        self.assertEqual(ran, ["update-desktop-database", "kbuildsycoca6"])
+
     def test_remove_entry(self):
         with mock.patch("myfox.desktop._refresh_menu_cache"):
             desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))
