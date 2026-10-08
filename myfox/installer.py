@@ -116,4 +116,5 @@ def install(answers: Answers, progress: Progress) -> None:
     ):
         state.set(key, value)
     state.save()
+    answers.profile_dir, answers.firefox_version = str(profile_dir), version
     progress(i18n.t("progress_done"), 1.0)

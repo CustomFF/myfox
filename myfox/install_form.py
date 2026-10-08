@@ -29,12 +29,13 @@ class Answers:
     install_dir: str = field(default_factory=default_install_dir)
     channel: str = "stable"
     lang: str = "en-US"
-    profile_dir: str | None = None  # None = create a new one
+    profile_dir: str | None = None  # None = create a new one; after the install, the one used
     tweaks: bool = True
     theme: str = "dark"
     # Filled by the install: things to tell the user in the terminal once
     # the form is closed (the TUI owns the terminal while it's open).
     notes: list[str] = field(default_factory=list)
+    firefox_version: str = ""
 
 
 # What a user runs to install without questions (no terminal to ask in).
@@ -112,6 +113,22 @@ class InstallForm:
             return i18n.t(exc.key, *exc.args_for_message)
         self.answers.install_dir = str(path)
         return None
+
+
+def summary(answers: Answers) -> list[str]:
+    """What got installed, printed once the form is closed."""
+    rows = [(i18n.t("summary_firefox"), answers.firefox_version)] if answers.firefox_version else []
+    rows += [
+        (i18n.t("form_dir"), answers.install_dir),
+        (i18n.t("form_profile"), answers.profile_dir or i18n.t("wizard_profile_new")),
+        (i18n.t("form_channel"), i18n.t(f"wizard_channel_{answers.channel}")),
+        (i18n.t("form_tweaks"), i18n.t("summary_yes" if answers.tweaks else "summary_no")),
+    ]
+    if answers.tweaks:
+        rows.append((i18n.t("form_theme"), i18n.t(f"wizard_theme_{answers.theme}")))
+    rows.append((i18n.t("form_lang"), answers.lang))
+    width = max(len(label) for label, _value in rows)
+    return [i18n.t("install_done"), *(f"  {label.ljust(width)} {value}" for label, value in rows), i18n.t("install_done_run")]
 
 
 def simulate_install(answers: Answers, progress: Progress) -> None:

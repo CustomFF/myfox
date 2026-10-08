@@ -7,7 +7,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 from myfox import i18n, wizard
-from myfox.install_form import INSTALL_COMMAND, InstallForm, Lang
+from myfox.install_form import INSTALL_COMMAND, Answers, InstallForm, Lang, summary
 from myfox.ui import form_plain
 
 # Sorted by English name, as InstallForm.load() returns them.
@@ -47,6 +47,28 @@ class PlainFormTests(unittest.TestCase):
         with redirect_stderr(io.StringIO()):
             self.assertIsNone(form_plain.run(form, self.install, noninteractive=True))
         self.assertEqual(self.installed, [])
+
+
+class SummaryTests(unittest.TestCase):
+    def test_lists_what_was_installed(self):
+        answers = Answers(install_dir="/opt/ff", profile_dir="/p/myfox-1", lang="ru", firefox_version="152.0")
+        lines = summary(answers)
+        self.assertEqual(lines[0], i18n.t("install_done"))
+        self.assertTrue(any("152.0" in line for line in lines))
+        self.assertTrue(any("/opt/ff" in line for line in lines))
+        self.assertTrue(any("/p/myfox-1" in line for line in lines))
+        self.assertTrue(any(i18n.t("wizard_theme_dark") in line for line in lines))
+        self.assertEqual(lines[-1], i18n.t("install_done_run"))
+
+    def test_without_tweaks_no_theme(self):
+        lines = summary(Answers(install_dir="/opt/ff", tweaks=False))
+        self.assertFalse(any(i18n.t("form_theme") in line for line in lines))
+
+    def test_printed_after_a_successful_install(self):
+        answers = Answers(install_dir="/opt/ff", notes=["a note"])
+        with mock.patch("myfox.wizard.run", return_value=answers), redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(wizard.main([]), 0)
+        self.assertEqual(out.getvalue().splitlines(), summary(answers) + ["a note"])
 
 
 class DispatchTests(unittest.TestCase):

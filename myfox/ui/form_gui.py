@@ -505,10 +505,11 @@ class _Window:
                 dpg.set_value(self.progress, fraction)
             if not self._worker.is_alive():
                 self._worker = None
-                if self._failure:
-                    self._show_error(self._failure)
-                else:
+                if not self._failure:
                     self.result = self.answers
+                    dpg.stop_dearpygui()  # done: the summary goes to the terminal
+                    return
+                self._show_error(self._failure)
                 dpg.configure_item(self.install, show=False)
                 dpg.configure_item(self.cancel, label=i18n.t("form_close"))
                 if self._keyboard is not None:
@@ -516,8 +517,8 @@ class _Window:
 
 
 def run(form: InstallForm, install: Installer) -> Answers | None:
-    """Shows the form until the user closes it; the answers if the install
-    went through, None if cancelled or failed."""
+    """Shows the form until the user closes it or the install is done; the
+    answers if the install went through, None if cancelled or failed."""
     dpg.create_context()
     regular, bold = _load_fonts()
     if regular is not None:

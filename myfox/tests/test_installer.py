@@ -51,7 +51,8 @@ class InstallTests(IsolatedStateCase):
             installer.install(answers, lambda message, fraction: self.reports.append((message, fraction)))
 
     def test_full_install_runs_every_step_and_saves_state(self):
-        self._install(Answers(install_dir=str(self.install_dir), lang="ru", theme="light"))
+        answers = Answers(install_dir=str(self.install_dir), lang="ru", theme="light")
+        self._install(answers)
         self.assertEqual(self.calls, ["tarball", "tweaks", "pin", "autoconfig", "chrome", "theme", "themes",
                                       "bookmarklets", "gui", "desktop"])
         self.assertTrue((self.install_dir / ".myfox-installed").is_file())
@@ -61,6 +62,8 @@ class InstallTests(IsolatedStateCase):
         self.assertEqual((state.get("firefox_version"), state.get("lang"), state.get("theme")), ("152.0", "ru", "light"))
         self.assertEqual(state.get("tweaks_version"), "158.0")
         self.assertEqual(state.get("core_version"), myfox.__version__)
+        # What the summary shows.
+        self.assertEqual((answers.profile_dir, answers.firefox_version), (str(self.profile_dir), "152.0"))
 
     def test_progress_only_goes_up_and_ends_done(self):
         self._install(Answers(install_dir=str(self.install_dir)))

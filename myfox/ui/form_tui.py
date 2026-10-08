@@ -335,8 +335,8 @@ def _bar(fraction: float, width: int) -> str:
 
 
 def run(form: InstallForm, install: Installer) -> Answers | None:
-    """Shows the form until the user leaves it; the answers if the install
-    went through, None if cancelled or failed."""
+    """Shows the form until the user leaves it or the install is done; the
+    answers if the install went through, None if cancelled or failed."""
     from picotui.screen import Screen
 
     _ensure_screen()
@@ -456,14 +456,14 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
 
     install_btn.disabled = True
     install_btn.redraw()
-    result: Answers | None = a
     try:
         install(a, progress)
     except Exception as exc:  # shown in the form; the user decides what next
         show_error(str(exc) or type(exc).__name__)
-        result = None
+    else:
+        return a  # done: the summary goes to the terminal
 
-    # One button left: Close.
+    # The error stays on screen; one button left: Close.
     d.childs.remove(install_btn)
     d.childs.remove(cancel_btn)
     close_btn = ThemedButton(max(12, len(i18n.t("form_close")) + 4), i18n.t("form_close"))
@@ -475,4 +475,4 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
         if widget is not close_btn:
             widget.disabled = True  # nothing left to edit; Tab stays on Close
     d.loop()
-    return result
+    return None

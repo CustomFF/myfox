@@ -51,7 +51,7 @@ class FormTuiTests(unittest.TestCase):
         self.installed.append(answers)
 
     def test_install_with_defaults(self):
-        with _drive(TO_INSTALL + [KEY_ENTER, KEY_ENTER]):
+        with _drive(TO_INSTALL + [KEY_ENTER]):  # the form closes itself once installed
             answers = form_tui.run(self.form, self.install)
         self.assertEqual(self.installed, [answers])
         self.assertEqual((answers.channel, answers.lang, answers.tweaks, answers.theme), ("stable", "en-US", True, "dark"))
@@ -63,29 +63,29 @@ class FormTuiTests(unittest.TestCase):
 
     def test_search_narrows_the_list_and_picks_the_match(self):
         # dir -> browse -> channel -> tweaks -> theme -> search, type, -> list -> Install
-        keys = [KEY_TAB] * 5 + [b"r", b"u", b"s", b"s"] + [KEY_TAB, KEY_TAB, KEY_ENTER, KEY_ENTER]
+        keys = [KEY_TAB] * 5 + [b"r", b"u", b"s", b"s"] + [KEY_TAB, KEY_TAB, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertEqual(answers.lang, "ru")
 
     def test_enter_walks_search_list_install(self):
         # Enter in search -> list; Down moves English -> Russian; Enter -> Install; Enter presses it.
-        keys = [KEY_TAB] * 5 + [KEY_ENTER, KEY_DOWN, KEY_ENTER, KEY_ENTER, KEY_ENTER]
+        keys = [KEY_TAB] * 5 + [KEY_ENTER, KEY_DOWN, KEY_ENTER, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertEqual(answers.lang, "ru")
         self.assertEqual(len(self.installed), 1)
 
     def test_down_in_search_enters_the_list(self):
-        # Down from search -> list (English); Down -> Russian; Enter -> Install; Enter; Close.
-        keys = [KEY_TAB] * 5 + [KEY_DOWN, KEY_DOWN, KEY_ENTER, KEY_ENTER, KEY_ENTER]
+        # Down from search -> list (English); Down -> Russian; Enter -> Install; Enter presses it.
+        keys = [KEY_TAB] * 5 + [KEY_DOWN, KEY_DOWN, KEY_ENTER, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertEqual(answers.lang, "ru")
 
     def test_unticking_tweaks_hides_and_skips_the_theme(self):
         # dir -> browse -> channel -> tweaks, Space; then Tab must jump past theme to search.
-        keys = [KEY_TAB] * 3 + [b" ", KEY_TAB, KEY_TAB, KEY_TAB, KEY_ENTER, KEY_ENTER]
+        keys = [KEY_TAB] * 3 + [b" ", KEY_TAB, KEY_TAB, KEY_TAB, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertFalse(answers.tweaks)
@@ -170,8 +170,8 @@ class PickDirTests(unittest.TestCase):
         form = InstallForm(langs=LANGS, profiles=[])
         form.answers.install_dir = os.path.join(self.root, "alpha")
         installed = []
-        # Tab to Browse, Enter opens it, Tab+Enter selects the current dir; then Install, Close.
-        keys = [KEY_TAB, KEY_ENTER, KEY_TAB, KEY_ENTER] + TO_INSTALL_FROM_BROWSE + [KEY_ENTER, KEY_ENTER]
+        # Tab to Browse, Enter opens it, Tab+Enter selects the current dir; then Install.
+        keys = [KEY_TAB, KEY_ENTER, KEY_TAB, KEY_ENTER] + TO_INSTALL_FROM_BROWSE + [KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(form, lambda a, progress: installed.append(a))
         self.assertEqual(answers.install_dir, os.path.join(self.root, "alpha"))

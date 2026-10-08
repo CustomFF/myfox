@@ -19,7 +19,7 @@ import argparse
 import sys
 
 from . import gui_deps, i18n
-from .install_form import Answers, InstallForm, Installer, simulate_install
+from .install_form import Answers, InstallForm, Installer, simulate_install, summary
 from .installer import install as real_install
 from .ui import _has_tty
 
@@ -57,11 +57,11 @@ def main(argv: list[str] | None = None) -> int:
     i18n.load()
     install = simulate_install if args.dry_run else real_install
     answers = run(gui=args.gui, noninteractive=args.noninteractive, install=install)
-    if answers and answers.notes:
+    if answers:
         if "myfox.ui.picotui_base" in sys.modules:
             sys.modules["myfox.ui.picotui_base"].end_screen()
-        for note in answers.notes:
-            print(note)
+        for line in summary(answers) + answers.notes:
+            print(line)
     return 0 if answers is not None else 1
 
 
