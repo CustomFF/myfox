@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import apply, changelog, core, firefox, i18n, tweaks, version
+from . import apply, changelog, core, desktop, firefox, i18n, launcher, tweaks, version
 from . import task as task_mod
 from .addons import TWEAKS_REPO
 from .install_form import Progress
@@ -147,7 +147,20 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
             installed = core.install(t.release)
             state.set("core_version", installed)
             state.save()
+            # From the new core's templates: new menu actions arrive with it.
+            sync_shortcut(state)
     progress(i18n.t("progress_refresh_done"), 1.0)
+
+
+def sync_shortcut(state: State) -> None:
+    """Rewrites the wrapper and the entry where they differ from what the
+    installed MyFox would write; a failure is no reason to fail the run."""
+    install_dir = state.get("install_dir")
+    if install_dir and Path(install_dir).is_dir():
+        try:
+            desktop.write_entry(Path(install_dir), launcher.launcher_path())
+        except OSError:
+            pass
 
 
 def to_task(plan: RefreshPlan, update: Updater, restart: Callable[[], None] | None = None) -> task_mod.Task:
@@ -173,7 +186,10 @@ def to_task(plan: RefreshPlan, update: Updater, restart: Callable[[], None] | No
 
 def run(state: State, gui: bool = False, noninteractive: bool = False, force: bool = False,
         update: Updater = apply_updates) -> int:
-    """Checks, then shows (or skips) the dialog the way the session allows."""
+    """Checks, then shows (or skips) the dialog the way the session allows.
+    The shortcut is brought up to date first, whatever the check finds: an
+    update done by an older MyFox didn't."""
+    sync_shortcut(state)
     plan = RefreshPlan.check(state, force)
     if plan.error or not plan.needed:
         text = plan.error or i18n.t("refresh_none")

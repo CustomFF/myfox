@@ -217,11 +217,29 @@ class ApplyUpdatesTests(IsolatedStateCase):
         order, messages = [], []
         with mock.patch("myfox.tweaks.install", side_effect=lambda r: order.append("tweaks") or "151.3"), \
              mock.patch("myfox.apply.reapply_tweaks"), \
-             mock.patch("myfox.core.install", side_effect=lambda r: order.append("core") or r.tag):
+             mock.patch("myfox.core.install", side_effect=lambda r: order.append("core") or r.tag), \
+             mock.patch("myfox.refresh.sync_shortcut", side_effect=lambda state: order.append("shortcut")):
             refresh.apply_updates(plan, lambda message, fraction: messages.append(message))
-        self.assertEqual(order, ["tweaks", "core"])
+        # The shortcut from the new core's templates, once it's in place.
+        self.assertEqual(order, ["tweaks", "core", "shortcut"])
         self.assertIn(i18n.t("progress_refresh_core_download", "6"), messages)  # no "core-" prefix
         self.assertEqual(State().get("core_version"), "core-6")
+
+
+class SyncShortcutTests(IsolatedStateCase):
+    def test_every_run_brings_the_shortcut_up_to_date_first(self):
+        state = _state()
+        state.set("install_dir", str(self.tmp_path))
+        with _releases(_latest(tweaks="151.2")), redirect_stdout(io.StringIO()), \
+             mock.patch("myfox.desktop.write_entry") as write:
+            refresh.run(state)
+        write.assert_called_once()
+        self.assertEqual(write.call_args.args[0], self.tmp_path)
+
+    def test_no_install_dir_writes_nothing(self):
+        with mock.patch("myfox.desktop.write_entry") as write:
+            refresh.sync_shortcut(State())
+        write.assert_not_called()
 
 
 class PlainDialogTests(IsolatedStateCase):

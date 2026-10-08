@@ -41,6 +41,27 @@ class DesktopTests(unittest.TestCase):
         ran = [call.args[0][0] for call in run.call_args_list]
         self.assertEqual(ran, ["update-desktop-database", "kbuildsycoca6"])
 
+    def test_templates_of_the_installed_myfox_win(self):
+        # A core update lays down new templates before the old code writes.
+        installed = self.root / "data" / "myfox" / "myfox" / "templates"
+        installed.mkdir(parents=True)
+        (installed / desktop.DESKTOP_NAME).write_text("[Desktop Entry]\nExec=@WRAPPER@ --new\n", encoding="utf-8")
+        (installed / desktop.WRAPPER_NAME).write_text("#!/bin/sh\nexec \"@FIREFOX@\" \"$@\"\n", encoding="utf-8")
+        with mock.patch("myfox.desktop._refresh_menu_cache"):
+            path = desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))
+        self.assertEqual(path.read_text(encoding="utf-8"),
+                         f"[Desktop Entry]\nExec={self.install_dir / 'firefox-myfox'} --new\n")
+        self.assertIn(f'exec "{self.install_dir / "firefox"}" "$@"',
+                      (self.install_dir / "firefox-myfox").read_text(encoding="utf-8"))
+
+    def test_an_unchanged_entry_is_not_rewritten(self):
+        with mock.patch("myfox.desktop._refresh_menu_cache") as refresh_cache:
+            path = desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))
+            mtime = path.stat().st_mtime_ns
+            desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))
+        self.assertEqual(refresh_cache.call_count, 1)
+        self.assertEqual(path.stat().st_mtime_ns, mtime)
+
     def test_remove_entry(self):
         with mock.patch("myfox.desktop._refresh_menu_cache"):
             desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))

@@ -1,5 +1,6 @@
-"""The firefox-myfox wrapper and the .desktop entry, with a context-menu
-action that opens `myfox refresh --gui`.
+"""The firefox-myfox wrapper and the .desktop entry (context-menu actions
+include Restart and `myfox refresh --gui`), rendered from templates/ so a
+core update brings its own versions of both.
 """
 
 from __future__ import annotations
@@ -9,9 +10,10 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from . import paths
+
 DESKTOP_NAME = "firefox-myfox.desktop"
-TITLE = "Firefox (myfox)"
-WM_CLASS = "firefox-myfox"
+WRAPPER_NAME = "firefox-myfox"
 
 
 def applications_dir() -> Path:
@@ -23,6 +25,38 @@ def desktop_file() -> Path:
     return applications_dir() / DESKTOP_NAME
 
 
+def _template(name: str) -> str:
+    """templates/<name> of the installed MyFox when there is one: `myfox
+    refresh` lays down a new core while the old code is still running, and
+    the files it then writes should already be the new core's."""
+    for base in (paths.share_dir() / "myfox", Path(__file__).resolve().parent):
+        path = base / "templates" / name
+        if path.is_file():
+            return path.read_text(encoding="utf-8")
+    raise FileNotFoundError(name)
+
+
+def _render(name: str, **values: object) -> str:
+    """@NAME@ placeholders: `$` is the shell's own in the wrapper."""
+    text = _template(name)
+    for key, value in values.items():
+        text = text.replace(f"@{key.upper()}@", str(value))
+    return text
+
+
+def _write(path: Path, text: str) -> bool:
+    """Writes only a change; True if it did."""
+    try:
+        if path.read_text(encoding="utf-8") == text:
+            return False
+    except OSError:
+        pass
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    path.chmod(0o755)
+    return True
+
+
 def write_wrapper(install_dir: Path) -> Path:
     """<install>/firefox-myfox, what Exec= points at instead of the firefox
     binary or `env VAR=... firefox`:
@@ -31,19 +65,12 @@ def write_wrapper(install_dir: Path) -> Path:
       MOZ_APP_LAUNCHER makes Firefox treat this wrapper as itself;
     - MOZ_APP_REMOTINGNAME sets the GTK prgname, hence WM_CLASS/app_id, so
       this build doesn't group with a system Firefox in the task bar
-      (must match StartupWMClass=).
+      (must match the entry's StartupWMClass=).
     GTK_USE_PORTAL / MOZ_ENABLE_WAYLAND are deliberately not forced: the
     first breaks the default-browser check (mozilla bug 1516290), the
     second is auto-detected since Firefox 121."""
-    wrapper = install_dir / "firefox-myfox"
-    wrapper.write_text(
-        "#!/bin/sh\n"
-        f'export MOZ_APP_LAUNCHER="{wrapper}"\n'
-        f'export MOZ_APP_REMOTINGNAME="{WM_CLASS}"\n'
-        f'exec "{install_dir / "firefox"}" "$@"\n',
-        encoding="utf-8",
-    )
-    wrapper.chmod(0o755)
+    wrapper = install_dir / WRAPPER_NAME
+    _write(wrapper, _render(WRAPPER_NAME, wrapper=wrapper, firefox=install_dir / "firefox"))
     return wrapper
 
 
@@ -55,52 +82,16 @@ def _icon(install_dir: Path) -> str:
 
 
 def write_entry(install_dir: Path, launcher: Path) -> Path:
-    """No --profile in Exec=: Firefox opens the Default= of its own
-    [Install<HASH>] section (pinned by profiles.pin_install); a hard path
-    would break a re-created profile."""
+    """The wrapper and the entry, from the templates. No --profile in Exec=:
+    Firefox opens the Default= of its own [Install<HASH>] section (pinned by
+    profiles.pin_install); a hard path would break a re-created profile.
+    The Restart action's --myfox-restart is handled by the tweaks (158.1+):
+    the running Firefox restarts itself, session restored; when it isn't
+    running, it just starts."""
     wrapper = write_wrapper(install_dir)
-    actions = [
-        ("new-window", f"{wrapper} --new-window", "window-new-symbolic", "New Window", "Новое окно"),
-        ("new-tab", f"{wrapper} --new-tab about:newtab", "tab-new-symbolic", "New Tab", "Новая вкладка"),
-        ("new-private-window", f"{wrapper} --private-window", "view-private-symbolic",
-         "New Private Window", "Новое приватное окно"),
-        ("preferences", f"{wrapper} --preferences", "settings-configure-symbolic", "Preferences", "Настройки"),
-        ("profile-manager", f"{wrapper} --ProfileManager", "user-group-properties-symbolic",
-         "Profile Manager", "Менеджер профилей"),
-        # Handled by the tweaks (158.1+): the running Firefox restarts itself,
-        # session restored; when it isn't running, this just starts it.
-        ("restart", f"{wrapper} --myfox-restart", "view-refresh-symbolic", "Restart", "Перезапустить"),
-        ("myfox-refresh", f"{launcher} refresh --gui", "system-software-update", "Update MyFox", "Обновить MyFox"),
-    ]
-    lines = [
-        "[Desktop Entry]",
-        "Actions=" + "".join(f"{key};" for key, *_ in actions),
-        "Categories=Network;WebBrowser;Browser",
-        f"Comment={TITLE} Web Browser",
-        "Encoding=UTF-8",
-        f"Exec={wrapper} %u",
-        f"GenericName={TITLE} Web Browser",
-        f"Icon={_icon(install_dir)}",
-        "MimeType=video/webm;text/html;image/png;image/jpeg;image/gif;application/xml;application/xhtml+xml;"
-        "application/x-xpinstall;application/rss+xml;application/rdf+xml;application/pdf;application/xhtml_xml;"
-        "image/webp;text/xml;x-scheme-handler/http;x-scheme-handler/https;",
-        f"Name={TITLE}",
-        f"Name[ru_RU]={TITLE}",
-        "NoDisplay=false",
-        "StartupNotify=true",
-        f"StartupWMClass={WM_CLASS}",
-        "Terminal=false",
-        "Type=Application",
-        "Version=1.0",
-    ]
-    for key, exec_, icon, name, name_ru in actions:
-        lines += ["", f"[Desktop Action {key}]", f"Exec={exec_}", f"Icon={icon}", f"Name={name}", f"Name[ru_RU]={name_ru}"]
-
     path = desktop_file()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    path.chmod(0o755)
-    _refresh_menu_cache()
+    if _write(path, _render(DESKTOP_NAME, wrapper=wrapper, launcher=launcher, icon=_icon(install_dir))):
+        _refresh_menu_cache()
     return path
 
 

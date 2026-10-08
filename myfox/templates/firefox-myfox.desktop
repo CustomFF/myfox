@@ -1,0 +1,59 @@
+[Desktop Entry]
+Actions=new-window;new-tab;new-private-window;preferences;profile-manager;restart;myfox-refresh;
+Categories=Network;WebBrowser;Browser
+Comment=Firefox (myfox) Web Browser
+Encoding=UTF-8
+Exec=@WRAPPER@ %u
+GenericName=Firefox (myfox) Web Browser
+Icon=@ICON@
+MimeType=video/webm;text/html;image/png;image/jpeg;image/gif;application/xml;application/xhtml+xml;application/x-xpinstall;application/rss+xml;application/rdf+xml;application/pdf;application/xhtml_xml;image/webp;text/xml;x-scheme-handler/http;x-scheme-handler/https;
+Name=Firefox (myfox)
+Name[ru_RU]=Firefox (myfox)
+NoDisplay=false
+StartupNotify=true
+StartupWMClass=firefox-myfox
+Terminal=false
+Type=Application
+Version=1.0
+
+[Desktop Action new-window]
+Exec=@WRAPPER@ --new-window
+Icon=window-new-symbolic
+Name=New Window
+Name[ru_RU]=Новое окно
+
+[Desktop Action new-tab]
+Exec=@WRAPPER@ --new-tab about:newtab
+Icon=tab-new-symbolic
+Name=New Tab
+Name[ru_RU]=Новая вкладка
+
+[Desktop Action new-private-window]
+Exec=@WRAPPER@ --private-window
+Icon=view-private-symbolic
+Name=New Private Window
+Name[ru_RU]=Новое приватное окно
+
+[Desktop Action preferences]
+Exec=@WRAPPER@ --preferences
+Icon=settings-configure-symbolic
+Name=Preferences
+Name[ru_RU]=Настройки
+
+[Desktop Action profile-manager]
+Exec=@WRAPPER@ --ProfileManager
+Icon=user-group-properties-symbolic
+Name=Profile Manager
+Name[ru_RU]=Менеджер профилей
+
+[Desktop Action restart]
+Exec=@WRAPPER@ --myfox-restart
+Icon=view-refresh-symbolic
+Name=Restart
+Name[ru_RU]=Перезапустить
+
+[Desktop Action myfox-refresh]
+Exec=@LAUNCHER@ refresh --gui
+Icon=system-software-update
+Name=Update MyFox
+Name[ru_RU]=Обновить MyFox

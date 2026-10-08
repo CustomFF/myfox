@@ -1,0 +1,4 @@
+#!/bin/sh
+export MOZ_APP_LAUNCHER="@WRAPPER@"
+export MOZ_APP_REMOTINGNAME="firefox-myfox"
+exec "@FIREFOX@" "$@"
