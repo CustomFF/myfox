@@ -18,12 +18,16 @@ _vendor.ensure_on_path()
 
 from picotui.screen import Screen  # noqa: E402 (must follow ensure_on_path())
 from picotui.widgets import Dialog, WButton  # noqa: E402
-from picotui.defs import C_WHITE, C_BLACK, C_RED, C_BLUE  # noqa: E402
+from picotui.defs import C_WHITE, C_BLACK, C_RED, C_BLUE, C_CYAN  # noqa: E402
 
 BOX_BG = (C_BLACK, C_WHITE)
 SHADOW_BG = (C_BLACK, C_BLACK)
 BTN_BG = (C_WHITE, C_BLUE)
-BTN_FOCUS_BG = (C_WHITE, C_RED)
+# Whatever has the focus, button or field, is drawn the same way: picotui
+# only brightens a field's text, which is hard to tell apart.
+FOCUS_BG = (C_WHITE, C_RED)
+BTN_FOCUS_BG = FOCUS_BG
+FIELD_BG = (C_BLACK, C_CYAN)
 # picotui's attr_color() can't do gray (C_GRAY == 8 falls through its
 # `fg > 8` check and emits a broken ESC[38m), so gray goes out as raw SGR.
 SGR_GRAY_ON_CYAN = "\x1b[90;46m"

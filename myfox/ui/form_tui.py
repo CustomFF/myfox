@@ -14,11 +14,11 @@ from pathlib import Path
 
 from .. import i18n
 from ..install_form import Answers, Choice, InstallForm, Installer, Lang
-from .picotui_base import BOX_BG, SGR_GRAY_ON_CYAN, SGR_WHITE_ON_GRAY, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
+from .picotui_base import BOX_BG, FIELD_BG, FOCUS_BG, SGR_GRAY_ON_CYAN, SGR_WHITE_ON_GRAY, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
 
 from picotui.defs import (  # noqa: E402 (picotui_base put it on sys.path)
-    KEYMAP, KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_SHIFT_TAB,
-    C_B_BLUE, C_BLACK, C_RED, C_WHITE,
+    DOWN_ARROW, KEYMAP, KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_SHIFT_TAB,
+    C_BLACK, C_RED, C_WHITE,
 )
 from picotui.widgets import (  # noqa: E402
     ACTION_CANCEL, ACTION_NEXT, ACTION_OK, WCheckbox, WDropDown, WFrame, WLabel, WListBox, WTextEntry,
@@ -57,8 +57,10 @@ class _Checkbox(WCheckbox):
 
     def redraw(self):
         self.goto(self.x, self.y)
-        self.attr_color(C_B_BLUE if self.focus else C_BLACK, C_WHITE)
-        self.wr(("[x] " if self.choice else "[ ] ") + self.t)
+        self.attr_color(*(FOCUS_BG if self.focus else BOX_BG))
+        self.wr("[x]" if self.choice else "[ ]")
+        self.attr_color(*BOX_BG)
+        self.wr((" " + self.t) if self.t else "")
         self.attr_reset()
 
 
@@ -103,6 +105,13 @@ class _Entry(WTextEntry):
             return
         super().redraw()
 
+    def show_line(self, l, i):
+        # Colored by focus only: picotui also whitens untouched text, which
+        # looked like the focus on a field that didn't have it.
+        self.attr_color(*(FOCUS_BG if self.focus else FIELD_BG))
+        super(WTextEntry, self).show_line(l, i)
+        self.attr_reset()
+
 
 class _Dropdown(WDropDown):
     def __init__(self, choices: list[Choice], value: str):
@@ -117,10 +126,13 @@ class _Dropdown(WDropDown):
         return self.choices[self.choice].value
 
     def redraw(self):
-        if not (self.disabled or self.hidden):
-            super().redraw()
-            return
         self.goto(self.x, self.y)
+        if not (self.disabled or self.hidden):
+            self.attr_color(*(FOCUS_BG if self.focus else FIELD_BG))
+            self.wr_fixedw(self.items[self.choice], self.w - 1)
+            self.attr_reset()
+            self.wr(DOWN_ARROW)
+            return
         if self.hidden:
             self.attr_color(*BOX_BG)
         else:
@@ -135,6 +147,20 @@ class _Dropdown(WDropDown):
     def handle_key(self, key):
         if not (self.disabled or self.hidden):
             super().handle_key(key)
+
+
+def _list_line(box: WListBox, line, i: int) -> None:
+    """A list row: the current one as a field, in the focus colors while
+    the list has the focus (picotui's green looks the same either way)."""
+    if box.cur_line != i:
+        colors = BOX_BG
+    else:
+        colors = FOCUS_BG if box.focus else FIELD_BG
+    box.attr_color(*colors)
+    text = box.render_line(line)[:box.width] if i != -1 else ""
+    box.wr(text)
+    box.clear_num_pos(box.width - len(text))
+    box.attr_reset()
 
 
 class _LangList(WListBox):
@@ -171,10 +197,7 @@ class _LangList(WListBox):
         return super().handle_key(key)
 
     def show_line(self, l, i):
-        if self.cur_line != i:
-            self.attr_color(*BOX_BG)
-        super().show_line(l, i)
-        self.attr_reset()
+        _list_line(self, l, i)
 
 
 # Escape sequences picotui knows: mapped ones plus those it passes on raw.
@@ -268,10 +291,7 @@ class _DirList(WListBox):
         return super().handle_key(key)
 
     def show_line(self, l, i):
-        if self.cur_line != i:
-            self.attr_color(*BOX_BG)
-        super().show_line(l, i)
-        self.attr_reset()
+        _list_line(self, l, i)
 
 
 def _subdirs(path: Path) -> list[str]:
