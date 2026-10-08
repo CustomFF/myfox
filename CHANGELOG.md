@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.5 — 2026-10-08
+
+- In the terminal interface the focused field, checkbox or list row is highlighted like a focused button, so it's clear where the keyboard is
+- Downloading Firefox no longer shows megabytes: the progress bar is enough
+- Running the install command from a folder that has a `myfox` folder in it no longer runs that code instead of the downloaded MyFox
+
 ## 1.1.4 — 2026-10-08
 
 - After a successful install the window closes by itself, and the terminal shows a summary: what was installed, where, and how to launch it
