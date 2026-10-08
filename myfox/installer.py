@@ -15,8 +15,6 @@ from . import __version__
 from .install_form import Answers, Progress
 from .state import State
 
-_MB = 1024 * 1024
-
 
 class Stages:
     """Maps each stage's own 0..1 onto one overall bar, by weight."""
@@ -51,11 +49,7 @@ def install(answers: Answers, progress: Progress) -> None:
         version = firefox.local_version(install_dir)
     else:
         def on_download(done: int, total: int | None) -> None:
-            if total:
-                stages.report("download", i18n.t("progress_firefox_download", f"{done / _MB:.1f}",
-                                                  f"{total / _MB:.0f}"), done / total)
-            else:
-                stages.report("download", i18n.t("progress_firefox_download_size_unknown", f"{done / _MB:.1f}"))
+            stages.report("download", i18n.t("progress_firefox_download"), done / total if total else 0.0)
 
         version = firefox.install_tarball(
             install_dir, answers.lang, answers.channel, on_download=on_download,

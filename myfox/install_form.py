@@ -134,7 +134,6 @@ def summary(answers: Answers) -> list[str]:
 def simulate_install(answers: Answers, progress: Progress) -> None:
     """The real install's stages and messages without doing anything
     (`python3 -m myfox.wizard --dry-run`), to try the form safely."""
-    firefox_mb = 82
     stages = [("progress_firefox_download", 4.0), ("progress_firefox_install", 2.0), ("progress_profile", 1.0)]
     if answers.tweaks:
         stages += [
@@ -152,11 +151,7 @@ def simulate_install(answers: Answers, progress: Progress) -> None:
         steps = max(1, int(seconds * 20))
         for step in range(steps):
             part = step / steps
-            if key == "progress_firefox_download":
-                message = i18n.t(key, f"{firefox_mb * part:.1f}", firefox_mb)
-            else:
-                message = i18n.t(key)
-            progress(message, (done + seconds * part) / total)
+            progress(i18n.t(key), (done + seconds * part) / total)
             time.sleep(seconds / steps)
         done += seconds
     progress(i18n.t("progress_done"), 1.0)

@@ -70,7 +70,7 @@ class InstallTests(IsolatedStateCase):
         fractions = [f for _m, f in self.reports]
         self.assertEqual(fractions, sorted(fractions))
         self.assertEqual(self.reports[-1], (i18n.t("progress_done"), 1.0))
-        self.assertIn(i18n.t("progress_firefox_download", "1.0", "1"), [m for m, _f in self.reports])
+        self.assertIn(i18n.t("progress_firefox_download"), [m for m, _f in self.reports])
 
     def test_without_tweaks_the_profile_is_left_alone(self):
         self._install(Answers(install_dir=str(self.install_dir), tweaks=False))

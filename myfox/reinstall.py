@@ -15,8 +15,6 @@ from .install_form import Progress
 from .installer import Stages
 from .state import State
 
-_MB = 1024 * 1024
-
 
 def build(state: State) -> task_mod.Task:
     install_dir = Path(state.get("install_dir"))
@@ -44,11 +42,7 @@ def run(state: State, progress: Progress) -> None:
     stages = Stages(progress, [("download", 70), ("extract", 15), ("profile", 5), ("tweaks", 10 if tweaks else 0)])
 
     def on_download(done: int, total: int | None) -> None:
-        if total:
-            stages.report("download", i18n.t("progress_firefox_download", f"{done / _MB:.1f}", f"{total / _MB:.0f}"),
-                          done / total)
-        else:
-            stages.report("download", i18n.t("progress_firefox_download_size_unknown", f"{done / _MB:.1f}"))
+        stages.report("download", i18n.t("progress_firefox_download"), done / total if total else 0.0)
 
     # Into a sibling first: a failed download leaves the current Firefox alone.
     new = Path(tempfile.mkdtemp(dir=install_dir.parent, prefix=f".{install_dir.name}-new-"))
