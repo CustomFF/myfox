@@ -162,12 +162,15 @@ def main(argv) -> int:
                 return 1
         env = dict(os.environ)
         env["PYTHONPATH"] = os.pathsep.join(p for p in (str(root), os.environ.get("PYTHONPATH")) if p)
+        # Run from the core itself: -m and -c put the current directory ahead
+        # of PYTHONPATH, so a myfox/ there (a clone) would run, and be
+        # installed, instead of the core just fetched.
         if "--gui" in argv:
             # The form itself needs dearpygui; the install then keeps this copy.
             subprocess.run([sys.executable, "-c", "from pathlib import Path; from myfox import gui_deps; "
-                            f"gui_deps.install_into(Path({str(Path(tmp))!r}))"], env=env, check=False)
+                            f"gui_deps.install_into(Path({str(Path(tmp))!r}))"], env=env, cwd=root, check=False)
             env["PYTHONPATH"] = os.pathsep.join((env["PYTHONPATH"], tmp))
-        return subprocess.run([sys.executable, "-m", "myfox.wizard", *argv], env=env).returncode
+        return subprocess.run([sys.executable, "-m", "myfox.wizard", *argv], env=env, cwd=root).returncode
 
 
 if __name__ == "__main__":
