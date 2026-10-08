@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.4 — 2026-10-08
+
+- After a successful install the window closes by itself, and the terminal shows a summary: what was installed, where, and how to launch it
+
 ## 1.1.3 — 2026-10-07
 
 - The reinstall window shows a beta Firefox version whole (158.0b4, not 4)
