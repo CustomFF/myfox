@@ -52,7 +52,7 @@ MYFOX_INSTALL=AUTO make install # по умолчанию, без вопросо
 
 ```text
 myfox browser [аргументы…]                  Запустить установленный Firefox; аргументы — в Firefox
-myfox refresh [--force] [--gui]             Обновить твики и сам MyFox
+myfox refresh [--force] [--gui]             Обновить твики, темы и сам MyFox
 myfox reinstall [--gui]                     Скачать Firefox заново и применить твики
 myfox uninstall [--remove-profile] [--gui]  Удалить MyFox
 myfox help                                  Этот список
@@ -63,7 +63,7 @@ myfox --version
 `-y` — без вопроса. Без терминала (cron, скрипт) ничего не спрашивается: MyFox показывает, что
 сделал бы, и команду с `-y`.
 
-- **Обновление.** Firefox обновляется сам. `myfox refresh` обновляет твики и MyFox и показывает,
+- **Обновление.** Firefox обновляется сам. `myfox refresh` обновляет твики, темы и MyFox и показывает,
   что нового; в контекстном меню ярлыка есть «Обновить MyFox». Новые твики действуют после
   перезапуска Firefox: `refresh` предлагает перезапустить его сам, а в меню ярлыка есть «Перезапустить»
   (окна и вкладки восстанавливаются).

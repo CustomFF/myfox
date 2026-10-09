@@ -132,7 +132,10 @@ def reapply_tweaks(install_dir: Path, profile_dir: Path | None, state) -> None:
         return
     apply_chrome(profile_dir)
     apply_theme_pref(profile_dir, state.get("theme", "dark"))
-    addons.fetch_themes(profile_dir, local_dir=os.environ.get("MYFOX_TWEAKS_LOCAL"))
+    # Downloaded only if there's a newer release or a theme is missing.
+    themes, _missing = addons.fetch_themes(profile_dir, local_dir=os.environ.get("MYFOX_TWEAKS_LOCAL"),
+                                           current=state.get("themes_version"))
+    state.set("themes_version", themes)
     if state.get("opt_plasma") and addons.is_plasma_session():
         addons.apply_amo_addons(profile_dir, [addons.MYFOX_ADDON_PLASMA])
     if state.get("opt_bl", True):

@@ -43,7 +43,7 @@ class InstallTests(IsolatedStateCase):
              mock.patch("myfox.apply.apply_autoconfig", side_effect=record("autoconfig")), \
              mock.patch("myfox.apply.apply_chrome", side_effect=record("chrome")), \
              mock.patch("myfox.apply.apply_theme_pref", side_effect=record("theme")), \
-             mock.patch("myfox.addons.fetch_themes", side_effect=record("themes")), \
+             mock.patch("myfox.addons.fetch_themes", side_effect=lambda *a, **k: self.calls.append("themes") or ("themes-1", [])), \
              mock.patch("myfox.apply.apply_bookmarklets", side_effect=record("bookmarklets")), \
              mock.patch("myfox.launcher.install_self", return_value=Path("/x/bin/myfox")), \
              mock.patch("myfox.gui_deps.install_into", side_effect=gui_error or record("gui")), \
@@ -61,6 +61,7 @@ class InstallTests(IsolatedStateCase):
                          (str(self.install_dir), str(self.profile_dir), "HASH"))
         self.assertEqual((state.get("firefox_version"), state.get("lang"), state.get("theme")), ("152.0", "ru", "light"))
         self.assertEqual(state.get("tweaks_version"), "158.0")
+        self.assertEqual(state.get("themes_version"), "themes-1")
         self.assertEqual(state.get("core_version"), myfox.__version__)
         # What the summary shows.
         self.assertEqual((answers.profile_dir, answers.firefox_version), (str(self.profile_dir), "152.0"))

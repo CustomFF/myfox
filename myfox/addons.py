@@ -11,6 +11,7 @@ import re
 import shutil
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import net, version
@@ -36,46 +37,70 @@ def _release_assets(repo: str, tag: str) -> dict[str, str]:
     return {a["name"]: a["browser_download_url"] for a in data.get("assets", [])}
 
 
-def fetch_themes(profile_dir: Path, local_dir: str | None = None) -> list[str]:
-    """Returns the theme IDs that couldn't be installed (a warning for the
-    caller, never a hard failure). Both themes are always installed, so
-    switching later is instant.
+@dataclass(frozen=True)
+class ThemesRelease:
+    tag: str
 
-    Fetched from CustomFF/tweaks' latest `themes-*` release, or from a
+
+def latest_themes_release() -> ThemesRelease | None:
+    """The newest `themes-*` release of CustomFF/tweaks; None if there is
+    none. Raises OSError when GitHub can't be asked."""
+    tag = version.find_latest_tag(THEMES_TAG_RE, TWEAKS_REPO)
+    return ThemesRelease(tag) if tag else None
+
+
+def themes_display(tag: str | None) -> str:
+    """"themes-20261001154613" -> "2026-10-01 15:46": the tag is a build time."""
+    m = re.fullmatch(r"themes-(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d*", tag or "")
+    return f"{m[1]}-{m[2]}-{m[3]} {m[4]}:{m[5]}" if m else (tag or "—")
+
+
+def fetch_themes(profile_dir: Path, local_dir: str | None = None, current: str | None = None,
+                 tag: str | None = None) -> tuple[str | None, list[str]]:
+    """Both themes into the profile, so switching later is instant. Returns
+    the themes release now installed (to record; `current` when nothing
+    new got in) and the theme IDs that couldn't be installed (a warning
+    for the caller, never a hard failure).
+
+    From CustomFF/tweaks' `tag` (default: the latest `themes-*` release),
+    skipped when that is `current` and both files are there; or from a
     local tweaks checkout's `build/signed/` when `local_dir` is given (dev
-    use, same shape as apply.py's MYFOX_DDBLM_LOCAL)."""
+    use, same shape as apply.py's MYFOX_DDBLM_LOCAL; records nothing)."""
     ext_dir = profile_dir / "extensions"
     ext_dir.mkdir(parents=True, exist_ok=True)
-
-    assets: dict[str, str] = {}
-    if not local_dir:
-        tag = version.latest_tag(THEMES_TAG_RE, repo=TWEAKS_REPO)
-        if tag:
-            try:
-                assets = _release_assets(TWEAKS_REPO, tag)
-            except (urllib.error.URLError, OSError, json.JSONDecodeError):
-                assets = {}
+    dests = {addon_id: ext_dir / f"{addon_id}.xpi" for addon_id in _THEME_FILES}
 
     missing = []
-    for addon_id, filename in _THEME_FILES.items():
-        dest = ext_dir / f"{addon_id}.xpi"
-        if local_dir:
+    if local_dir:
+        for addon_id, filename in _THEME_FILES.items():
             src = Path(local_dir) / "build" / "signed" / filename
             if not src.is_file():
                 missing.append(addon_id)
                 continue
-            shutil.copy2(src, dest)
-            continue
+            shutil.copy2(src, dests[addon_id])
+        return None, missing
+
+    tag = tag or version.latest_tag(THEMES_TAG_RE, repo=TWEAKS_REPO)
+    if not tag:
+        return current, list(_THEME_FILES)
+    if tag == current and all(dest.is_file() for dest in dests.values()):
+        return current, []
+    try:
+        assets = _release_assets(TWEAKS_REPO, tag)
+    except (urllib.error.URLError, OSError, json.JSONDecodeError):
+        assets = {}
+    for addon_id, filename in _THEME_FILES.items():
         url = assets.get(filename)
         if not url:
             missing.append(addon_id)
             continue
         try:
             with urllib.request.urlopen(net.request(url), timeout=60) as resp:
-                dest.write_bytes(resp.read())
+                dests[addon_id].write_bytes(resp.read())
         except (urllib.error.URLError, OSError):
             missing.append(addon_id)
-    return missing
+    # A partial download isn't recorded, so the next run tries again.
+    return (current if missing else tag), missing
 
 
 # ─── KDE Plasma detection ────────────────────────────────────────────────

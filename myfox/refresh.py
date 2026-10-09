@@ -1,7 +1,7 @@
-"""`myfox refresh`: updates the two things MyFox ships besides the browser,
-each from its own source — the tweaks (look and config, CustomFF/tweaks)
-and MyFox's own logic (core, CustomFF/myfox). The browser updates itself;
-forcing it is `myfox reinstall`.
+"""`myfox refresh`: updates what MyFox ships besides the browser, each from
+its own releases — the tweaks (look and config) and the themes (both from
+CustomFF/tweaks) and MyFox's own logic (core, CustomFF/myfox). The browser
+updates itself; forcing it is `myfox reinstall`.
 
 The check comes first. Nothing new (and no --force): no dialog, just one
 line in a terminal or a desktop notification for --gui. Otherwise a dialog
@@ -14,30 +14,30 @@ by ui/task_{gui,tui,plain}.py.
 
 from __future__ import annotations
 
-import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import apply, changelog, core, desktop, firefox, i18n, launcher, tweaks, version
+from . import addons, apply, changelog, core, desktop, firefox, i18n, launcher, tweaks
 from . import task as task_mod
-from .addons import TWEAKS_REPO
 from .install_form import Progress
 from .state import State
 
 
 @dataclass(frozen=True)
 class Track:
-    key: str           # state key holding the installed version
-    label_key: str     # i18n key of its row label
-    repo: str
-    tag: re.Pattern
+    key: str                                  # state key holding the installed version
+    label_key: str                            # i18n key of its row label
+    latest: Callable[[], object]              # its newest release (has .tag), None; OSError
+    display: Callable[[str | None], str] = changelog.display
 
 
+# Applied in this order; core last, its new code runs from the next start.
 TRACKS = (
-    Track("tweaks_version", "refresh_track_tweaks", TWEAKS_REPO, version.TWEAKS_TAG_RE),
-    Track("core_version", "refresh_track_core", version.GITHUB_REPO, version.CORE_TAG_RE),
+    Track("tweaks_version", "refresh_track_tweaks", lambda: tweaks.latest_release()),
+    Track("themes_version", "refresh_track_themes", lambda: addons.latest_themes_release(), addons.themes_display),
+    Track("core_version", "refresh_track_core", lambda: core.latest_release()),
 )
 
 
@@ -60,9 +60,10 @@ class TrackState:
 
     def describe(self) -> str:
         """"1.0.0 → 1.1.0" when it changes, else just the version (forced)."""
+        show = self.track.display
         if self.has_update:
-            return i18n.t("refresh_version_change", changelog.display(self.current), changelog.display(self.latest))
-        return changelog.display(self.current or self.latest)
+            return i18n.t("refresh_version_change", show(self.current), show(self.latest))
+        return show(self.current or self.latest)
 
 
 @dataclass
@@ -75,9 +76,12 @@ class RefreshPlan:
     def check(cls, state: State, force: bool = False) -> RefreshPlan:
         tracks = []
         for track in TRACKS:
+            # The themes come with the tweaks, into the profile.
+            if track.key == "themes_version" and not (state.get("tweaks", True) and state.get("profile_dir")):
+                continue
             release = None
             try:
-                release = (tweaks if track.key == "tweaks_version" else core).latest_release()
+                release = track.latest()
                 latest = release.tag if release else None
             except OSError as exc:
                 return cls(force=force, error=i18n.t("refresh_check_failed", getattr(exc, "reason", exc)))
@@ -114,10 +118,10 @@ RESTART_SINCE_TWEAKS = "158.1"
 
 
 def restart_offer(plan: RefreshPlan, state: State) -> Callable[[], None] | None:
-    """New tweaks take effect when Firefox starts: if this install's
+    """New tweaks and themes take effect when Firefox starts: if this install's
     Firefox is running with tweaks that can restart it, how to do that."""
     install_dir = state.get("install_dir")
-    if not install_dir or not any(t.track.key == "tweaks_version" for t in plan.todo):
+    if not install_dir or not any(t.track.key in ("tweaks_version", "themes_version") for t in plan.todo):
         return None
     running = state.get("tweaks_version")
     if changelog.is_newer(RESTART_SINCE_TWEAKS, running) or not firefox.running_pids(Path(install_dir)):
@@ -127,15 +131,22 @@ def restart_offer(plan: RefreshPlan, state: State) -> Callable[[], None] | None:
 
 def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
     """Tweaks: download, apply to the install and the profile, record the
-    version. Core last (TRACKS order): replace the installed package, which
-    takes effect on the next start."""
+    version. Themes: both into the profile. Core last (TRACKS order):
+    replace the installed package, which takes effect on the next start."""
     state = State()
     install_dir, profile_dir = state.get("install_dir"), state.get("profile_dir")
     todo = plan.todo
     for i, t in enumerate(todo):
         base, share = i / len(todo), 1 / len(todo)
-        tag = changelog.display(t.latest or t.current)
-        if t.track.key == "tweaks_version":
+        tag = t.track.display(t.latest or t.current)
+        if t.track.key == "themes_version":
+            progress(i18n.t("progress_refresh_themes_download", tag), base)
+            # Forced: downloaded again even if it's the recorded release.
+            installed, _missing = addons.fetch_themes(Path(profile_dir), tag=t.release.tag,
+                                                      current=None if plan.force else state.get("themes_version"))
+            state.set("themes_version", installed)
+            state.save()
+        elif t.track.key == "tweaks_version":
             progress(i18n.t("progress_refresh_tweaks_download", tag), base)
             installed = tweaks.install(t.release)
             progress(i18n.t("progress_refresh_tweaks_apply"), base + share / 2)

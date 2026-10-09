@@ -23,16 +23,16 @@ class FetchThemesTests(unittest.TestCase):
             (local / "myfox-light.xpi").write_bytes(b"light")
 
             profile_dir = Path(d) / "profile"
-            missing = addons.fetch_themes(profile_dir, local_dir=str(Path(d) / "tweaks-checkout"))
+            tag, missing = addons.fetch_themes(profile_dir, local_dir=str(Path(d) / "tweaks-checkout"))
 
-            self.assertEqual(missing, [])
+            self.assertEqual((tag, missing), (None, []))  # a checkout records no release
             ext = profile_dir / "extensions"
             self.assertEqual((ext / f"{addons.MYFOX_THEME_DARK_ID}.xpi").read_bytes(), b"dark")
             self.assertEqual((ext / f"{addons.MYFOX_THEME_LIGHT_ID}.xpi").read_bytes(), b"light")
 
     def test_local_dir_reports_missing_files_instead_of_raising(self):
         with tempfile.TemporaryDirectory() as d:
-            missing = addons.fetch_themes(Path(d) / "profile", local_dir=str(Path(d) / "nowhere"))
+            _tag, missing = addons.fetch_themes(Path(d) / "profile", local_dir=str(Path(d) / "nowhere"))
         self.assertCountEqual(missing, [addons.MYFOX_THEME_DARK_ID, addons.MYFOX_THEME_LIGHT_ID])
 
     def test_fetches_both_xpis_from_the_latest_themes_release(self):
@@ -57,9 +57,9 @@ class FetchThemesTests(unittest.TestCase):
              mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
             with tempfile.TemporaryDirectory() as d:
                 profile_dir = Path(d)
-                missing = addons.fetch_themes(profile_dir)
+                tag, missing = addons.fetch_themes(profile_dir, current="themes-20250101")
 
-                self.assertEqual(missing, [])
+                self.assertEqual((tag, missing), ("themes-20261001", []))
                 ext = profile_dir / "extensions"
                 self.assertEqual((ext / f"{addons.MYFOX_THEME_DARK_ID}.xpi").read_bytes(), b"dark")
                 self.assertEqual((ext / f"{addons.MYFOX_THEME_LIGHT_ID}.xpi").read_bytes(), b"light")
@@ -67,7 +67,8 @@ class FetchThemesTests(unittest.TestCase):
     def test_no_themes_release_found_reports_both_missing(self):
         with mock.patch("myfox.version.latest_tag", return_value=None):
             with tempfile.TemporaryDirectory() as d:
-                missing = addons.fetch_themes(Path(d))
+                tag, missing = addons.fetch_themes(Path(d), current="themes-20250101")
+        self.assertEqual(tag, "themes-20250101")
         self.assertCountEqual(missing, [addons.MYFOX_THEME_DARK_ID, addons.MYFOX_THEME_LIGHT_ID])
 
     def test_release_missing_one_asset_reports_only_that_one(self):
@@ -85,16 +86,40 @@ class FetchThemesTests(unittest.TestCase):
         with mock.patch("myfox.version.latest_tag", return_value="themes-20261001"), \
              mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
             with tempfile.TemporaryDirectory() as d:
-                missing = addons.fetch_themes(Path(d))
+                tag, missing = addons.fetch_themes(Path(d), current="themes-20250101")
 
         self.assertEqual(missing, [addons.MYFOX_THEME_LIGHT_ID])
+        # Not recorded as installed: the next run tries again.
+        self.assertEqual(tag, "themes-20250101")
 
     def test_release_lookup_network_failure_reports_both_missing(self):
         with mock.patch("myfox.version.latest_tag", return_value="themes-20261001"), \
              mock.patch("urllib.request.urlopen", side_effect=OSError("down")):
             with tempfile.TemporaryDirectory() as d:
-                missing = addons.fetch_themes(Path(d))
+                _tag, missing = addons.fetch_themes(Path(d))
         self.assertCountEqual(missing, [addons.MYFOX_THEME_DARK_ID, addons.MYFOX_THEME_LIGHT_ID])
+
+    def test_unchanged_release_is_not_downloaded_again(self):
+        with tempfile.TemporaryDirectory() as d:
+            ext = Path(d) / "extensions"
+            ext.mkdir()
+            for addon_id in (addons.MYFOX_THEME_DARK_ID, addons.MYFOX_THEME_LIGHT_ID):
+                (ext / f"{addon_id}.xpi").write_bytes(b"old")
+            with mock.patch("myfox.version.latest_tag", return_value="themes-20261001"), \
+                 mock.patch("urllib.request.urlopen", side_effect=AssertionError("downloaded")):
+                result = addons.fetch_themes(Path(d), current="themes-20261001")
+        self.assertEqual(result, ("themes-20261001", []))
+
+    def test_unchanged_release_with_a_theme_gone_is_downloaded(self):
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch("myfox.version.latest_tag", return_value="themes-20261001"), \
+                 mock.patch("urllib.request.urlopen", side_effect=OSError("tried")) as urlopen:
+                addons.fetch_themes(Path(d), current="themes-20261001")
+        urlopen.assert_called()
+
+    def test_tag_shows_as_its_build_time(self):
+        self.assertEqual(addons.themes_display("themes-20261001154613"), "2026-10-01 15:46")
+        self.assertEqual(addons.themes_display(None), "—")
 
 
 class IsPlasmaSessionTests(unittest.TestCase):
