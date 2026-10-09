@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.10 — 2026-10-09
+
+- `myfox refresh` updates the themes too, when a new themes release comes out, and offers to restart Firefox afterwards
+- Themes that haven't changed are no longer downloaded again with every tweaks update or reinstall
+
 ## 1.1.9 — 2026-10-08
 
 - `myfox refresh` keeps the shortcut up to date: new context-menu items, such as «Restart», arrive with the update, no reinstall needed
