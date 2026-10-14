@@ -97,6 +97,19 @@ class ApplyChromeTests(_TweaksCase):
             apply.apply_chrome(profile_dir)
             self.assertFalse(stray.exists())
 
+    def test_copies_any_directory_the_tweaks_ship(self):
+        author = paths.chrome_dir() / "author"
+        author.mkdir()
+        (author / "10-z.css").write_text("/* author */\n", encoding="utf-8")
+        with tempfile.TemporaryDirectory() as d:
+            profile_dir = Path(d)
+            apply.apply_chrome(profile_dir)
+            stray = profile_dir / "chrome" / "author" / "99-stray.css"
+            stray.write_text("x", encoding="utf-8")
+            apply.apply_chrome(profile_dir)
+            self.assertTrue((profile_dir / "chrome" / "author" / "10-z.css").is_file())
+            self.assertFalse(stray.exists())
+
 
 class ApplyThemePrefTests(unittest.TestCase):
     def test_writes_a_fresh_user_js(self):

@@ -46,14 +46,14 @@ def apply_chrome(profile_dir: Path) -> bool:
         shutil.copy2(existing, backup)
         backed_up = True
 
-    # Replaced wholesale, not merged: a file dropped from a newer version
-    # (or the single-file agent_overrides.css of very old installs)
-    # shouldn't linger and get registered by myfox.cfg.
-    shutil.rmtree(c_dir / "agent", ignore_errors=True)
-    shutil.rmtree(c_dir / "user", ignore_errors=True)
+    # Every directory the tweaks ship (agent/, user/, author/, ...), so a
+    # new one needs no change here. Replaced wholesale, not merged: a file
+    # dropped from a newer version (or the single-file agent_overrides.css
+    # of very old installs) shouldn't linger and get registered by myfox.cfg.
     (c_dir / "agent_overrides.css").unlink(missing_ok=True)
-    shutil.copytree(src / "agent", c_dir / "agent")
-    shutil.copytree(src / "user", c_dir / "user")
+    for sub in sorted(p for p in src.iterdir() if p.is_dir()):
+        shutil.rmtree(c_dir / sub.name, ignore_errors=True)
+        shutil.copytree(sub, c_dir / sub.name)
     shutil.copy2(src / "userChrome.css", c_dir / "userChrome.css")
 
     # myfox.cfg checks this marker first and refuses to touch any profile
