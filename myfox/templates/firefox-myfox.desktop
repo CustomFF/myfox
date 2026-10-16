@@ -1,5 +1,5 @@
 [Desktop Entry]
-Actions=new-window;new-tab;new-private-window;preferences;profile-manager;restart;myfox-refresh;
+Actions=new-window;new-tab;new-private-window;preferences;restart;myfox-refresh;
 Categories=Network;WebBrowser;Browser
 Comment=Firefox (myfox) Web Browser
 Encoding=UTF-8
@@ -39,12 +39,6 @@ Exec=@WRAPPER@ --preferences
 Icon=settings-configure-symbolic
 Name=Preferences
 Name[ru_RU]=Настройки
-
-[Desktop Action profile-manager]
-Exec=@WRAPPER@ --ProfileManager
-Icon=user-group-properties-symbolic
-Name=Profile Manager
-Name[ru_RU]=Менеджер профилей
 
 [Desktop Action restart]
 Exec=@WRAPPER@ --myfox-restart
