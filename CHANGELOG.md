@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.13 — 2026-10-16
+
+- In the update window, «…and N more» under «What's new» opens the full changelog in Firefox (needs tweaks 159.3 or newer)
+- The tweaks and themes come from the renamed repository, CustomFF/myfox-tweaks
+
 ## 1.1.12 — 2026-10-16
 
 - `myfox refresh` updates the bookmarklet styling too, when it changes in ddblm, and offers to restart Firefox afterwards
