@@ -1,7 +1,8 @@
 """`myfox refresh`: updates what MyFox ships besides the browser, each from
 its own releases — the tweaks (look and config) and the themes (both from
-CustomFF/tweaks) and MyFox's own logic (core, CustomFF/myfox). The browser
-updates itself; forcing it is `myfox reinstall`.
+CustomFF/tweaks), the bookmarklet styling (ddblm) and MyFox's own logic
+(core, CustomFF/myfox). The browser updates itself; forcing it is
+`myfox reinstall`.
 
 The check comes first. Nothing new (and no --force): no dialog, just one
 line in a terminal or a desktop notification for --gui. Otherwise a dialog
@@ -37,6 +38,7 @@ class Track:
 TRACKS = (
     Track("tweaks_version", "refresh_track_tweaks", lambda: tweaks.latest_release()),
     Track("themes_version", "refresh_track_themes", lambda: addons.latest_themes_release(), addons.themes_display),
+    Track("ddblm_version", "refresh_track_bookmarklets", lambda: apply.latest_ddblm_release(), apply.ddblm_display),
     Track("core_version", "refresh_track_core", lambda: core.latest_release()),
 )
 
@@ -46,7 +48,7 @@ class TrackState:
     track: Track
     current: str | None
     latest: str | None
-    release: tweaks.Release | core.Release | None = None
+    release: object = None  # the track's release (tweaks.Release, core.Release, ...)
     changes: list[str] = field(default_factory=list)  # what's new, from the changelog
 
     @property
@@ -76,8 +78,11 @@ class RefreshPlan:
     def check(cls, state: State, force: bool = False) -> RefreshPlan:
         tracks = []
         for track in TRACKS:
-            # The themes come with the tweaks, into the profile.
-            if track.key == "themes_version" and not (state.get("tweaks", True) and state.get("profile_dir")):
+            # The themes and the bookmarklet styling come with the tweaks, into the profile.
+            with_tweaks = state.get("tweaks", True) and state.get("profile_dir")
+            if track.key == "themes_version" and not with_tweaks:
+                continue
+            if track.key == "ddblm_version" and not (with_tweaks and state.get("opt_bl", True)):
                 continue
             release = None
             try:
@@ -118,10 +123,11 @@ RESTART_SINCE_TWEAKS = "158.1"
 
 
 def restart_offer(plan: RefreshPlan, state: State) -> Callable[[], None] | None:
-    """New tweaks and themes take effect when Firefox starts: if this install's
-    Firefox is running with tweaks that can restart it, how to do that."""
+    """Everything but the core takes effect when Firefox starts: if this
+    install's Firefox is running with tweaks that can restart it, how to
+    do that."""
     install_dir = state.get("install_dir")
-    if not install_dir or not any(t.track.key in ("tweaks_version", "themes_version") for t in plan.todo):
+    if not install_dir or not any(t.track.key != "core_version" for t in plan.todo):
         return None
     running = state.get("tweaks_version")
     if changelog.is_newer(RESTART_SINCE_TWEAKS, running) or not firefox.running_pids(Path(install_dir)):
@@ -131,7 +137,7 @@ def restart_offer(plan: RefreshPlan, state: State) -> Callable[[], None] | None:
 
 def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
     """Tweaks: download, apply to the install and the profile, record the
-    version. Themes: both into the profile. Core last (TRACKS order):
+    version. Themes, bookmarklet styling: into the profile. Core last (TRACKS order):
     replace the installed package, which takes effect on the next start."""
     state = State()
     install_dir, profile_dir = state.get("install_dir"), state.get("profile_dir")
@@ -145,6 +151,12 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
             installed, _missing = addons.fetch_themes(Path(profile_dir), tag=t.release.tag,
                                                       current=None if plan.force else state.get("themes_version"))
             state.set("themes_version", installed)
+            state.save()
+        elif t.track.key == "ddblm_version":
+            progress(i18n.t("progress_refresh_bookmarklets_download", tag), base)
+            installed = apply.apply_bookmarklets(Path(profile_dir), release=t.release,
+                                                 current=None if plan.force else state.get("ddblm_version"))
+            state.set("ddblm_version", installed)
             state.save()
         elif t.track.key == "tweaks_version":
             progress(i18n.t("progress_refresh_tweaks_download", tag), base)

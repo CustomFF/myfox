@@ -52,7 +52,7 @@ installed `myfox` command below.
 
 ```text
 myfox browser [args…]                    Start the installed Firefox; arguments go to Firefox
-myfox refresh [--force] [--gui]          Update the tweaks, the themes and MyFox itself
+myfox refresh [--force] [--gui]          Update the tweaks, themes, bookmarklets and MyFox
 myfox reinstall [--gui]                  Download Firefox again and re-apply the tweaks
 myfox uninstall [--remove-profile] [--gui]  Remove MyFox
 myfox help                               This list
@@ -63,10 +63,10 @@ Every command shows what it is about to do and asks first — in the terminal, o
 `--gui`; `-y` skips the question. Without a terminal (cron, a script) nothing is asked: MyFox shows
 what it would do and the command to run with `-y`.
 
-- **Updating.** Firefox updates itself. `myfox refresh` updates the tweaks, the themes and MyFox and shows
-  what's new; the shortcut's context menu has «Update MyFox» too. New tweaks apply once Firefox
-  restarts: `refresh` offers to restart it, and the shortcut's menu has «Restart» (windows and tabs
-  come back).
+- **Updating.** Firefox updates itself. `myfox refresh` updates the tweaks, the themes, the
+  bookmarklet styling and MyFox and shows what's new; the shortcut's context menu has «Update MyFox»
+  too. New tweaks apply once Firefox restarts: `refresh` offers to restart it, and the shortcut's
+  menu has «Restart» (windows and tabs come back).
 - **Reinstalling.** `myfox reinstall` replaces Firefox only once the new copy is fully downloaded;
   your profile stays as it is.
 - **Uninstalling.** `myfox uninstall` removes Firefox, the shortcut, the `myfox` command and

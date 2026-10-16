@@ -7,7 +7,7 @@ from pathlib import Path
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
-from myfox import addons, core, i18n, refresh, tweaks
+from myfox import addons, apply, core, i18n, refresh, tweaks
 from myfox.state import State
 from myfox.ui import task_plain, task_tui
 from picotui.defs import KEY_ENTER, KEY_ESC
@@ -16,8 +16,9 @@ from ._helpers import IsolatedStateCase
 from .test_form_tui import _drive
 
 
-def _latest(tweaks="151.3", core="core-5", changes=("Rounded popup menus",), themes="themes-20261001000000"):
-    return {"tweaks": tweaks, "core": core, "changes": list(changes), "themes": themes}
+def _latest(tweaks="151.3", core="core-5", changes=("Rounded popup menus",), themes="themes-20261001000000",
+            ddblm="ddblm-20261001000000"):
+    return {"tweaks": tweaks, "core": core, "changes": list(changes), "themes": themes, "ddblm": ddblm}
 
 
 @contextlib.contextmanager
@@ -27,21 +28,25 @@ def _releases(latest):
     if isinstance(latest, Exception):
         with mock.patch("myfox.core.latest_release", side_effect=latest), \
              mock.patch("myfox.tweaks.latest_release", side_effect=latest), \
-             mock.patch("myfox.addons.latest_themes_release", side_effect=latest):
+             mock.patch("myfox.addons.latest_themes_release", side_effect=latest), \
+             mock.patch("myfox.apply.latest_ddblm_release", side_effect=latest):
             yield
         return
     release = tweaks.Release(latest["tweaks"], "https://x/a.tar.gz", "https://x/c.json") if latest["tweaks"] else None
     core_release = core.Release(latest["core"], "https://x/core.tar.gz", "https://x/core.json") if latest["core"] else None
     themes_release = addons.ThemesRelease(latest["themes"]) if latest["themes"] else None
+    ddblm_release = apply.DdblmRelease(latest["ddblm"], "abc123") if latest["ddblm"] else None
     with mock.patch("myfox.core.latest_release", return_value=core_release), \
          mock.patch("myfox.tweaks.latest_release", return_value=release), \
          mock.patch("myfox.addons.latest_themes_release", return_value=themes_release), \
+         mock.patch("myfox.apply.latest_ddblm_release", return_value=ddblm_release), \
          mock.patch("myfox.changelog.changes_since", return_value=latest["changes"]):
         yield
 
 
-def _state(tweaks="151.2", core="core-5", themes="themes-20261001000000") -> State:
+def _state(tweaks="151.2", core="core-5", themes="themes-20261001000000", ddblm="ddblm-20261001000000") -> State:
     state = State()
+    state.set("ddblm_version", ddblm)
     state.set("tweaks_version", tweaks)
     state.set("core_version", core)
     state.set("themes_version", themes)
@@ -64,7 +69,7 @@ class PlanTests(IsolatedStateCase):
 
     def test_force_takes_everything(self):
         plan = self._check(force=True, tweaks="151.2")
-        self.assertEqual(len(plan.todo), 3)
+        self.assertEqual(len(plan.todo), 4)
         self.assertEqual(plan.todo[0].describe(), "151.2")
 
     def test_an_older_release_is_not_an_update(self):
@@ -77,7 +82,7 @@ class PlanTests(IsolatedStateCase):
 
     def test_force_skips_a_track_with_no_release(self):
         plan = self._check(force=True, tweaks="151.2", core=None)
-        self.assertEqual([t.track.key for t in plan.todo], ["tweaks_version", "themes_version"])
+        self.assertEqual([t.track.key for t in plan.todo], ["tweaks_version", "themes_version", "ddblm_version"])
 
     def test_whats_new_comes_from_the_changelog(self):
         self.assertEqual(self._check(changes=["A", "B"]).changes, ["A", "B"])
@@ -101,6 +106,19 @@ class PlanTests(IsolatedStateCase):
         with _releases(_latest(themes="themes-20261101120000")):
             plan = refresh.RefreshPlan.check(state)
         self.assertNotIn("themes_version", [t.track.key for t in plan.tracks])
+
+    def test_changed_bookmarklet_styling_is_a_track_of_its_own(self):
+        plan = self._check(tweaks="151.2", ddblm="ddblm-20261015123456")
+        self.assertEqual([t.track.key for t in plan.todo], ["ddblm_version"])
+        self.assertEqual(plan.todo[0].describe(),
+                         i18n.t("refresh_version_change", "2026-10-01 00:00", "2026-10-15 12:34"))
+
+    def test_no_bookmarklets_track_when_they_were_not_installed(self):
+        state = _state()
+        state.set("opt_bl", False)
+        with _releases(_latest(ddblm="ddblm-20261015123456")):
+            plan = refresh.RefreshPlan.check(state)
+        self.assertNotIn("ddblm_version", [t.track.key for t in plan.tracks])
 
     def test_check_failure_is_an_error(self):
         with _releases(OSError("rate limited")):
@@ -147,7 +165,7 @@ class RunTests(IsolatedStateCase):
 
     def test_force_with_yes_updates_everything_without_a_dialog(self):
         rc, _out, _err = self._run(_latest(tweaks="151.2"), noninteractive=True, force=True)
-        self.assertEqual(len(self.updated[0].todo), 3)
+        self.assertEqual(len(self.updated[0].todo), 4)
 
     def test_tty_shows_the_tui_dialog(self):
         with mock.patch("myfox.ui._has_tty", return_value=True), \
@@ -253,7 +271,8 @@ class ApplyThemesTests(IsolatedStateCase):
             plan = refresh.RefreshPlan.check(State(), force=force)
         with mock.patch("myfox.addons.fetch_themes", return_value=("themes-20261101120000", [])) as fetch, \
              mock.patch("myfox.tweaks.install", return_value="151.2"), mock.patch("myfox.apply.reapply_tweaks"), \
-             mock.patch("myfox.core.install", return_value="core-5"), mock.patch("myfox.refresh.sync_shortcut"):
+             mock.patch("myfox.core.install", return_value="core-5"), mock.patch("myfox.refresh.sync_shortcut"), \
+             mock.patch("myfox.apply.apply_bookmarklets", return_value="ddblm-20261001000000"):
             refresh.apply_updates(plan, lambda message, fraction: None)
         return fetch
 
@@ -264,6 +283,31 @@ class ApplyThemesTests(IsolatedStateCase):
         self.assertEqual(State().get("themes_version"), "themes-20261101120000")
 
     def test_force_downloads_even_the_recorded_release(self):
+        self.assertIsNone(self._apply(force=True).call_args.kwargs["current"])
+
+
+class ApplyDdblmTests(IsolatedStateCase):
+    def _apply(self, force=False, **latest):
+        state = _state()
+        state.set("install_dir", "/opt/firefox")
+        state.save()
+        with _releases(_latest(tweaks="151.2", **latest)):
+            plan = refresh.RefreshPlan.check(State(), force=force)
+        with mock.patch("myfox.apply.apply_bookmarklets", return_value="ddblm-20261015123456") as fetch, \
+             mock.patch("myfox.addons.fetch_themes", return_value=("themes-20261001000000", [])), \
+             mock.patch("myfox.tweaks.install", return_value="151.2"), mock.patch("myfox.apply.reapply_tweaks"), \
+             mock.patch("myfox.core.install", return_value="core-5"), mock.patch("myfox.refresh.sync_shortcut"):
+            refresh.apply_updates(plan, lambda message, fraction: None)
+        return fetch
+
+    def test_changed_styling_is_fetched_from_that_commit_and_recorded(self):
+        fetch = self._apply(ddblm="ddblm-20261015123456")
+        self.assertEqual(fetch.call_args.args, (Path("/p/myfox-1"),))
+        self.assertEqual(fetch.call_args.kwargs, {"release": apply.DdblmRelease("ddblm-20261015123456", "abc123"),
+                                                  "current": "ddblm-20261001000000"})
+        self.assertEqual(State().get("ddblm_version"), "ddblm-20261015123456")
+
+    def test_force_downloads_even_the_recorded_version(self):
         self.assertIsNone(self._apply(force=True).call_args.kwargs["current"])
 
 

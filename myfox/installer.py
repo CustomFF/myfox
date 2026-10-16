@@ -60,7 +60,7 @@ def install(answers: Answers, progress: Progress) -> None:
     # Profile: an existing MyFox one, or a new myfox-N.
     stages.report("profile", i18n.t("progress_profile"))
     profile_dir = Path(answers.profile_dir) if answers.profile_dir else profiles.create_new()
-    install_hash = tweaks_version = themes_version = None
+    install_hash = tweaks_version = themes_version = ddblm_version = None
     if answers.tweaks:
         stages.report("tweaks", i18n.t("progress_tweaks_download"))
         tweaks_version = tweaks.install()
@@ -79,7 +79,7 @@ def install(answers: Answers, progress: Progress) -> None:
         themes_version, _missing = addons.fetch_themes(profile_dir, local_dir=os.environ.get("MYFOX_TWEAKS_LOCAL"))
 
         stages.report("bookmarklets", i18n.t("progress_tweaks_bookmarklets"))
-        apply.apply_bookmarklets(profile_dir, local_dir=os.environ.get("MYFOX_DDBLM_LOCAL"))
+        ddblm_version = apply.apply_bookmarklets(profile_dir, local_dir=os.environ.get("MYFOX_DDBLM_LOCAL"))
 
     if plasma:
         stages.report("plasma", i18n.t("progress_tweaks_plasma"))
@@ -107,6 +107,7 @@ def install(answers: Answers, progress: Progress) -> None:
         ("lang", answers.lang), ("channel", answers.channel), ("theme", answers.theme),
         ("tweaks", answers.tweaks), ("opt_bl", answers.tweaks), ("opt_plasma", plasma),
         ("core_version", __version__), ("tweaks_version", tweaks_version), ("themes_version", themes_version),
+        ("ddblm_version", ddblm_version),
     ):
         state.set(key, value)
     state.save()

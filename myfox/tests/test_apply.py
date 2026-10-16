@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -150,25 +151,76 @@ class ApplyBookmarkletsTests(unittest.TestCase):
             (ddblm / "icons" / "foo.svg").write_text("<svg/>", encoding="utf-8")
             (ddblm / "icons" / "import-bookmarklets.svg").write_text("<svg/>", encoding="utf-8")
 
-            gallery = apply.apply_bookmarklets(profile_dir, local_dir=str(ddblm))
+            with mock.patch("myfox.apply.latest_ddblm_release") as latest:
+                version = apply.apply_bookmarklets(profile_dir, local_dir=str(ddblm))
 
-            self.assertEqual(gallery, apply.DDBLM_GALLERY)
+            latest.assert_not_called()
+            self.assertIsNone(version)  # a checkout has no version to record
             self.assertTrue((profile_dir / "chrome" / "blm_panel.css").is_file())
             self.assertTrue((profile_dir / "chrome" / "panel-icons" / "foo.svg").is_file())
 
-    def test_unreachable_ddblm_returns_none_without_raising(self):
+    def test_unreachable_ddblm_keeps_the_recorded_version_without_raising(self):
         with tempfile.TemporaryDirectory() as d:
             profile_dir = Path(d)
             with mock.patch("urllib.request.urlopen", side_effect=OSError("network down")):
-                result = apply.apply_bookmarklets(profile_dir, local_dir=None)
-            self.assertIsNone(result)
+                result = apply.apply_bookmarklets(profile_dir, local_dir=None, current="ddblm-1")
+            self.assertEqual(result, "ddblm-1")
+
+    def _fetch_all(self, profile_dir, fetched, **kwargs):
+        def fake_fetch(rel, out, local_dir, ref):
+            fetched.append((rel, ref))
+            out.write_text("/* css */" if rel.endswith(".css") else "<svg/>", encoding="utf-8")
+            return True
+
+        with mock.patch("myfox.apply._ddblm_fetch", side_effect=fake_fetch):
+            return apply.apply_bookmarklets(profile_dir, **kwargs)
+
+    def test_the_latest_version_comes_from_its_commit_and_is_returned(self):
+        with tempfile.TemporaryDirectory() as d:
+            fetched: list = []
+            release = apply.DdblmRelease("ddblm-20261015123456", "abc123")
+            with mock.patch("myfox.apply.latest_ddblm_release", return_value=release):
+                version = self._fetch_all(Path(d), fetched, current="ddblm-20261001000000")
+            self.assertEqual(version, "ddblm-20261015123456")
+            self.assertEqual({ref for _rel, ref in fetched}, {"abc123"})
+
+    def test_the_recorded_version_is_not_downloaded_again(self):
+        with tempfile.TemporaryDirectory() as d:
+            profile_dir = Path(d)
+            (profile_dir / "chrome").mkdir()
+            (profile_dir / "chrome" / "blm_panel.css").write_text("/* css */", encoding="utf-8")
+            fetched: list = []
+            release = apply.DdblmRelease("ddblm-1", "abc123")
+            version = self._fetch_all(profile_dir, fetched, current="ddblm-1", release=release)
+            self.assertEqual(version, "ddblm-1")
+            self.assertEqual(fetched, [])
+
+    def test_without_github_it_takes_master_and_records_nothing_new(self):
+        with tempfile.TemporaryDirectory() as d:
+            fetched: list = []
+            with mock.patch("myfox.apply.latest_ddblm_release", side_effect=OSError("rate limited")):
+                version = self._fetch_all(Path(d), fetched, current="ddblm-1")
+            self.assertEqual(version, "ddblm-1")
+            self.assertEqual({ref for _rel, ref in fetched}, {"master"})
+
+    def test_latest_release_is_the_newest_commit_of_the_css_or_the_icons(self):
+        answers = {"docs/blm_panel.css": [{"sha": "old", "commit": {"committer": {"date": "2026-10-01T00:00:00Z"}}}],
+                   "icons": [{"sha": "new", "commit": {"committer": {"date": "2026-10-15T12:34:56Z"}}}]}
+
+        def fake_urlopen(req, timeout):
+            path = req.full_url.split("path=")[1].split("&")[0]
+            return mock.MagicMock(**{"__enter__.return_value.read.return_value": json.dumps(answers[path]).encode()})
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            self.assertEqual(apply.latest_ddblm_release(), apply.DdblmRelease("ddblm-20261015123456", "new"))
+        self.assertEqual(apply.ddblm_display("ddblm-20261015123456"), "2026-10-15 12:34")
 
     def test_extracts_icon_names_referenced_in_css_when_no_local_checkout(self):
         with tempfile.TemporaryDirectory() as d:
             profile_dir = Path(d)
             fetched: list[str] = []
 
-            def fake_fetch(rel, out, local_dir):
+            def fake_fetch(rel, out, local_dir, ref):
                 fetched.append(rel)
                 if rel == "docs/blm_panel.css":
                     out.write_text('background: url("panel-icons/gallery.svg");', encoding="utf-8")
@@ -176,7 +228,8 @@ class ApplyBookmarkletsTests(unittest.TestCase):
                     out.write_text("<svg/>", encoding="utf-8")
                 return True
 
-            with mock.patch("myfox.apply._ddblm_fetch", side_effect=fake_fetch):
+            with mock.patch("myfox.apply._ddblm_fetch", side_effect=fake_fetch), \
+                 mock.patch("myfox.apply.latest_ddblm_release", return_value=None):
                 apply.apply_bookmarklets(profile_dir, local_dir=None)
 
             self.assertIn("icons/gallery.svg", fetched)
