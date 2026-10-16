@@ -34,12 +34,17 @@ class Task:
     options: list[Option] = field(default_factory=list)
     destructive: bool = False        # focus starts on Cancel
     blocked: str | None = None       # why the action can't run now; shown, button disabled
+    more: Callable[[], None] | None = None  # shows all of `lines` when they don't fit
 
     def lines_shown(self, limit: int) -> list[str]:
-        """At most `limit` lines, the last saying how many more there are."""
-        if len(self.lines) <= limit:
+        """At most `limit` lines, the last saying how many more there are
+        (with `more`, the views make that one a link or a button)."""
+        if not self.cut(limit):
             return list(self.lines)
         return self.lines[:limit - 1] + [i18n.t("refresh_more", len(self.lines) - limit + 1)]
+
+    def cut(self, limit: int) -> bool:
+        return len(self.lines) > limit
 
 
 def _notify_or_print(title: str, text: str) -> None:

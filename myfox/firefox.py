@@ -222,13 +222,24 @@ def running_pids(install_dir: Path) -> list[int]:
     return pids
 
 
-def request_restart(install_dir: Path) -> None:
-    """Asks this install's running Firefox to restart: Firefox's remoting
-    hands the flag to it, and the tweaks' command-line handler restarts it
-    the way Firefox's own Restart does (prompts, session restored).
-    Detached, so closing MyFox's window doesn't take it along."""
-    subprocess.Popen([str(install_dir / "firefox-myfox"), "--myfox-restart"], stdin=subprocess.DEVNULL,
+def _launch(install_dir: Path, *args: str) -> None:
+    """This install's Firefox through its wrapper: a running one gets the
+    arguments by Firefox's remoting. Detached, so closing MyFox's window
+    doesn't take it along."""
+    subprocess.Popen([str(install_dir / "firefox-myfox"), *args], stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def request_restart(install_dir: Path) -> None:
+    """Asks this install's running Firefox to restart: the tweaks'
+    command-line handler restarts it the way Firefox's own Restart does
+    (prompts, session restored)."""
+    _launch(install_dir, "--myfox-restart")
+
+
+def open_url(install_dir: Path, url: str) -> None:
+    """Opens `url` in this install's Firefox, starting it if needed."""
+    _launch(install_dir, url)
 
 
 def install_tarball(install_dir: Path, lang: str, channel: str, on_download=None, on_extract=None) -> str:

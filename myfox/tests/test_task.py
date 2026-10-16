@@ -12,7 +12,7 @@ from unittest import mock
 
 from myfox import firefox, i18n, paths, task
 from myfox.ui import task_plain, task_tui
-from picotui.defs import KEY_DOWN, KEY_ENTER, KEY_LEFT
+from picotui.defs import KEY_DOWN, KEY_ENTER, KEY_LEFT, KEY_RIGHT
 
 from ._helpers import IsolatedStateCase
 from .test_form_tui import _drive
@@ -109,6 +109,14 @@ class TuiTests(IsolatedStateCase):
         # checkbox, Space ticks it, Down back to the action.
         self.assertTrue(self._run(t, [KEY_LEFT, KEY_LEFT, b" ", KEY_DOWN, KEY_ENTER, KEY_ENTER]))
         self.assertEqual(seen, [True])
+
+    def test_and_n_more_is_a_button_that_shows_them_all(self):
+        ran, shown = [], []
+        t = _task(ran, lines=[str(i) for i in range(40)], more=lambda: shown.append(True))
+        # Focus starts on the action: Left to the button, Enter shows the
+        # list without closing, then Right back to the action.
+        self.assertTrue(self._run(t, [KEY_LEFT, KEY_ENTER, KEY_RIGHT, KEY_ENTER, KEY_ENTER]))
+        self.assertEqual((shown, ran), ([True], [True]))
 
     def test_blocked_never_runs(self):
         ran = []

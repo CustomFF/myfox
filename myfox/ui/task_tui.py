@@ -38,10 +38,14 @@ def run(task: Task) -> bool:
     label_w = max(len(label) for label, _value in task.rows) + 2
     row_lines = [textwrap.wrap(value, w - 4 - label_w, break_on_hyphens=False) or [""] for _label, value in task.rows]
     rows_h = sum(len(lines) + 1 for lines in row_lines)
+    limit = max(1, rows - rows_h - len(task.options) - 9)
+    shown = task.lines_shown(limit)
+    # "...and N more" is a button that shows them all.
+    more = shown.pop() if task.more and task.cut(limit) else None
     listed = []
-    for line in task.lines_shown(max(1, rows - rows_h - len(task.options) - 9)):
+    for line in shown:
         listed += textwrap.wrap(line, w - 8, initial_indent="- ", subsequent_indent="  ", break_on_hyphens=False) or ["-"]
-    list_h = len(listed) + (1 if task.heading else 0) + 1 if listed else 0
+    list_h = len(listed) + (1 if more else 0) + (1 if task.heading else 0) + 1 if listed or more else 0
     options_h = len(task.options) + 1 if task.options else 0
     h = min(rows - 1, rows_h + list_h + options_h + 4)
     x, y = _centered(w, h)
@@ -54,12 +58,17 @@ def run(task: Task) -> bool:
         for i, line in enumerate(lines):
             d.add(2 + label_w, top + i, _Label(line, w - 4 - label_w))
         top += len(lines) + 1
-    if listed:
+    if listed or more:
         if task.heading:
             d.add(2, top, _Label(task.heading, w - 4))
             top += 1
-        for line in listed[:max(0, h - top - 4 - options_h)]:
+        for line in listed[:max(0, h - top - 4 - options_h - (1 if more else 0))]:
             d.add(4, top, _Label(line, w - 6))
+            top += 1
+        if more:
+            more_btn = ThemedButton(min(len(more) + 2, w - 6), more[:w - 8])
+            more_btn.on("click", lambda _button: task.more())
+            d.add(4, top, more_btn)
             top += 1
         top += 1
     checks = []

@@ -1,7 +1,8 @@
 """The task dialog (task.Task) as a dearpygui window, in the install form's
-look: rows, an optional list, the action and Cancel, progress in the footer,
-then Close. Left/Right/Tab move between the buttons, Enter presses the
-focused one, Escape closes."""
+look: rows, an optional list (cut short, its last line can be a link to the
+whole of it), the action and Cancel, progress in the footer, then Close.
+Left/Right move between the buttons, Tab through the link and checkboxes
+too, Enter presses the focused one, Escape closes."""
 
 from __future__ import annotations
 
@@ -27,6 +28,19 @@ def _value_lines(text: str, indent: int) -> int:
     return max(1, math.ceil(len(text) * _CHAR_W / (WIN_W - PAD * 2 - indent)))
 
 
+def _link_theme(focused: bool) -> int:
+    """A button that reads as a link: accent text, no fill until hovered,
+    the accent ring while keyboard-focused."""
+    with dpg.theme() as theme:
+        with dpg.theme_component(dpg.mvButton):
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 0, 0, 0))
+            dpg.add_theme_color(dpg.mvThemeCol_Text, ACCENT)
+            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, px(4), px(1))
+            dpg.add_theme_color(dpg.mvThemeCol_Border, ACCENT if focused else (0, 0, 0, 0))
+            dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize, 1)
+    return theme
+
+
 class _Window:
     def __init__(self, task: Task, bold_font: int | None) -> None:
         self.task = task
@@ -36,6 +50,7 @@ class _Window:
         self._done = False
         self._measured = False
         self.ok = False
+        self.link: int | None = None
         self.lines = task.lines_shown(LINES_LIMIT)
         # Body blocks top to bottom: (items sharing a line, gap before). Only
         # an estimate sizes the first frame; relayout() measures the real one.
@@ -90,8 +105,14 @@ class _Window:
                     if self.task.heading:
                         self._blocks.append(([dpg.add_text(self.task.heading, pos=(px(PAD), y))], gap))
                         gap = 0
-                    for line in self.lines:
-                        item = dpg.add_text(f"•  {line}", pos=(px(PAD + 12), y), wrap=px(WIN_W - PAD * 2 - 12))
+                    for i, line in enumerate(self.lines):
+                        if self.task.more and self.task.cut(LINES_LIMIT) and i == len(self.lines) - 1:
+                            # "...and N more" opens the full list.
+                            item = self.link = dpg.add_button(label=line, pos=(px(PAD + 12 - 4), y),
+                                                              callback=lambda: self.task.more())
+                            gap = px(3)  # its focus ring clears the line above
+                        else:
+                            item = dpg.add_text(f"•  {line}", pos=(px(PAD + 12), y), wrap=px(WIN_W - PAD * 2 - 12))
                         self._blocks.append(([item], gap))
                         gap = 0
                 self.checks = []
@@ -131,6 +152,8 @@ class _Window:
         check_themes = (_color_theme(), _color_theme(Border=ACCENT))
         for item, _option in self.checks:
             self._themes[item] = check_themes
+        if self.link is not None:
+            self._themes[self.link] = (_link_theme(False), _link_theme(True))
         self._focus(self.cancel if self.task.destructive or self.task.blocked else self.action)
         with dpg.handler_registry():
             for key in (dpg.mvKey_Return, dpg.mvKey_NumPadEnter, dpg.mvKey_Left, dpg.mvKey_Right, dpg.mvKey_Tab,
@@ -182,6 +205,8 @@ class _Window:
         checks = dict(self.checks) if not self._done else {}
         if key == dpg.mvKey_Escape:
             dpg.stop_dearpygui()
+        elif self._focused == self.link and key in (dpg.mvKey_Return, dpg.mvKey_NumPadEnter):
+            self.task.more()
         elif self._focused in checks and key in (dpg.mvKey_Spacebar, dpg.mvKey_Return, dpg.mvKey_NumPadEnter):
             option = checks[self._focused]
             option.value = not option.value
@@ -190,7 +215,8 @@ class _Window:
             (self._on_action if self._focused == self.action else dpg.stop_dearpygui)()
         elif key in (dpg.mvKey_Left, dpg.mvKey_Right, dpg.mvKey_Tab):
             # Tab goes through the checkboxes too, Left/Right only the buttons.
-            order = list(checks) + self._buttons() if key == dpg.mvKey_Tab else self._buttons()
+            links = [self.link] if self.link is not None else []
+            order = links + list(checks) + self._buttons() if key == dpg.mvKey_Tab else self._buttons()
             if self._focused in order and len(order) > 1:
                 step = -1 if key == dpg.mvKey_Left else 1
                 self._focus(order[(order.index(self._focused) + step) % len(order)])

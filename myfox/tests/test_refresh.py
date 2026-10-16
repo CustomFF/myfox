@@ -213,6 +213,27 @@ class RestartTests(IsolatedStateCase):
         self.assertEqual(calls, ["update", "restart", "update"])
 
 
+class ChangelogOpenerTests(IsolatedStateCase):
+    def _opener(self, version="159.3", **extra):
+        state = _state(tweaks=version)
+        state.set("install_dir", "/opt/ff")
+        for key, value in extra.items():
+            state.set(key, value)
+        return refresh.changelog_opener(state)
+
+    def test_opens_about_myfox_in_this_install(self):
+        with mock.patch("myfox.firefox.open_url") as open_url:
+            self._opener()()
+        open_url.assert_called_once_with(Path("/opt/ff"), "about:myfox#changelog")
+
+    def test_none_when_the_installed_tweaks_predate_about_myfox(self):
+        self.assertIsNone(self._opener(version="159.2"))
+
+    def test_none_without_the_tweaks(self):
+        self.assertIsNone(self._opener(tweaks=False))
+        self.assertIsNone(self._opener(profile_dir=None))
+
+
 class TuiDialogTests(IsolatedStateCase):
     def _plan(self):
         with _releases(_latest()):

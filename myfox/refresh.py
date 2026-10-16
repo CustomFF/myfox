@@ -120,6 +120,9 @@ Updater = Callable[[RefreshPlan, Progress], None]
 
 # The first tweaks release whose autoconfig handles --myfox-restart.
 RESTART_SINCE_TWEAKS = "158.1"
+# The first tweaks release with about:myfox, whose #changelog is the full one.
+CHANGELOG_SINCE_TWEAKS = "159.3"
+CHANGELOG_URL = "about:myfox#changelog"
 
 
 def restart_offer(plan: RefreshPlan, state: State) -> Callable[[], None] | None:
@@ -133,6 +136,17 @@ def restart_offer(plan: RefreshPlan, state: State) -> Callable[[], None] | None:
     if changelog.is_newer(RESTART_SINCE_TWEAKS, running) or not firefox.running_pids(Path(install_dir)):
         return None
     return lambda: firefox.request_restart(Path(install_dir))
+
+
+def changelog_opener(state: State) -> Callable[[], None] | None:
+    """How to show the full changelog: about:myfox in this install's
+    Firefox, when the tweaks there (not the ones about to come) have it."""
+    install_dir = state.get("install_dir")
+    if not install_dir or not state.get("tweaks", True) or not state.get("profile_dir"):
+        return None
+    if changelog.is_newer(CHANGELOG_SINCE_TWEAKS, state.get("tweaks_version")):
+        return None
+    return lambda: firefox.open_url(Path(install_dir), CHANGELOG_URL)
 
 
 def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
@@ -186,7 +200,8 @@ def sync_shortcut(state: State) -> None:
             pass
 
 
-def to_task(plan: RefreshPlan, update: Updater, restart: Callable[[], None] | None = None) -> task_mod.Task:
+def to_task(plan: RefreshPlan, update: Updater, restart: Callable[[], None] | None = None,
+            more: Callable[[], None] | None = None) -> task_mod.Task:
     options = [task_mod.Option(i18n.t("refresh_restart_firefox"), True)] if restart else []
 
     def run(progress: Progress) -> None:
@@ -204,6 +219,7 @@ def to_task(plan: RefreshPlan, update: Updater, restart: Callable[[], None] | No
         action=i18n.t("refresh_update"),
         unconfirmed=[i18n.t("needs_yes_refresh", "myfox refresh --force -y" if plan.force else "myfox refresh -y")],
         run=run,
+        more=more,
     )
 
 
@@ -223,5 +239,5 @@ def run(state: State, gui: bool = False, noninteractive: bool = False, force: bo
                 return 1 if plan.error else 0
         print(text, file=sys.stderr if plan.error else sys.stdout)
         return 1 if plan.error else 0
-    task = to_task(plan, update, restart_offer(plan, state))
+    task = to_task(plan, update, restart_offer(plan, state), changelog_opener(state))
     return 0 if task_mod.show(task, gui=gui, noninteractive=noninteractive) else 1
