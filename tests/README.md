@@ -9,7 +9,7 @@ python3 -m unittest myfox.tests.test_task          # один модуль
 
 Всё, что ниже, — ручные проверки: GUI автотестов не имеет, а настоящую установку, профиль и
 Firefox тесты не трогают. Чек-лист самих твиков (CSS/JS в `autoconfig/`/`chrome/`) — в
-[CustomFF/tweaks](https://github.com/CustomFF/tweaks/blob/master/TESTING.md).
+[CustomFF/myfox-tweaks](https://github.com/CustomFF/myfox-tweaks/blob/master/TESTING.md).
 
 Все прогоны — только в песочнице (`scratch/sandbox.sh` подставляет свой `$HOME` и все `$XDG_*`).
 Реальный профиль и `$HOME` не трогать.
@@ -98,4 +98,4 @@ python3 -m myfox.wizard --dry-run [--gui]     # ничего не ставит, 
 - MyFox и Firefox: `~/.local/share/myfox/`, `~/.local/bin/myfox`
 - ярлык: `~/.local/share/applications/firefox-myfox.desktop`
 - профили/пиннинг: `~/.mozilla/firefox/` или `~/.config/mozilla/firefox/` (`profiles.ini`, `installs.ini`)
-- твики из локальной копии: `MYFOX_TWEAKS_LOCAL=<CustomFF/tweaks>`; букмарклеты: `MYFOX_DDBLM_LOCAL=<ddblm>`
+- твики из локальной копии: `MYFOX_TWEAKS_LOCAL=<CustomFF/myfox-tweaks>`; букмарклеты: `MYFOX_DDBLM_LOCAL=<ddblm>`

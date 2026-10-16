@@ -3,7 +3,7 @@
 > **[English version](README.md)**
 
 MyFox ставит Firefox (стабильный или бету) из официального тарбола Mozilla в домашний каталог и
-применяет к нему [твики MyFox](https://github.com/CustomFF/tweaks): вкладки-«карточки», скруглённые
+применяет к нему [твики MyFox](https://github.com/CustomFF/myfox-tweaks): вкладки-«карточки», скруглённые
 углы, переделанная боковая панель с «Загрузками» и «Расширениями», тёмная и светлая темы. Без root,
 без пакетов, без pip.
 
@@ -78,7 +78,7 @@ myfox --version
 ## Твики вручную
 
 Твики работают и без MyFox, в том числе на уже установленном Firefox — см.
-[CustomFF/tweaks](https://github.com/CustomFF/tweaks#apply-by-hand).
+[CustomFF/myfox-tweaks](https://github.com/CustomFF/myfox-tweaks#apply-by-hand).
 
 ## Разработка
 

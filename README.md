@@ -3,7 +3,7 @@
 > **[Русская версия](README.ru.md)**
 
 MyFox installs Firefox (stable or beta) straight from Mozilla's official tarball into your home
-directory and applies the [MyFox tweaks](https://github.com/CustomFF/tweaks) to it: floating "card"
+directory and applies the [MyFox tweaks](https://github.com/CustomFF/myfox-tweaks) to it: floating "card"
 tabs, rounded corners, a reworked sidebar with Downloads and Extensions panels, dark and light
 themes. No root, no packages, no pip.
 
@@ -78,7 +78,7 @@ None of these run while Firefox from this install is open.
 ## Applying the tweaks by hand
 
 The tweaks also work without MyFox, including on a Firefox you already have — see
-[CustomFF/tweaks](https://github.com/CustomFF/tweaks#apply-by-hand).
+[CustomFF/myfox-tweaks](https://github.com/CustomFF/myfox-tweaks#apply-by-hand).
 
 ## Development
 

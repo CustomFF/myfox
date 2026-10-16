@@ -1,7 +1,7 @@
 # MyFox — как устроено
 
 MyFox ставит Firefox (stable или beta) из официального тарбола Mozilla в каталог пользователя и
-применяет к нему твики из [CustomFF/tweaks](https://github.com/CustomFF/tweaks). Root не нужен.
+применяет к нему твики из [CustomFF/myfox-tweaks](https://github.com/CustomFF/myfox-tweaks). Root не нужен.
 Код — пакет `myfox/` на Python 3.8+, только stdlib; сторонний чистый Python — исходниками в
 `myfox/_vendor/` (picotui, jeepney), бинарный dearpygui — из собственного релиза.
 
@@ -14,8 +14,8 @@ MyFox ставит Firefox (stable или beta) из официального т
 | Что | Откуда | Тег | Обновляет |
 |---|---|---|---|
 | Ядро (пакет `myfox/`) | релизы этого репозитория: `myfox-core.tar.gz`, `changelog.json` | `core-<semver>` | `myfox refresh` |
-| Твики (`autoconfig/`, `chrome/`) | релизы CustomFF/tweaks: `myfox-tweaks.tar.gz`, `changelog.json` | `<beta major>.<patch>` (`158.0`) | `myfox refresh` |
-| Темы (два `.xpi` в профиль) | релизы CustomFF/tweaks | `themes-<время сборки>` | `myfox refresh`; скачиваются, только если релиз новее записанного или файла нет |
+| Твики (`autoconfig/`, `chrome/`) | релизы CustomFF/myfox-tweaks: `myfox-tweaks.tar.gz`, `changelog.json` | `<beta major>.<patch>` (`158.0`) | `myfox refresh` |
+| Темы (два `.xpi` в профиль) | релизы CustomFF/myfox-tweaks | `themes-<время сборки>` | `myfox refresh`; скачиваются, только если релиз новее записанного или файла нет |
 | Оформление букмарклетов (`blm_panel.css`, `panel-icons/` в `chrome/` профиля) | master ddblm, без релизов | `ddblm-<время коммита>`: последний коммит, менявший `docs/blm_panel.css` или `icons/` | `myfox refresh`; файлы берутся из этого коммита, только если он новее записанного или CSS нет; GitHub API недоступен при установке — из master без записи версии |
 | dearpygui (для GUI) | релиз этого репозитория, колёса cp38–cp314 × x86_64/aarch64 | `dearpygui-2.3.1` | при установке; заново — после смены версии Python |
 | Firefox | `download.mozilla.org` | — | обновляется сам; заново — `myfox reinstall` |
@@ -154,7 +154,7 @@ Firefox качается в соседний временный каталог �
 | `MYFOX_BOOTSTRAP_URL` | откуда `get.sh` берёт `bootstrap.py` (`file://…` — из рабочей копии) |
 | `MYFOX_CORE_DIR` | `bootstrap.py` берёт ядро из этого каталога, не качая |
 | `MYFOX_CORE_URL` | архив ядра (путь или URL) вместо релиза — для bootstrap и `refresh` |
-| `MYFOX_TWEAKS_LOCAL` | твики и темы из локальной копии CustomFF/tweaks |
+| `MYFOX_TWEAKS_LOCAL` | твики и темы из локальной копии CustomFF/myfox-tweaks |
 | `MYFOX_DDBLM_LOCAL` | букмарклеты из локальной копии ddblm |
 | `MYFOX_DEARPYGUI_DIR` | каталог с колёсами dearpygui вместо релиза |
 | `MYFOX_NMH_DIRS` | где искать native host Plasma (пустой каталог — «пакета нет») |

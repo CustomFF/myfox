@@ -1,4 +1,4 @@
-"""The tweaks (autoconfig/ + chrome/) from CustomFF/tweaks' releases, tagged
+"""The tweaks (autoconfig/ + chrome/) from CustomFF/myfox-tweaks' releases, tagged
 <Firefox beta major>.<patch> (e.g. 158.0). Each release carries
 myfox-tweaks.tar.gz (autoconfig/ and chrome/ at its root) and a cumulative
 changelog.json:

@@ -1,7 +1,7 @@
 """Where things live relative to this copy of myfox/.
 
 The tweaks (autoconfig/ + chrome/) aren't part of MyFox: tweaks.py fetches
-them from CustomFF/tweaks' releases into share_dir()/tweaks, and apply.py
+them from CustomFF/myfox-tweaks' releases into share_dir()/tweaks, and apply.py
 copies them from there into the install and the profile. Themes come from
 the same repo's releases straight into the profile (addons.py).
 """

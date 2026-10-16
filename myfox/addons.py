@@ -1,5 +1,5 @@
 """Add-ons into the profile's extensions/: the two signed themes from
-CustomFF/tweaks' releases and, under KDE Plasma, the Plasma integration
+CustomFF/myfox-tweaks' releases and, under KDE Plasma, the Plasma integration
 add-on from AMO.
 """
 
@@ -20,7 +20,7 @@ MYFOX_THEME_DARK_ID = "myfox-dark-theme@daydve.github.io"
 MYFOX_THEME_LIGHT_ID = "myfox-light-theme@daydve.github.io"
 MYFOX_ADDON_PLASMA = "plasma-integration"
 
-TWEAKS_REPO = "CustomFF/tweaks"
+TWEAKS_REPO = "CustomFF/myfox-tweaks"
 THEMES_TAG_RE = re.compile(r"^themes-")
 
 _THEME_FILES = {
@@ -43,7 +43,7 @@ class ThemesRelease:
 
 
 def latest_themes_release() -> ThemesRelease | None:
-    """The newest `themes-*` release of CustomFF/tweaks; None if there is
+    """The newest `themes-*` release of CustomFF/myfox-tweaks; None if there is
     none. Raises OSError when GitHub can't be asked."""
     tag = version.find_latest_tag(THEMES_TAG_RE, TWEAKS_REPO)
     return ThemesRelease(tag) if tag else None
@@ -62,7 +62,7 @@ def fetch_themes(profile_dir: Path, local_dir: str | None = None, current: str |
     new got in) and the theme IDs that couldn't be installed (a warning
     for the caller, never a hard failure).
 
-    From CustomFF/tweaks' `tag` (default: the latest `themes-*` release),
+    From CustomFF/myfox-tweaks' `tag` (default: the latest `themes-*` release),
     skipped when that is `current` and both files are there; or from a
     local tweaks checkout's `build/signed/` when `local_dir` is given (dev
     use, same shape as apply.py's MYFOX_DDBLM_LOCAL; records nothing)."""

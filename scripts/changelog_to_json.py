@@ -17,7 +17,7 @@ CHANGELOG.md: sections '## <major>.<minor>.<patch> — <YYYY-MM-DD>', newest
 first, each holding only '- ' items; an optional '## Unreleased' goes on top
 and is left out of the JSON. changelog.json is {"versions": [{"version",
 "date", "changes": [...]}]}, newest first — the same format as the tweaks'
-(CustomFF/tweaks), which this script was adapted from.
+(CustomFF/myfox-tweaks), which this script was adapted from.
 """
 import argparse
 import datetime

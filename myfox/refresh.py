@@ -1,6 +1,6 @@
 """`myfox refresh`: updates what MyFox ships besides the browser, each from
 its own releases — the tweaks (look and config) and the themes (both from
-CustomFF/tweaks), the bookmarklet styling (ddblm) and MyFox's own logic
+CustomFF/myfox-tweaks), the bookmarklet styling (ddblm) and MyFox's own logic
 (core, CustomFF/myfox). The browser updates itself; forcing it is
 `myfox reinstall`.
 

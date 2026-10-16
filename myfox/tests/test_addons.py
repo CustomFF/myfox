@@ -43,7 +43,7 @@ class FetchThemesTests(unittest.TestCase):
             ]
         }
         responses = {
-            "https://api.github.com/repos/CustomFF/tweaks/releases/tags/themes-20261001": self._fake_response(
+            "https://api.github.com/repos/CustomFF/myfox-tweaks/releases/tags/themes-20261001": self._fake_response(
                 json.dumps(release_json).encode("utf-8")
             ),
             "https://example/dark": self._fake_response(b"dark"),
@@ -74,7 +74,7 @@ class FetchThemesTests(unittest.TestCase):
     def test_release_missing_one_asset_reports_only_that_one(self):
         release_json = {"assets": [{"name": "myfox-dark.xpi", "browser_download_url": "https://example/dark"}]}
         responses = {
-            "https://api.github.com/repos/CustomFF/tweaks/releases/tags/themes-20261001": self._fake_response(
+            "https://api.github.com/repos/CustomFF/myfox-tweaks/releases/tags/themes-20261001": self._fake_response(
                 json.dumps(release_json).encode("utf-8")
             ),
             "https://example/dark": self._fake_response(b"dark"),

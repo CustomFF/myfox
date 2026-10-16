@@ -1,7 +1,7 @@
 #!/bin/sh
 # build-core-dist.sh [out-dir] — the core-* release assets: myfox-core.tar.gz
 # (myfox/ without tests at the archive root) and changelog.json. The tweaks come from
-# CustomFF/tweaks' own releases, not from here.
+# CustomFF/myfox-tweaks' own releases, not from here.
 set -e
 root=$(cd "$(dirname "$0")/.." && pwd)
 out=${1:-$root/dist}
