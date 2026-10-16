@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.12 — 2026-10-16
+
+- `myfox refresh` updates the bookmarklet styling too, when it changes in ddblm, and offers to restart Firefox afterwards
+- «Profile Manager» is gone from the shortcut's context menu
+
 ## 1.1.11 — 2026-10-14
 
 - Ready for new style folders in the tweaks (such as author style sheets for web pages): they reach the profile with the tweaks update
