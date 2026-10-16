@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.14 — 2026-10-16
+
+- The update window closes itself after the update when «Restart Firefox» is ticked
+
 ## 1.1.13 — 2026-10-16
 
 - In the update window, «…and N more» under «What's new» opens the full changelog in Firefox (needs tweaks 159.3 or newer)
