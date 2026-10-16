@@ -35,6 +35,7 @@ class Task:
     destructive: bool = False        # focus starts on Cancel
     blocked: str | None = None       # why the action can't run now; shown, button disabled
     more: Callable[[], None] | None = None  # shows all of `lines` when they don't fit
+    closes: Callable[[], bool] | None = None  # the GUI closes itself once run, if this says so
 
     def lines_shown(self, limit: int) -> list[str]:
         """At most `limit` lines, the last saying how many more there are

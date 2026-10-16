@@ -220,6 +220,8 @@ def to_task(plan: RefreshPlan, update: Updater, restart: Callable[[], None] | No
         unconfirmed=[i18n.t("needs_yes_refresh", "myfox refresh --force -y" if plan.force else "myfox refresh -y")],
         run=run,
         more=more,
+        # Firefox restarting is what's left to see.
+        closes=lambda: bool(options and options[0].value),
     )
 
 

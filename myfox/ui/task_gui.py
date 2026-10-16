@@ -257,6 +257,9 @@ class _Window:
                 dpg.bind_item_theme(self.status, _color_theme(Text=ERROR))
             else:
                 self.ok = True
+                if self.task.closes and self.task.closes():
+                    dpg.stop_dearpygui()
+                    return
             dpg.configure_item(self.action, show=False)
             dpg.configure_item(self.cancel, label=i18n.t("form_close"), enabled=True)
             self._focus(self.cancel)

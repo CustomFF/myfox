@@ -208,9 +208,11 @@ class RestartTests(IsolatedStateCase):
         calls = []
         task = refresh.to_task(plan, lambda plan, progress: calls.append("update"), lambda: calls.append("restart"))
         task.run(lambda message, fraction: None)
+        self.assertTrue(task.closes())
         task.options[0].value = False
         task.run(lambda message, fraction: None)
         self.assertEqual(calls, ["update", "restart", "update"])
+        self.assertFalse(task.closes())
 
 
 class ChangelogOpenerTests(IsolatedStateCase):
