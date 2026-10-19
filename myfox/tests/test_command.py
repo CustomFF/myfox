@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -101,3 +102,32 @@ class CommandTests(IsolatedStateCase):
         state = State()
         state.set("install_dir", str(self.install_dir))
         self.assertTrue(command.build(state, on=True).destructive)
+
+    def test_json_for_the_browser(self):
+        state = State()
+        state.set("install_dir", str(self.install_dir))
+        self.bin.mkdir(parents=True)
+        self.link.symlink_to("/usr/bin/firefox")
+
+        def run(action):
+            out = io.StringIO()
+            with redirect_stdout(out), mock.patch("myfox.task.show", side_effect=AssertionError("asked")):
+                rc = command.run(state, action, as_json=True)
+            return rc, json.loads(out.getvalue())
+
+        rc, before = run(None)
+        self.assertEqual((rc, before["on"], before["replaces"], before["path"]), (0, False, "/usr/bin/firefox", "ok"))
+        self.assertEqual(before["notes"], command.check(self.install_dir))
+        rc, after = run("on")
+        self.assertEqual((rc, after["on"], after["replaces"], after["notes"]), (0, True, None, []))
+        rc, off = run("off")
+        self.assertEqual((rc, off["on"]), (0, False))
+        self.assertEqual(os.readlink(self.link), "/usr/bin/firefox")
+
+    def test_json_failure_is_an_error_object(self):
+        state = State()
+        state.set("install_dir", str(self.install_dir))
+        out = io.StringIO()
+        with redirect_stdout(out), mock.patch("myfox.command.enable", side_effect=PermissionError("denied")):
+            self.assertEqual(command.run(state, "on", as_json=True), 1)
+        self.assertEqual(json.loads(out.getvalue()), {"error": "denied"})

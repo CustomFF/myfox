@@ -74,6 +74,7 @@ python3 -m myfox.wizard --dry-run [--gui]     # ничего не ставит, 
 - [ ] был свой `~/.local/bin/firefox` → предупреждение, он в `firefox.myfox-backup`; диалог `myfox command on` начинает с «Отмена»
 - [ ] `myfox command off` и `myfox uninstall` → прежний `firefox` на месте, бэкапа нет; чужой `firefox` (не наша ссылка) `off` не трогает
 - [ ] `PATH` без `~/.local/bin` / с другим `firefox` раньше → соответствующее предупреждение; `myfox command` без аргумента показывает состояние
+- [ ] `myfox command --json` (и `on`/`off --json`) → одна строка JSON, без вопросов; `<install>/myfox.json` есть после установки и `refresh`, `launcher` ведёт на `myfox`, `version` — установленная
 
 ## 4. `myfox reinstall`
 

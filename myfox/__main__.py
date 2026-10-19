@@ -43,6 +43,8 @@ def build_parser() -> argparse.ArgumentParser:
     command_parser = sub.add_parser("command", parents=[common], help=i18n.t("cmd_command"))
     command_parser.add_argument("action", nargs="?", choices=("on", "off"))
     command_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
+    command_parser.add_argument("--json", action="store_true",
+                                help="for programs: no questions, the state as JSON on stdout")
     sub.add_parser("help", parents=[common], help=i18n.t("cmd_help"))
     return parser
 
@@ -139,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
         if not state.get("install_dir"):
             _not_installed()
             return 1
-        return command.run(state, args.action, gui=args.gui, noninteractive=noninteractive)
+        return command.run(state, args.action, gui=args.gui, noninteractive=noninteractive, as_json=args.json)
     if args.command == "uninstall":
         return cmd_uninstall(state, noninteractive, gui=args.gui, remove_profile=args.remove_profile)
 

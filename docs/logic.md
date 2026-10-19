@@ -130,6 +130,18 @@ Firefox качается в соседний временный каталог �
   другим исполняемым `firefox` — предупреждение. Алиасы и функции из rc-файлов оболочки отсюда не
   видны (исполнять чужие rc нельзя), как и кэш путей открытых оболочек (`hash -r`).
 - State не нужен: включена ли команда, видно по самой ссылке.
+- Для программ (страница `about:myfox` в твиках): `myfox command [on|off] --json` ничего не
+  спрашивает и печатает состояние одной строкой JSON — `on`, `link`, `target`, `replaces` (чужой
+  `firefox`, который будет сохранён), `path` (`ok` / `not_in_path` / `shadowed`), `found_first`,
+  `notes` (те же предупреждения, уже на языке пользователя); при ошибке — `{"error": …}` и код 1.
+
+## Связь с браузером (`<install>/myfox.json`)
+
+Твики (`about:myfox`) управляют MyFox, запуская его команды. Где он и что умеет, они узнают из
+`<install>/myfox.json`: `launcher` (путь к `myfox`), `version` (установленного пакета) и `features`
+(сейчас `["command"]`) — страница проверяет возможность, а не номер версии. Файл рендерится из
+`myfox/templates/myfox.json` вместе с обёрткой и ярлыком (установка, переустановка, каждый
+`refresh`), поэтому после обновления ядра в нём сразу возможности нового.
 
 ## Удаление (`uninstall.py`)
 
@@ -155,7 +167,7 @@ Firefox качается в соседний временный каталог �
 | Где | Что |
 |---|---|
 | `~/.local/share/myfox/` | `myfox/` (пакет), `tweaks/`, `dearpygui/`, `bin/myfox`, по умолчанию `firefox/` |
-| `<install>/` | Firefox, `defaults/pref/autoconfig.js`, `myfox.cfg`, `myfox/*.js`, `.myfox-installed`, обёртка `firefox-myfox` |
+| `<install>/` | Firefox, `defaults/pref/autoconfig.js`, `myfox.cfg`, `myfox/*.js`, `.myfox-installed`, обёртка `firefox-myfox`, `myfox.json` |
 | `<profile>/` | `.myfox` (твики), `.myfox-created`, `chrome/`, `user.js`, `extensions/` |
 | `~/.local/bin/myfox` | симлинк на `~/.local/share/myfox/bin/myfox` |
 | `~/.local/bin/firefox` | при включённой команде — симлинк на `<install>/firefox-myfox`; чужой прежний — `firefox.myfox-backup` |

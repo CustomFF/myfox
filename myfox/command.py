@@ -11,6 +11,7 @@ Shell aliases and functions in the user's rc files can't be seen from here.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -152,10 +153,37 @@ def build(state: State, on: bool) -> task_mod.Task:
     )
 
 
-def run(state: State, action: str | None, gui: bool = False, noninteractive: bool = False) -> int:
+def status(install_dir: Path) -> dict:
+    """The state for a program (about:myfox): the notes are the same,
+    already in the user's language, the rest is for deciding."""
+    path, found = shadow()
+    return {
+        "on": is_on(install_dir),
+        "link": str(link_path()),
+        "target": str(wrapper(install_dir)),
+        "replaces": None if is_on(install_dir) else foreign(),
+        "path": path,
+        "found_first": found,
+        "notes": check(install_dir),
+    }
+
+
+def run(state: State, action: str | None, gui: bool = False, noninteractive: bool = False,
+        as_json: bool = False) -> int:
     """`myfox command` alone tells whether it's on and what's in its way;
-    on/off asks first, unless there's nothing to do."""
+    on/off asks first, unless there's nothing to do. With --json nothing is
+    asked (the caller has shown the notes) and the outcome is the status,
+    or {"error": …}, as JSON on stdout."""
     install_dir = Path(state.get("install_dir"))
+    if as_json:
+        try:
+            if action is not None:
+                (enable if action == "on" else disable)(install_dir)
+        except OSError as exc:
+            print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+            return 1
+        print(json.dumps(status(install_dir), ensure_ascii=False))
+        return 0
     on = is_on(install_dir)
     if action is None or (action == "on") == on:
         print(i18n.t("command_is_on" if on else "command_is_off", paths.shown(link_path())))

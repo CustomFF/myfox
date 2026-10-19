@@ -1,19 +1,22 @@
-"""The firefox-myfox wrapper and the .desktop entry (context-menu actions
-include Restart and `myfox refresh --gui`), rendered from templates/ so a
-core update brings its own versions of both.
+"""The firefox-myfox wrapper, the .desktop entry (context-menu actions
+include Restart and `myfox refresh --gui`) and <install>/myfox.json,
+rendered from templates/ so a core update brings its own versions of all
+three.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
 from pathlib import Path
 
-from . import paths
+from . import __version__, core, paths
 
 DESKTOP_NAME = "firefox-myfox.desktop"
 WRAPPER_NAME = "firefox-myfox"
+MANIFEST_NAME = "myfox.json"
 
 
 def applications_dir() -> Path:
@@ -44,7 +47,7 @@ def _render(name: str, **values: object) -> str:
     return text
 
 
-def _write(path: Path, text: str) -> bool:
+def _write(path: Path, text: str, mode: int = 0o755) -> bool:
     """Writes only a change; True if it did."""
     try:
         if path.read_text(encoding="utf-8") == text:
@@ -53,7 +56,7 @@ def _write(path: Path, text: str) -> bool:
         pass
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    path.chmod(0o755)
+    path.chmod(mode)
     return True
 
 
@@ -74,6 +77,18 @@ def write_wrapper(install_dir: Path) -> Path:
     return wrapper
 
 
+def write_manifest(install_dir: Path, launcher: Path) -> Path:
+    """<install>/myfox.json: what the tweaks' about:myfox needs to drive
+    MyFox from the browser: where `myfox` is, its version, and what it can
+    do (features, so the page asks for a capability, not a version). The
+    version is the installed package's: a refresh writes this with the
+    old code right after laying down the new core."""
+    manifest = install_dir / MANIFEST_NAME
+    version = core.package_version(paths.share_dir() / "myfox") or __version__
+    _write(manifest, _render(MANIFEST_NAME, launcher=json.dumps(str(launcher)), version=json.dumps(version)), 0o644)
+    return manifest
+
+
 def _icon(install_dir: Path) -> str:
     for rel in ("browser/chrome/icons/default/default128.png", "chrome/icons/default/default128.png"):
         if (install_dir / rel).is_file():
@@ -82,13 +97,14 @@ def _icon(install_dir: Path) -> str:
 
 
 def write_entry(install_dir: Path, launcher: Path) -> Path:
-    """The wrapper and the entry, from the templates. No --profile in Exec=:
+    """The wrapper, myfox.json and the entry, from the templates. No --profile in Exec=:
     Firefox opens the Default= of its own [Install<HASH>] section (pinned by
     profiles.pin_install); a hard path would break a re-created profile.
     The Restart action's --myfox-restart is handled by the tweaks (158.1+):
     the running Firefox restarts itself, session restored; when it isn't
     running, it just starts."""
     wrapper = write_wrapper(install_dir)
+    write_manifest(install_dir, launcher)
     path = desktop_file()
     if _write(path, _render(DESKTOP_NAME, wrapper=wrapper, launcher=launcher, icon=_icon(install_dir))):
         _refresh_menu_cache()

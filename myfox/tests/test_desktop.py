@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
+import myfox
 from myfox import desktop, launcher
 
 
@@ -32,6 +35,21 @@ class DesktopTests(unittest.TestCase):
         self.assertIn("restart;", text.splitlines()[1])
         self.assertTrue(os.access(wrapper, os.X_OK))
         self.assertIn(f'exec "{self.install_dir / "firefox"}" "$@"', wrapper.read_text(encoding="utf-8"))
+
+    def test_manifest_tells_the_browser_where_myfox_is_and_what_it_can_do(self):
+        with mock.patch("myfox.desktop._refresh_menu_cache"):
+            desktop.write_entry(self.install_dir, Path('/x/my "fox"/bin/myfox'))
+        manifest = self.install_dir / "myfox.json"
+        self.assertEqual(json.loads(manifest.read_text(encoding="utf-8")),
+                         {"launcher": '/x/my "fox"/bin/myfox', "version": myfox.__version__, "features": ["command"]})
+        self.assertEqual(stat.S_IMODE(manifest.stat().st_mode), 0o644)
+
+    def test_manifest_has_the_installed_packages_version(self):
+        package = self.root / "data" / "myfox" / "myfox"
+        package.mkdir(parents=True)
+        (package / "__init__.py").write_text('__version__ = "9.9.9"\n', encoding="utf-8")
+        desktop.write_manifest(self.install_dir, Path("/x/bin/myfox"))
+        self.assertEqual(json.loads((self.install_dir / "myfox.json").read_text(encoding="utf-8"))["version"], "9.9.9")
 
     def test_menu_cache_refresh_tells_both_caches(self):
         present = {"update-desktop-database", "kbuildsycoca6", "kbuildsycoca5"}
