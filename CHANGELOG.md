@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.17 — 2026-10-19
+
+- `firefox` on the command line can run this Firefox: a checkbox in the install form, `--firefox-command` for `curl … | sh -s -- -y --firefox-command`, or later `myfox command on` / `off`. A `firefox` already in `~/.local/bin` is kept and put back when it's turned off; MyFox warns when another `firefox` would still be found first
+
 ## 1.1.16 — 2026-10-19
 
 - The applications menu shows plain «Firefox», described as «Firefox with the MyFox tweaks»
