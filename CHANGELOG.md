@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.18 — 2026-10-19
+
+- Groundwork for MyFox settings in the browser: the about:myfox page of the tweaks can find MyFox and turn the `firefox` command on or off
+
 ## 1.1.17 — 2026-10-19
 
 - `firefox` on the command line can run this Firefox: a checkbox in the install form, `--firefox-command` for `curl … | sh -s -- -y --firefox-command`, or later `myfox command on` / `off`. A `firefox` already in `~/.local/bin` is kept and put back when it's turned off; MyFox warns when another `firefox` would still be found first
