@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Tweaks updated while a Firefox update waits for a restart are no longer rolled back by that update
+
 ## 1.1.14 — 2026-10-16
 
 - The update window closes itself after the update when «Restart Firefox» is ticked

@@ -22,6 +22,17 @@ DDBLM_RAW = f"https://raw.githubusercontent.com/{DDBLM_REPO}"
 
 
 def apply_autoconfig(install_dir: Path) -> None:
+    _copy_autoconfig(install_dir)
+    # Firefox stages an update into <install>/updated, a copy of the install
+    # as it was then, and on the next start swaps it in for the install:
+    # tweaks applied in between would go back to the older ones. They go
+    # into the staged copy too.
+    staged = install_dir / "updated"
+    if staged.is_dir():
+        _copy_autoconfig(staged)
+
+
+def _copy_autoconfig(install_dir: Path) -> None:
     src = paths.autoconfig_dir()
     (install_dir / "defaults" / "pref").mkdir(parents=True, exist_ok=True)
     shutil.copy2(src / "autoconfig.js", install_dir / "defaults" / "pref" / "autoconfig.js")

@@ -47,6 +47,25 @@ class ApplyAutoconfigTests(_TweaksCase):
             apply.apply_autoconfig(install_dir)
             self.assertFalse(stray.exists())
 
+    def test_also_applies_to_a_staged_firefox_update(self):
+        with tempfile.TemporaryDirectory() as d:
+            install_dir = Path(d)
+            staged = install_dir / "updated"
+            stale = staged / "myfox" / "00-common.js"
+            stale.parent.mkdir(parents=True)
+            stale.write_text("old", encoding="utf-8")
+            apply.apply_autoconfig(install_dir)
+            self.assertNotEqual(stale.read_text(encoding="utf-8"), "old")
+            self.assertTrue((staged / "myfox.cfg").is_file())
+            self.assertTrue((staged / "defaults" / "pref" / "autoconfig.js").is_file())
+            self.assertFalse((staged / "updated").exists())
+
+    def test_leaves_alone_an_install_with_no_staged_update(self):
+        with tempfile.TemporaryDirectory() as d:
+            install_dir = Path(d)
+            apply.apply_autoconfig(install_dir)
+            self.assertFalse((install_dir / "updated").exists())
+
 
 class ApplyChromeTests(_TweaksCase):
     def test_copies_agent_user_and_userchrome_sets_the_marker(self):
