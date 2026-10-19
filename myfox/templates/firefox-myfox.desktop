@@ -1,14 +1,14 @@
 [Desktop Entry]
 Actions=new-window;new-tab;new-private-window;preferences;restart;myfox-refresh;
-Categories=Network;WebBrowser;Browser
-Comment=Firefox (myfox) Web Browser
-Encoding=UTF-8
+Categories=Network;WebBrowser;
+Comment=Firefox with the MyFox tweaks
+Comment[ru_RU]=Firefox с твиками MyFox
 Exec=@WRAPPER@ %u
-GenericName=Firefox (myfox) Web Browser
+GenericName=Web Browser
+GenericName[ru_RU]=Веб-браузер
 Icon=@ICON@
 MimeType=video/webm;text/html;image/png;image/jpeg;image/gif;application/xml;application/xhtml+xml;application/x-xpinstall;application/rss+xml;application/rdf+xml;application/pdf;application/xhtml_xml;image/webp;text/xml;x-scheme-handler/http;x-scheme-handler/https;
-Name=Firefox (myfox)
-Name[ru_RU]=Firefox (myfox)
+Name=Firefox
 NoDisplay=false
 StartupNotify=true
 StartupWMClass=firefox-myfox

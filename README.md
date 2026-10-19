@@ -38,7 +38,8 @@ installed `myfox` command below.
 ## What you get
 
 - **Firefox** in `~/.local/share/myfox/firefox` (or a directory you choose), in its own profile,
-  with the shortcut **«Firefox (myfox)»** — it never clashes with a system Firefox.
+  with the shortcut **«Firefox»** («Firefox with the MyFox tweaks») — it never clashes with a
+  system Firefox.
 - **The tweaks** in that profile only. Any other profile is stock Firefox; delete the MyFox profile
   and nothing of MyFox is left in it. Nothing is written install-wide (no policies).
 - **Both themes**, dark and light; the one you picked is turned on at first start, once — your later
