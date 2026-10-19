@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.16 — 2026-10-19
+
+- The applications menu shows plain «Firefox», described as «Firefox with the MyFox tweaks»
+
 ## 1.1.15 — 2026-10-19
 
 - Tweaks updated while a Firefox update waits for a restart are no longer rolled back by that update
