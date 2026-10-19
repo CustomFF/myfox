@@ -54,6 +54,7 @@ installed `myfox` command below.
 
 ```text
 myfox browser [args…]                    Start the installed Firefox; arguments go to Firefox
+myfox browser --myfox-restart            Restart it with its windows and tabs (not running: start it)
 myfox refresh [--force] [--gui]          Update the tweaks, themes, bookmarklets and MyFox
 myfox reinstall [--gui]                  Download Firefox again and re-apply the tweaks
 myfox uninstall [--remove-profile] [--gui]  Remove MyFox
@@ -74,7 +75,8 @@ what it would do and the command to run with `-y`.
   your profile stays as it is.
 - **The `firefox` command.** `myfox command on` (or the install form's «firefox command») links
   `~/.local/bin/firefox` to this Firefox, so `firefox` in a terminal or a script runs it. A
-  `firefox` already there is kept and put back by `myfox command off` or on uninstall. MyFox warns
+  `firefox` already there is kept and put back by `myfox command off` (or left aside with
+  `--keep-backup`) or on uninstall. MyFox warns
   when `~/.local/bin` isn't in `PATH` or another `firefox` comes first; a shell alias named
   `firefox` would still win, and an open terminal may need `hash -r`.
 - **Uninstalling.** `myfox uninstall` removes Firefox, the shortcut, the `myfox` command and

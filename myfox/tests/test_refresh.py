@@ -277,7 +277,7 @@ class ApplyUpdatesTests(IsolatedStateCase):
         with mock.patch("myfox.tweaks.install", side_effect=lambda r: order.append("tweaks") or "151.3"), \
              mock.patch("myfox.apply.reapply_tweaks"), \
              mock.patch("myfox.core.install", side_effect=lambda r: order.append("core") or r.tag), \
-             mock.patch("myfox.refresh.sync_shortcut", side_effect=lambda state: order.append("shortcut")):
+             mock.patch("myfox.refresh.sync_from_new_core", side_effect=lambda state: order.append("shortcut")):
             refresh.apply_updates(plan, lambda message, fraction: messages.append(message))
         # The shortcut from the new core's templates, once it's in place.
         self.assertEqual(order, ["tweaks", "core", "shortcut"])
@@ -294,7 +294,7 @@ class ApplyThemesTests(IsolatedStateCase):
             plan = refresh.RefreshPlan.check(State(), force=force)
         with mock.patch("myfox.addons.fetch_themes", return_value=("themes-20261101120000", [])) as fetch, \
              mock.patch("myfox.tweaks.install", return_value="151.2"), mock.patch("myfox.apply.reapply_tweaks"), \
-             mock.patch("myfox.core.install", return_value="core-5"), mock.patch("myfox.refresh.sync_shortcut"), \
+             mock.patch("myfox.core.install", return_value="core-5"), mock.patch("myfox.refresh.sync_from_new_core"), \
              mock.patch("myfox.apply.apply_bookmarklets", return_value="ddblm-20261001000000"):
             refresh.apply_updates(plan, lambda message, fraction: None)
         return fetch
@@ -319,7 +319,7 @@ class ApplyDdblmTests(IsolatedStateCase):
         with mock.patch("myfox.apply.apply_bookmarklets", return_value="ddblm-20261015123456") as fetch, \
              mock.patch("myfox.addons.fetch_themes", return_value=("themes-20261001000000", [])), \
              mock.patch("myfox.tweaks.install", return_value="151.2"), mock.patch("myfox.apply.reapply_tweaks"), \
-             mock.patch("myfox.core.install", return_value="core-5"), mock.patch("myfox.refresh.sync_shortcut"):
+             mock.patch("myfox.core.install", return_value="core-5"), mock.patch("myfox.refresh.sync_from_new_core"):
             refresh.apply_updates(plan, lambda message, fraction: None)
         return fetch
 
@@ -343,6 +343,22 @@ class SyncShortcutTests(IsolatedStateCase):
             refresh.run(state)
         write.assert_called_once()
         self.assertEqual(write.call_args.args[0], self.tmp_path)
+
+    def test_after_a_core_update_the_new_core_syncs_in_its_own_process(self):
+        with mock.patch("subprocess.run", return_value=mock.Mock(returncode=0)) as run, \
+             mock.patch("myfox.refresh.sync_shortcut") as in_process:
+            refresh.sync_from_new_core(State())
+        self.assertEqual(run.call_args.args[0][1:], [refresh.SYNC_COMMAND])
+        self.assertTrue(run.call_args.args[0][0].endswith("/bin/myfox"))
+        in_process.assert_not_called()
+
+    def test_if_the_new_core_cant_run_the_old_code_syncs(self):
+        for outcome in (mock.Mock(returncode=1), FileNotFoundError("gone")):
+            with mock.patch("subprocess.run", **({"side_effect": outcome} if isinstance(outcome, Exception)
+                                                 else {"return_value": outcome})), \
+                 mock.patch("myfox.refresh.sync_shortcut") as in_process:
+                refresh.sync_from_new_core(State())
+            in_process.assert_called_once()
 
     def test_no_install_dir_writes_nothing(self):
         with mock.patch("myfox.desktop.write_entry") as write:

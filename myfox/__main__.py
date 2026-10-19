@@ -44,6 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
     command_parser = sub.add_parser("command", parents=[common], help=i18n.t("cmd_command"))
     command_parser.add_argument("action", nargs="?", choices=("on", "off"))
     command_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
+    command_parser.add_argument("--keep-backup", action="store_true",
+                                help="off: leave the firefox it replaced as firefox.myfox-backup")
     command_parser.add_argument("--json", action="store_true",
                                 help="for programs: no questions, the state as JSON on stdout")
     sub.add_parser("help", parents=[common], help=i18n.t("cmd_help"))
@@ -93,6 +95,7 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print()
     print(i18n.t("usage_usage"))
     print(f"  myfox browser [firefox args...]   {i18n.t('cmd_browser')}")
+    print(f"  myfox browser --myfox-restart     {i18n.t('cmd_restart')}")
     print(f"  myfox refresh [--force] [--gui]   {i18n.t('cmd_refresh')}")
     print(f"  myfox reinstall [--gui]           {i18n.t('cmd_reinstall')}")
     print(f"  myfox uninstall [--remove-profile] [--gui]\n"
@@ -117,6 +120,11 @@ def main(argv: list[str] | None = None) -> int:
     # through untouched anyway.
     if argv and argv[0] == "browser":
         return cmd_browser(argv[1:], state)
+    # Internal: a refresh that has just installed this code asks it to
+    # rewrite the files it renders (refresh.sync_from_new_core).
+    if argv == [refresh.SYNC_COMMAND]:
+        refresh.sync_shortcut(state)
+        return 0
 
     parser = build_parser()
 
@@ -146,7 +154,8 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 _not_installed()
             return 1
-        return command.run(state, args.action, gui=args.gui, noninteractive=noninteractive, as_json=args.json)
+        return command.run(state, args.action, gui=args.gui, noninteractive=noninteractive, as_json=args.json,
+                           keep_backup=args.keep_backup)
     if args.command == "uninstall":
         return cmd_uninstall(state, noninteractive, gui=args.gui, remove_profile=args.remove_profile)
 

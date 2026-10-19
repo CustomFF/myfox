@@ -320,6 +320,13 @@ class VersionFlagTests(unittest.TestCase):
         self.assertEqual((exit_.exception.code, out.getvalue().strip()), (0, f"MyFox {myfox.__version__}"))
 
 
+class SyncCliTests(IsolatedStateCase):
+    def test_sync_rewrites_the_rendered_files(self):
+        with mock.patch("myfox.refresh.sync_shortcut") as sync:
+            self.assertEqual(_run(["_sync"]), (0, ""))
+        sync.assert_called_once()
+
+
 class CommandCliTests(IsolatedStateCase):
     def test_json_when_not_installed_is_still_json(self):
         rc, out = _run(["command", "--json"])

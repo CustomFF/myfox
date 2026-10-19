@@ -83,6 +83,44 @@ class CommandTests(IsolatedStateCase):
         self._path(str(self.bin), str(exe.parent))
         self.assertEqual(command.shadow(), ("ok", None))
 
+    def test_off_can_leave_the_backup_aside(self):
+        self.bin.mkdir(parents=True)
+        self.link.symlink_to("/usr/lib/firefox/firefox")
+        command.enable(self.install_dir)
+        command.disable(self.install_dir, keep_backup=True)
+        self.assertFalse(self.link.is_symlink())
+        self.assertEqual(os.readlink(command.backup()), "/usr/lib/firefox/firefox")
+        # On again: the slot is free, the old backup stays as it is.
+        command.enable(self.install_dir)
+        self.assertTrue(command.is_on(self.install_dir))
+        self.assertEqual(os.readlink(command.backup()), "/usr/lib/firefox/firefox")
+
+    def test_a_second_foreign_firefox_is_never_thrown_away(self):
+        self.bin.mkdir(parents=True)
+        (self.bin / "firefox.myfox-backup").symlink_to("/old/firefox")
+        self.link.symlink_to("/new/firefox")
+        with self.assertRaises(command.BackupTaken):
+            command.enable(self.install_dir)
+        self.assertEqual((os.readlink(self.link), os.readlink(self.bin / "firefox.myfox-backup")),
+                         ("/new/firefox", "/old/firefox"))
+        state = State()
+        state.set("install_dir", str(self.install_dir))
+        self.assertEqual(command.build(state, on=True).blocked,
+                         i18n.t("command_backup_taken", "~/.local/bin/firefox", "~/.local/bin/firefox.myfox-backup"))
+
+    def test_off_dialog_offers_to_put_the_backup_back(self):
+        self.bin.mkdir(parents=True)
+        self.link.symlink_to("/usr/bin/firefox")
+        command.enable(self.install_dir)
+        state = State()
+        state.set("install_dir", str(self.install_dir))
+        task = command.build(state, on=False)
+        self.assertEqual([o.value for o in task.options], [True])
+        self.assertEqual([o.value for o in command.build(state, on=False, keep_backup=True).options], [False])
+        task.options[0].value = False
+        task.run(lambda message, fraction: None)
+        self.assertEqual(os.readlink(command.backup()), "/usr/bin/firefox")
+
     def test_status_and_on_with_yes(self):
         state = State()
         state.set("install_dir", str(self.install_dir))
@@ -116,13 +154,28 @@ class CommandTests(IsolatedStateCase):
             return rc, json.loads(out.getvalue())
 
         rc, before = run(None)
-        self.assertEqual((rc, before["on"], before["replaces"], before["path"]), (0, False, "/usr/bin/firefox", "ok"))
+        self.assertEqual((rc, before["on"], before["replaces"], before["path"], before["backup"]),
+                         (0, False, "/usr/bin/firefox", "ok", None))
         self.assertEqual(before["notes"], command.check(self.install_dir))
         rc, after = run("on")
         self.assertEqual((rc, after["on"], after["replaces"], after["notes"]), (0, True, None, []))
+        self.assertEqual(after["backup"], str(self.bin / "firefox.myfox-backup"))
         rc, off = run("off")
         self.assertEqual((rc, off["on"]), (0, False))
         self.assertEqual(os.readlink(self.link), "/usr/bin/firefox")
+
+    def test_json_off_can_keep_the_backup(self):
+        state = State()
+        state.set("install_dir", str(self.install_dir))
+        self.bin.mkdir(parents=True)
+        self.link.symlink_to("/usr/bin/firefox")
+        command.enable(self.install_dir)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(command.run(state, "off", as_json=True, keep_backup=True), 0)
+        result = json.loads(out.getvalue())
+        self.assertEqual((result["on"], result["backup"]), (False, str(self.bin / "firefox.myfox-backup")))
+        self.assertFalse(self.link.is_symlink())
 
     def test_json_failure_is_an_error_object(self):
         state = State()

@@ -53,6 +53,7 @@ MYFOX_INSTALL=AUTO make install # по умолчанию, без вопросо
 
 ```text
 myfox browser [аргументы…]                  Запустить установленный Firefox; аргументы — в Firefox
+myfox browser --myfox-restart               Перезапустить его с окнами и вкладками (не запущен — запустить)
 myfox refresh [--force] [--gui]             Обновить твики, темы, букмарклеты и MyFox
 myfox reinstall [--gui]                     Скачать Firefox заново и применить твики
 myfox uninstall [--remove-profile] [--gui]  Удалить MyFox
@@ -73,7 +74,8 @@ myfox --version
   профиль остаётся как есть.
 - **Команда `firefox`.** `myfox command on` (или «Команда firefox» в форме установки) ставит
   `~/.local/bin/firefox` на этот Firefox: `firefox` в терминале и в скриптах запускает его. Уже
-  лежащий там `firefox` сохраняется и возвращается по `myfox command off` или при удалении. MyFox
+  лежащий там `firefox` сохраняется и возвращается по `myfox command off` (с `--keep-backup` —
+  остаётся в стороне) или при удалении. MyFox
   предупреждает, если `~/.local/bin` нет в `PATH` или другой `firefox` стоит в нём раньше; алиас
   оболочки с именем `firefox` всё равно победит, а в открытом терминале может понадобиться `hash -r`.
 - **Удаление.** `myfox uninstall` удаляет Firefox, ярлык, команду `myfox` и `~/.local/share/myfox`.

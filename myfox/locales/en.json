@@ -1,7 +1,8 @@
 {
-    "usage_title": "MyFox — Firefox from the official tarball with a set of tweaks.",
+    "usage_title": "myfox — a tool to manage MyFox (Firefox bundled with myfox-tweaks, a set of interface refinements and settings): update, reinstall, start and restart, uninstall.",
     "usage_usage": "Usage:",
     "cmd_browser": "Launch the installed browser (extra arguments go to Firefox)",
+    "cmd_restart": "Restart the browser with its windows and tabs (not running: just start it)",
     "cmd_refresh": "Update the tweaks, the themes, the bookmarklet styling and MyFox (--force: forced update)",
     "cmd_reinstall": "Reinstall Firefox and apply the tweaks",
     "cmd_uninstall": "Remove MyFox",
@@ -116,6 +117,7 @@
     "command_replaces": "{0} already exists ({1}); it is kept as {2} and put back when the command is turned off.",
     "command_not_in_path": "{0} is not in PATH, so «firefox» won't find it yet; it usually is after logging in again.",
     "command_shadowed": "«firefox» will still run {0}: it comes before {1} in PATH.",
-    "command_restores": "The firefox it replaced is put back as {0}.",
-    "needs_yes_command": "This needs confirmation. Run: {0}"
+    "needs_yes_command": "This needs confirmation. Run: {0}",
+    "command_restore": "Put back the firefox it replaced ({0})",
+    "command_backup_taken": "{0} is someone else's, and {1} is already taken: move one of them away first."
 }

@@ -15,6 +15,7 @@ by ui/task_{gui,tui,plain}.py.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -118,6 +119,9 @@ class RefreshPlan:
 
 Updater = Callable[[RefreshPlan, Progress], None]
 
+# `myfox <this>`: what sync_from_new_core runs; not in the help, not for people.
+SYNC_COMMAND = "_sync"
+
 # The first tweaks release whose autoconfig handles --myfox-restart.
 RESTART_SINCE_TWEAKS = "158.1"
 # The first tweaks release with about:myfox, whose #changelog is the full one.
@@ -184,8 +188,7 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
             installed = core.install(t.release)
             state.set("core_version", installed)
             state.save()
-            # From the new core's templates: new menu actions arrive with it.
-            sync_shortcut(state)
+            sync_from_new_core(state)
     progress(i18n.t("progress_refresh_done"), 1.0)
 
 
@@ -198,6 +201,20 @@ def sync_shortcut(state: State) -> None:
             desktop.write_entry(Path(install_dir), launcher.launcher_path())
         except OSError:
             pass
+
+
+def sync_from_new_core(state: State) -> None:
+    """Right after the core is replaced, the shortcut, the wrapper and
+    myfox.json are rewritten by the new core in its own process: this one
+    still runs the old code, which knows only the old files and fields.
+    If that can't run, the old code does what it can."""
+    try:
+        done = subprocess.run([str(launcher.launcher_path()), SYNC_COMMAND], stdin=subprocess.DEVNULL,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        done = False
+    if not done:
+        sync_shortcut(state)
 
 
 def to_task(plan: RefreshPlan, update: Updater, restart: Callable[[], None] | None = None,
