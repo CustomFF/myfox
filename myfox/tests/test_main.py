@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -317,6 +318,12 @@ class VersionFlagTests(unittest.TestCase):
         with contextlib.redirect_stdout(out), self.assertRaises(SystemExit) as exit_:
             cli.main(["--version"])
         self.assertEqual((exit_.exception.code, out.getvalue().strip()), (0, f"MyFox {myfox.__version__}"))
+
+
+class CommandCliTests(IsolatedStateCase):
+    def test_json_when_not_installed_is_still_json(self):
+        rc, out = _run(["command", "--json"])
+        self.assertEqual((rc, json.loads(out)), (1, {"error": i18n.t("err_not_installed")}))
 
 
 if __name__ == "__main__":

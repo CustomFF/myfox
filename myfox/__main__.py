@@ -7,6 +7,7 @@ runs from bootstrap.py's "not installed yet" branch.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
@@ -139,7 +140,11 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_reinstall(state, noninteractive, gui=args.gui)
     if args.command == "command":
         if not state.get("install_dir"):
-            _not_installed()
+            if args.json:
+                # A program asked: it gets JSON whatever happens.
+                print(json.dumps({"error": i18n.t("err_not_installed")}, ensure_ascii=False))
+            else:
+                _not_installed()
             return 1
         return command.run(state, args.action, gui=args.gui, noninteractive=noninteractive, as_json=args.json)
     if args.command == "uninstall":
