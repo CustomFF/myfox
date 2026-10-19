@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.19 — 2026-10-19
+
+- Fixes for the `firefox` command switch on the about:myfox page: it always gets an answer it understands, and its notes read cleanly
+
 ## 1.1.18 — 2026-10-19
 
 - Groundwork for MyFox settings in the browser: the about:myfox page of the tweaks can find MyFox and turn the `firefox` command on or off
