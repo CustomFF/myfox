@@ -66,6 +66,16 @@ class InstallTests(IsolatedStateCase):
         # What the summary shows.
         self.assertEqual((answers.profile_dir, answers.firefox_version), (str(self.profile_dir), "152.0"))
 
+    def test_firefox_command_when_asked(self):
+        with mock.patch("myfox.command.enable") as enable, \
+             mock.patch("myfox.command.check", return_value=["note"]):
+            self._install(Answers(install_dir=str(self.install_dir), firefox_command=True))
+            enable.assert_called_once_with(self.install_dir)
+        with mock.patch("myfox.command.enable") as enable:
+            answers = Answers(install_dir=str(self.install_dir))
+            self._install(answers)
+            enable.assert_not_called()
+
     def test_progress_only_goes_up_and_ends_done(self):
         self._install(Answers(install_dir=str(self.install_dir)))
         fractions = [f for _m, f in self.reports]

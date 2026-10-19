@@ -367,7 +367,8 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     _clear()
     d = _FormDialog(x, y, w, h, title=i18n.t("form_title"))
 
-    labels = [i18n.t(k) for k in ("form_dir", "form_channel", "form_profile", "form_tweaks", "form_theme")]
+    labels = [i18n.t(k) for k in ("form_dir", "form_channel", "form_profile", "form_tweaks", "form_theme",
+                                      "form_command")]
     ctrl_x = 2 + max(len(label) for label in labels) + 2
     ctrl_w = w - ctrl_x - 2
     row = 1
@@ -397,6 +398,8 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     theme = _Dropdown(form.themes, a.theme)
     theme_label = add_row("form_theme", theme)
     theme.hidden = theme_label.hidden = not form.theme_applies
+    firefox_command = _Checkbox("", choice=a.firefox_command)
+    add_row("form_command", firefox_command)
     row += 1
 
     search = _Entry(w - 4, "", hint=i18n.t("form_lang_search"), moves_on=True)
@@ -460,6 +463,7 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
         a.channel = channel.value
         a.profile_dir = (profile.value or None) if profile else None
         a.theme = theme.value
+        a.firefox_command = firefox_command.choice
         a.lang = langs.value or a.lang
         error = form.validate()
         if error is None:

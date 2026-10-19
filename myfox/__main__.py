@@ -10,7 +10,7 @@ import argparse
 import os
 import sys
 
-from . import __version__, i18n, refresh, reinstall, task, uninstall
+from . import __version__, command, i18n, refresh, reinstall, task, uninstall
 from .state import State
 
 
@@ -40,6 +40,9 @@ def build_parser() -> argparse.ArgumentParser:
     uninstall_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
     uninstall_parser.add_argument("--remove-profile", action="store_true",
                                   help="also delete the profile (bookmarks, history, passwords)")
+    command_parser = sub.add_parser("command", parents=[common], help=i18n.t("cmd_command"))
+    command_parser.add_argument("action", nargs="?", choices=("on", "off"))
+    command_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
     sub.add_parser("help", parents=[common], help=i18n.t("cmd_help"))
     return parser
 
@@ -91,6 +94,7 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(f"  myfox reinstall [--gui]           {i18n.t('cmd_reinstall')}")
     print(f"  myfox uninstall [--remove-profile] [--gui]\n"
           f"                                    {i18n.t('cmd_uninstall')}")
+    print(f"  myfox command [on|off] [--gui]    {i18n.t('cmd_command')}")
     print(f"  myfox help                        {i18n.t('cmd_help')}")
 
 
@@ -131,6 +135,11 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_refresh(state, force=args.force, gui=args.gui, noninteractive=noninteractive)
     if args.command == "reinstall":
         return cmd_reinstall(state, noninteractive, gui=args.gui)
+    if args.command == "command":
+        if not state.get("install_dir"):
+            _not_installed()
+            return 1
+        return command.run(state, args.action, gui=args.gui, noninteractive=noninteractive)
     if args.command == "uninstall":
         return cmd_uninstall(state, noninteractive, gui=args.gui, remove_profile=args.remove_profile)
 

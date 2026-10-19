@@ -32,6 +32,7 @@ class Answers:
     profile_dir: str | None = None  # None = create a new one; after the install, the one used
     tweaks: bool = True
     theme: str = "dark"
+    firefox_command: bool = False  # `firefox` on the command line runs this one (command.py)
     # Filled by the install: things to tell the user in the terminal once
     # the form is closed (the TUI owns the terminal while it's open).
     notes: list[str] = field(default_factory=list)
@@ -127,6 +128,7 @@ def summary(answers: Answers) -> list[str]:
     if answers.tweaks:
         rows.append((i18n.t("form_theme"), i18n.t(f"wizard_theme_{answers.theme}")))
     rows.append((i18n.t("form_lang"), answers.lang))
+    rows.append((i18n.t("form_command"), i18n.t("summary_yes" if answers.firefox_command else "summary_no")))
     width = max(len(label) for label, _value in rows)
     return [i18n.t("install_done"), *(f"  {label.ljust(width)} {value}" for label, value in rows), i18n.t("install_done_run")]
 
@@ -145,6 +147,8 @@ def simulate_install(answers: Answers, progress: Progress) -> None:
         if addons.is_plasma_session():
             stages += [("progress_tweaks_plasma", 0.6)]
     stages += [("progress_gui", 0.6), ("progress_shortcut", 0.4)]
+    if answers.firefox_command:
+        stages += [("progress_command", 0.2)]
     total = sum(seconds for _key, seconds in stages)
     done = 0.0
     for key, seconds in stages:

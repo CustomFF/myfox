@@ -68,6 +68,13 @@ python3 -m myfox.wizard --dry-run [--gui]     # ничего не ставит, 
 - [ ] букмарклеты: без нового коммита в `docs/blm_panel.css`/`icons/` ddblm не скачиваются (mtime `blm_panel.css` прежний); `ddblm_version` в state старее → строка «Букмарклеты: дата → дата», после `-y` скачаны и записаны; `--force` → заново
 - [ ] самообновление: поставить старое ядро (`MYFOX_CORE_URL=…/core-1.0.2/myfox-core.tar.gz`), затем `myfox refresh -y` → `myfox --version` новый, `core_version` в state обновлён
 
+## Команда `firefox`
+
+- [ ] установка с `--firefox-command` (или галочкой) → `~/.local/bin/firefox` ведёт на `<install>/firefox-myfox`, в сводке «Команда firefox: да»; `firefox URL` открывает вкладку в запущенном нашем Firefox
+- [ ] был свой `~/.local/bin/firefox` → предупреждение, он в `firefox.myfox-backup`; диалог `myfox command on` начинает с «Отмена»
+- [ ] `myfox command off` и `myfox uninstall` → прежний `firefox` на месте, бэкапа нет; чужой `firefox` (не наша ссылка) `off` не трогает
+- [ ] `PATH` без `~/.local/bin` / с другим `firefox` раньше → соответствующее предупреждение; `myfox command` без аргумента показывает состояние
+
 ## 4. `myfox reinstall`
 
 - [ ] TUI и `--gui`: строки Firefox/канал/каталог, «Переустановить» → прогресс → «Закрыть»

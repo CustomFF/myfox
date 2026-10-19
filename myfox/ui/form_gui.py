@@ -354,6 +354,10 @@ class _Window:
                     self.tweaks = dpg.add_checkbox(default_value=a.tweaks, callback=self._on_tweaks)
                 with self._row(i18n.t("form_theme")) as self.theme_row:
                     self.theme = _combo(self.form.themes, a.theme, lambda v: setattr(a, "theme", v))
+                with self._row(i18n.t("form_command")):
+                    self.firefox_command = dpg.add_checkbox(
+                        default_value=a.firefox_command, callback=lambda s, value: setattr(a, "firefox_command", value),
+                    )
                 dpg.add_spacer(height=px(4))
                 self.search = dpg.add_input_text(
                     hint=i18n.t("form_lang_search"), width=-1,
@@ -397,7 +401,8 @@ class _Window:
         dpg.set_primary_window("root", True)
 
     def _form_items(self) -> list[int]:
-        items = [self.dir_input, self.browse, self.channel, self.tweaks, self.theme, self.search, self.install]
+        items = [self.dir_input, self.browse, self.channel, self.tweaks, self.theme, self.firefox_command, self.search,
+                 self.install]
         return items + ([self.profile] if self.profile else [])
 
     def _show_error(self, text: str) -> None:

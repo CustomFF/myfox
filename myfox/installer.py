@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import addons, apply, desktop, firefox, gui_deps, i18n, launcher, profiles, tweaks
+from . import addons, apply, command, desktop, firefox, gui_deps, i18n, launcher, profiles, tweaks
 from . import __version__
 from .install_form import Answers, Progress
 from .state import State
@@ -41,7 +41,7 @@ def install(answers: Answers, progress: Progress) -> None:
         weights += [("tweaks", 3), ("styles", 2), ("themes", 5), ("bookmarklets", 3)]
     if plasma:
         weights += [("plasma", 3)]
-    weights += [("gui", 5), ("shortcut", 2)]
+    weights += [("gui", 5), ("shortcut", 2)] + ([("command", 1)] if answers.firefox_command else [])
     stages = Stages(progress, weights)
 
     # Firefox: an install of ours already there is reused.
@@ -99,6 +99,13 @@ def install(answers: Answers, progress: Progress) -> None:
 
     stages.report("shortcut", i18n.t("progress_shortcut"))
     desktop.write_entry(install_dir, launcher_path)
+
+    if answers.firefox_command:
+        stages.report("command", i18n.t("progress_command"))
+        # Said before it's done: afterwards a replaced `firefox` is no
+        # longer in sight.
+        answers.notes += command.check(install_dir)
+        command.enable(install_dir)
 
     state = State()
     for key, value in (

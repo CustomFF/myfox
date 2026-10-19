@@ -6,6 +6,7 @@ only picks how it looks:
   tty             picotui dialog
   no tty          plain: -y installs, otherwise the defaults and the command
   -y              no questions, defaults
+  --firefox-command  `firefox` on the command line runs this Firefox
 
 Runs from bootstrap.py's "not installed yet" branch — there's no `install`
 subcommand. For development:
@@ -24,8 +25,10 @@ from .installer import install as real_install
 from .ui import _has_tty
 
 
-def run(gui: bool = False, noninteractive: bool = False, install: Installer = real_install) -> Answers | None:
+def run(gui: bool = False, noninteractive: bool = False, install: Installer = real_install,
+        firefox_command: bool = False) -> Answers | None:
     form = InstallForm.load()
+    form.answers.firefox_command = firefox_command
     if noninteractive:
         from .ui import form_plain
 
@@ -53,10 +56,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
     parser.add_argument("-y", "--yes", action="store_true", dest="noninteractive", help="no questions, defaults")
     parser.add_argument("--dry-run", action="store_true", help="show the install's stages without installing")
+    parser.add_argument("--firefox-command", action="store_true",
+                        help="make `firefox` on the command line run this Firefox")
     args = parser.parse_args(argv)
     i18n.load()
     install = simulate_install if args.dry_run else real_install
-    answers = run(gui=args.gui, noninteractive=args.noninteractive, install=install)
+    answers = run(gui=args.gui, noninteractive=args.noninteractive, install=install,
+                  firefox_command=args.firefox_command)
     if answers:
         if "myfox.ui.picotui_base" in sys.modules:
             sys.modules["myfox.ui.picotui_base"].end_screen()

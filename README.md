@@ -12,7 +12,8 @@ curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh
 ```
 
 In a terminal this opens the install form; add `-s -- --gui` for a window instead, or `-s -- -y`
-to install with the defaults without questions:
+to install with the defaults without questions. `--firefox-command` also makes `firefox` on the
+command line run this Firefox (`-s -- -y --firefox-command`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh -s -- --gui
@@ -56,6 +57,7 @@ myfox browser [args…]                    Start the installed Firefox; argument
 myfox refresh [--force] [--gui]          Update the tweaks, themes, bookmarklets and MyFox
 myfox reinstall [--gui]                  Download Firefox again and re-apply the tweaks
 myfox uninstall [--remove-profile] [--gui]  Remove MyFox
+myfox command [on|off] [--gui]           Whether `firefox` runs this Firefox; alone: show
 myfox help                               This list
 myfox --version
 ```
@@ -70,6 +72,11 @@ what it would do and the command to run with `-y`.
   menu has «Restart» (windows and tabs come back).
 - **Reinstalling.** `myfox reinstall` replaces Firefox only once the new copy is fully downloaded;
   your profile stays as it is.
+- **The `firefox` command.** `myfox command on` (or the install form's «firefox command») links
+  `~/.local/bin/firefox` to this Firefox, so `firefox` in a terminal or a script runs it. A
+  `firefox` already there is kept and put back by `myfox command off` or on uninstall. MyFox warns
+  when `~/.local/bin` isn't in `PATH` or another `firefox` comes first; a shell alias named
+  `firefox` would still win, and an open terminal may need `hash -r`.
 - **Uninstalling.** `myfox uninstall` removes Firefox, the shortcut, the `myfox` command and
   `~/.local/share/myfox`. The profile (bookmarks, history, passwords) stays on disk unless you tick
   «also delete the profile» or pass `--remove-profile`.

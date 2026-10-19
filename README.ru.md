@@ -12,7 +12,8 @@ curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh
 ```
 
 В терминале откроется форма установки; `-s -- --gui` — окно вместо неё, `-s -- -y` — установка с
-настройками по умолчанию без вопросов:
+настройками по умолчанию без вопросов. `--firefox-command` — ещё и команда `firefox` в терминале
+будет запускать этот Firefox (`-s -- -y --firefox-command`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh -s -- --gui
@@ -55,6 +56,7 @@ myfox browser [аргументы…]                  Запустить уст
 myfox refresh [--force] [--gui]             Обновить твики, темы, букмарклеты и MyFox
 myfox reinstall [--gui]                     Скачать Firefox заново и применить твики
 myfox uninstall [--remove-profile] [--gui]  Удалить MyFox
+myfox command [on|off] [--gui]              Запускает ли `firefox` этот Firefox; без аргумента — показать
 myfox help                                  Этот список
 myfox --version
 ```
@@ -69,6 +71,11 @@ myfox --version
   меню ярлыка есть «Перезапустить» (окна и вкладки восстанавливаются).
 - **Переустановка.** `myfox reinstall` подменяет Firefox только после полной загрузки новой копии;
   профиль остаётся как есть.
+- **Команда `firefox`.** `myfox command on` (или «Команда firefox» в форме установки) ставит
+  `~/.local/bin/firefox` на этот Firefox: `firefox` в терминале и в скриптах запускает его. Уже
+  лежащий там `firefox` сохраняется и возвращается по `myfox command off` или при удалении. MyFox
+  предупреждает, если `~/.local/bin` нет в `PATH` или другой `firefox` стоит в нём раньше; алиас
+  оболочки с именем `firefox` всё равно победит, а в открытом терминале может понадобиться `hash -r`.
 - **Удаление.** `myfox uninstall` удаляет Firefox, ярлык, команду `myfox` и `~/.local/share/myfox`.
   Профиль (закладки, история, пароли) остаётся на диске, если не поставить галочку «удалить и
   профиль» или не передать `--remove-profile`.

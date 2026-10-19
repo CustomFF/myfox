@@ -37,7 +37,8 @@ myfox           ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox (sh: pytho
 ```
 
 Подкоманды `myfox` (`__main__.py`): `browser [аргументы Firefox]` (exec обёртки
-`<install>/firefox-myfox`), `refresh [--force]`, `reinstall`, `uninstall [--remove-profile]`, `help`,
+`<install>/firefox-myfox`), `refresh [--force]`, `reinstall`, `uninstall [--remove-profile]`,
+`command [on|off]`, `help`,
 `--version`. Общие флаги: `-y` (без вопросов), `--gui` (окно). Подкоманды `install` нет:
 первая установка — только из `bootstrap.py`.
 
@@ -64,7 +65,8 @@ GUI: перед первым окном `gui_deps.prepare()` открывает 
 ## Первая установка (`installer.install`)
 
 Поля формы: каталог (по умолчанию `~/.local/share/myfox/firefox`), канал, профиль (только свои
-`myfox-*` или новый), твики да/нет, оформление (только при твиках), язык Firefox (по умолчанию из
+`myfox-*` или новый), твики да/нет, оформление (только при твиках), команда `firefox` да/нет (по умолчанию нет; флаг
+мастера `--firefox-command`), язык Firefox (по умолчанию из
 `$LANG`; список — с Mozilla до показа формы, без сети форма показывает ошибку и не ставит).
 
 1. Firefox: тарбол в каталог (наш уже стоящий — переиспользуется), метка `.myfox-installed`.
@@ -76,7 +78,8 @@ GUI: перед первым окном `gui_deps.prepare()` открывает 
    `plasma-browser-integration` — заметка с командой установки в конце.
 5. Себя — в `~/.local/share/myfox/myfox`, лаунчер `bin/myfox`, симлинк `~/.local/bin/myfox`;
    dearpygui рядом; ярлык.
-6. State.
+6. Если выбрана команда `firefox` — она (см. ниже); её предупреждения — в `answers.notes`.
+7. State.
 
 После успешной установки форма (TUI и GUI) закрывается сама, а в терминал печатается сводка
 (`install_form.summary`: версия Firefox, каталог, профиль, канал, твики, оформление, язык, как
@@ -113,10 +116,25 @@ Firefox качается в соседний временный каталог �
 обрыв оставляет рабочий Firefox. Затем метка, обёртка и ярлык; при профиле с твиками — пиннинг и
 `apply.reapply_tweaks()` с сохранёнными выборами. Профиль не трогается.
 
+## Команда `firefox` (`command.py`)
+
+Симлинк `~/.local/bin/firefox` → `<install>/firefox-myfox`: не алиас оболочки, поэтому работает и в
+скриптах, и в других программах; на обёртку, поэтому ссылка уходит в уже запущенный наш Firefox.
+Включается галочкой формы, флагом `--firefox-command` или `myfox command on`, выключается
+`myfox command off`; `myfox command` без аргумента показывает, включена ли и что ей мешает.
+
+- Чужой `firefox` там (файл или ссылка не на обёртку MyFox) переименовывается в
+  `firefox.myfox-backup` и возвращается при выключении и удалении; диалог тогда начинает с «Отмена».
+  Ссылка на обёртку другой, уже удалённой установки MyFox не сохраняется.
+- Перед включением — проверка `PATH` процесса: `~/.local/bin` нет в нём, или раньше стоит каталог с
+  другим исполняемым `firefox` — предупреждение. Алиасы и функции из rc-файлов оболочки отсюда не
+  видны (исполнять чужие rc нельзя), как и кэш путей открытых оболочек (`hash -r`).
+- State не нужен: включена ли команда, видно по самой ссылке.
+
 ## Удаление (`uninstall.py`)
 
 Секция профиля и `[Install<HASH>]` убираются из `profiles.ini`/`installs.ini`; удаляются Firefox,
-ярлык, симлинк `myfox` (только если он ведёт в нашу копию) и `~/.local/share/myfox`; state
+ярлык, команда `firefox` (только наша ссылка, прежний `firefox` возвращается), симлинк `myfox` (только если он ведёт в нашу копию) и `~/.local/share/myfox`; state
 очищается. Профиль остаётся на диске (его потом найдёт новая установка), если не выбрано «удалить и
 профиль» / `--remove-profile` — и тогда удаляется только созданный MyFox (`.myfox-created`).
 Пункта «удалить» в меню ярлыка нет намеренно: его легко нажать случайно.
@@ -140,6 +158,7 @@ Firefox качается в соседний временный каталог �
 | `<install>/` | Firefox, `defaults/pref/autoconfig.js`, `myfox.cfg`, `myfox/*.js`, `.myfox-installed`, обёртка `firefox-myfox` |
 | `<profile>/` | `.myfox` (твики), `.myfox-created`, `chrome/`, `user.js`, `extensions/` |
 | `~/.local/bin/myfox` | симлинк на `~/.local/share/myfox/bin/myfox` |
+| `~/.local/bin/firefox` | при включённой команде — симлинк на `<install>/firefox-myfox`; чужой прежний — `firefox.myfox-backup` |
 | `~/.local/share/applications/firefox-myfox.desktop` | «Firefox» (описание «Firefox с твиками MyFox») с действиями «Перезапустить» (`--myfox-restart`) и «Обновить MyFox» |
 | `~/.local/state/myfox/state.json` | `install_dir`, `profile_dir`, `firefox_version`, `install_hash`, `lang`, `channel`, `theme`, `tweaks`, `core_version`, `tweaks_version`, … |
 

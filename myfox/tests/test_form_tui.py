@@ -63,14 +63,14 @@ class FormTuiTests(unittest.TestCase):
 
     def test_search_narrows_the_list_and_picks_the_match(self):
         # dir -> browse -> channel -> tweaks -> theme -> search, type, -> list -> Install
-        keys = [KEY_TAB] * 5 + [b"r", b"u", b"s", b"s"] + [KEY_TAB, KEY_TAB, KEY_ENTER]
+        keys = [KEY_TAB] * 6 + [b"r", b"u", b"s", b"s"] + [KEY_TAB, KEY_TAB, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertEqual(answers.lang, "ru")
 
     def test_enter_walks_search_list_install(self):
         # Enter in search -> list; Down moves English -> Russian; Enter -> Install; Enter presses it.
-        keys = [KEY_TAB] * 5 + [KEY_ENTER, KEY_DOWN, KEY_ENTER, KEY_ENTER]
+        keys = [KEY_TAB] * 6 + [KEY_ENTER, KEY_DOWN, KEY_ENTER, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertEqual(answers.lang, "ru")
@@ -78,17 +78,22 @@ class FormTuiTests(unittest.TestCase):
 
     def test_down_in_search_enters_the_list(self):
         # Down from search -> list (English); Down -> Russian; Enter -> Install; Enter presses it.
-        keys = [KEY_TAB] * 5 + [KEY_DOWN, KEY_DOWN, KEY_ENTER, KEY_ENTER]
+        keys = [KEY_TAB] * 6 + [KEY_DOWN, KEY_DOWN, KEY_ENTER, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertEqual(answers.lang, "ru")
 
     def test_unticking_tweaks_hides_and_skips_the_theme(self):
-        # dir -> browse -> channel -> tweaks, Space; then Tab must jump past theme to search.
-        keys = [KEY_TAB] * 3 + [b" ", KEY_TAB, KEY_TAB, KEY_TAB, KEY_ENTER]
+        # dir -> browse -> channel -> tweaks, Space; then Tab must jump past theme to the command.
+        keys = [KEY_TAB] * 3 + [b" ", KEY_TAB, b" ", KEY_TAB, KEY_TAB, KEY_TAB, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertFalse(answers.tweaks)
+        self.assertTrue(answers.firefox_command)  # the Space after one Tab ticked it, not the theme
+
+    def test_firefox_command_is_off_unless_ticked(self):
+        with _drive(TO_INSTALL + [KEY_ENTER]):
+            self.assertFalse(form_tui.run(self.form, self.install).firefox_command)
 
     def test_invalid_dir_stays_on_the_form(self):
         keys = [b"x"] + TO_INSTALL + [KEY_ENTER, KEY_ESC]  # "x" replaces the path: relative
