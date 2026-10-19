@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.20 — 2026-10-19
+
+- After `myfox refresh` installs a new MyFox, its new parts (such as what about:myfox needs) are in place at once, not only after the next refresh
+- Turning the `firefox` command off can leave the `firefox` it replaced aside instead of putting it back
+- `myfox` without arguments says what it is and how to restart the browser
+
 ## 1.1.19 — 2026-10-19
 
 - Fixes for the `firefox` command switch on the about:myfox page: it always gets an answer it understands, and its notes read cleanly
