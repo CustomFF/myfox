@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.15 — 2026-10-19
 
 - Tweaks updated while a Firefox update waits for a restart are no longer rolled back by that update
 
