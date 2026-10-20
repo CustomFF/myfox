@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.21 — 2026-10-20
+
+- «Preferences» in the shortcut's menu opens in the running Firefox instead of a new window
+- Links open in the running Firefox even from a terminal whose folder has been deleted
+
 ## 1.1.20 — 2026-10-19
 
 - After `myfox refresh` installs a new MyFox, its new parts (such as what about:myfox needs) are in place at once, not only after the next refresh
