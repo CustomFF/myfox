@@ -45,7 +45,7 @@ shortcut's menu has a "Restart" item; windows and tabs are restored.
 
 ```text
 myfox reinstall     download Firefox again; the profile is kept
-myfox command on    make the firefox command start this Firefox
+myfox command on    make the firefox shell command start this Firefox
 myfox help          the list of all commands
 ```
 

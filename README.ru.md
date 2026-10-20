@@ -45,7 +45,7 @@ Firefox обновляется сам, встроенным механизмом
 
 ```text
 myfox reinstall     повторно скачать Firefox; профиль не меняется
-myfox command on    запускать этот Firefox командой firefox
+myfox command on    запускать этот Firefox командой оболочки firefox
 myfox help          список всех команд
 ```
 
