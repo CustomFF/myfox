@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.22 — 2026-10-20
+
+- The `firefox` command is called the firefox shell command; in the install form its checkbox is «Shell integration»
+
 ## 1.1.21 — 2026-10-20
 
 - «Preferences» in the shortcut's menu opens in the running Firefox instead of a new window
