@@ -136,18 +136,14 @@ Firefox качается в соседний временный каталог �
   видны (исполнять чужие rc нельзя), как и кэш путей открытых оболочек (`hash -r`).
 - State не нужен: включена ли команда, видно по самой ссылке.
 - Для программ (страница `about:myfox` в твиках): `myfox command [on|off] --json` ничего не
-  спрашивает и печатает состояние одной строкой JSON — `on`, `link`, `target`, `replaces` (чужой
-  `firefox`, который будет сохранён), `path` (`ok` / `not_in_path` / `shadowed`), `found_first`,
-  `notes` (те же предупреждения, уже на языке пользователя), `backup` (путь к бэкапу или `null`);
-  `off --keep-backup --json` оставляет бэкап на месте; при ошибке (и когда MyFox не установлен) — `{"error": …}` и код 1; в `notes` нет разметки.
+  спрашивает и печатает состояние JSON; поля — в [Интеграция с about:myfox](https://github.com/CustomFF/myfox/wiki/Интеграция-с-about-myfox).
 
 ## Связь с браузером (`<install>/myfox.json`)
 
-Твики (`about:myfox`) управляют MyFox, запуская его команды. Где он и что умеет, они узнают из
-`<install>/myfox.json`: `launcher` (путь к `myfox`), `version` (установленного пакета) и `features`
-(сейчас `["command", "command-backup"]`; второе — поле `backup` и `--keep-backup`) — страница проверяет возможность, а не номер версии. Файл рендерится из
-`myfox/templates/myfox.json` вместе с обёрткой и ярлыком (установка, переустановка, каждый
-`refresh`), поэтому после обновления ядра в нём сразу возможности нового.
+Твики (`about:myfox`) управляют MyFox, запуская его команды; где он и что умеет, узнают из
+`<install>/myfox.json` (поля — в [Интеграция с about:myfox](https://github.com/CustomFF/myfox/wiki/Интеграция-с-about-myfox)). Файл
+рендерится из `myfox/templates/myfox.json` вместе с обёрткой и ярлыком (установка, переустановка,
+каждый `refresh`), поэтому после обновления ядра в нём сразу возможности нового.
 
 ## Удаление (`uninstall.py`)
 
@@ -170,15 +166,7 @@ Firefox качается в соседний временный каталог �
 
 ## Где что лежит
 
-| Где | Что |
-|---|---|
-| `~/.local/share/myfox/` | `myfox/` (пакет), `tweaks/`, `dearpygui/`, `bin/myfox`, по умолчанию `firefox/` |
-| `<install>/` | Firefox, `defaults/pref/autoconfig.js`, `myfox.cfg`, `myfox/*.js`, `.myfox-installed`, обёртка `firefox-myfox`, `myfox.json` |
-| `<profile>/` | `.myfox` (твики), `.myfox-created`, `chrome/`, `user.js`, `extensions/` |
-| `~/.local/bin/myfox` | симлинк на `~/.local/share/myfox/bin/myfox` |
-| `~/.local/bin/firefox` | при включённой команде — симлинк на `<install>/firefox-myfox`; чужой прежний — `firefox.myfox-backup` |
-| `~/.local/share/applications/firefox-myfox.desktop` | «Firefox» (описание «Firefox с твиками MyFox») с действиями «Перезапустить» (`--myfox-restart`) и «Обновить MyFox» |
-| `~/.local/state/myfox/state.json` | `install_dir`, `profile_dir`, `firefox_version`, `install_hash`, `lang`, `channel`, `theme`, `tweaks`, `core_version`, `tweaks_version`, … |
+См. [Файлы и каталоги](https://github.com/CustomFF/myfox/wiki/Файлы-и-каталоги) в wiki.
 
 ## Профиль-локальность
 
@@ -186,6 +174,13 @@ Firefox качается в соседний временный каталог �
 `myfox.cfg` проверяет метку первым делом. Глобального ничего не пишется (`policies.json` нет), темы
 и аддоны — в `<profile>/extensions/`. Другой профиль той же установки — обычный Firefox; удалённый
 профиль не оставляет следов MyFox.
+
+## Релиз ядра
+
+Поднять `__version__` в `myfox/__init__.py`, добавить в `CHANGELOG.md` раздел `## <версия> — <дата>`,
+закоммитить, запушить master, затем тег `core-<версия>`. Workflow `core.yml` проверяет, что все три
+совпадают, и публикует `myfox-core.tar.gz` и `changelog.json`; установленные копии получают его через
+`myfox refresh`. Локально те же файлы собирает `scripts/build-core-dist.sh [каталог]`.
 
 ## Переменные окружения для разработки
 

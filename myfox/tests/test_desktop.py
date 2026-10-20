@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -35,6 +36,22 @@ class DesktopTests(unittest.TestCase):
         self.assertIn("restart;", text.splitlines()[1])
         self.assertTrue(os.access(wrapper, os.X_OK))
         self.assertIn(f'exec "{self.install_dir / "firefox"}" "$@"', wrapper.read_text(encoding="utf-8"))
+
+    def test_wrapper_started_from_a_deleted_directory_runs_firefox_from_home(self):
+        with mock.patch("myfox.desktop._refresh_menu_cache"):
+            desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))
+        firefox = self.install_dir / "firefox"
+        out = self.root / "cwd"
+        firefox.write_text(f'#!/bin/sh\n/bin/pwd > "{out}"\n', encoding="utf-8")
+        firefox.chmod(0o755)
+        gone = self.root / "gone"
+        gone.mkdir()
+        home = self.root / "home"
+        home.mkdir()
+        script = f'cd "{gone}" && rmdir "{gone}" && exec "{self.install_dir / "firefox-myfox"}"'
+        subprocess.run(["sh", "-c", script], env={**os.environ, "HOME": str(home)},
+                       stderr=subprocess.DEVNULL, check=True)
+        self.assertEqual(out.read_text(encoding="utf-8").strip(), str(home.resolve()))
 
     def test_manifest_tells_the_browser_where_myfox_is_and_what_it_can_do(self):
         with mock.patch("myfox.desktop._refresh_menu_cache"):

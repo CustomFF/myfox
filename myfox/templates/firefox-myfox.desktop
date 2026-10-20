@@ -35,7 +35,7 @@ Name=New Private Window
 Name[ru_RU]=Новое приватное окно
 
 [Desktop Action preferences]
-Exec=@WRAPPER@ --preferences
+Exec=@WRAPPER@ about:preferences
 Icon=settings-configure-symbolic
 Name=Preferences
 Name[ru_RU]=Настройки

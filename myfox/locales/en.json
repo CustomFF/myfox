@@ -1,5 +1,5 @@
 {
-    "usage_title": "myfox — a tool to manage MyFox (Firefox bundled with myfox-tweaks, a set of interface refinements and settings): update, reinstall, start and restart, uninstall.",
+    "usage_title": "MyFox is a toolkit for installing and maintaining the official Firefox with MyFox tweaks: update, reinstall, start and restart, uninstall.",
     "usage_usage": "Usage:",
     "cmd_browser": "Launch the installed browser (extra arguments go to Firefox)",
     "cmd_restart": "Restart the browser with its windows and tabs (not running: just start it)",

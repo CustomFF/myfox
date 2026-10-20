@@ -1,116 +1,62 @@
-# MyFox — Firefox with tweaks, installed in one command
+[![Русский](https://img.shields.io/badge/%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-blue?style=flat&logo=readme&logoColor=white)](README.ru.md)
 
-> **[Русская версия](README.ru.md)**
+# MyFox
 
-MyFox installs Firefox (stable or beta) straight from Mozilla's official tarball into your home
-directory and applies the [MyFox tweaks](https://github.com/CustomFF/myfox-tweaks) to it: floating "card"
-tabs, rounded corners, a reworked sidebar with Downloads and Extensions panels, dark and light
-themes. No root, no packages, no pip.
+MyFox is a toolkit for installing and maintaining the official Firefox with
+[MyFox tweaks](https://github.com/CustomFF/myfox-tweaks).
+
+## Requirements
+
+- Linux, x86_64 or aarch64
+- Python 3.8 or newer
+- curl
+
+## Installing
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh
 ```
 
-In a terminal this opens the install form; add `-s -- --gui` for a window instead, or `-s -- -y`
-to install with the defaults without questions. `--firefox-command` also makes `firefox` on the
-command line run this Firefox (`-s -- -y --firefox-command`):
+Install modes:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh -s -- --gui
-```
+- in the terminal (the default) — a text-based form;
+- in a window — `sh -s -- --gui`;
+- automatic — `sh -s -- -y`: the defaults, no questions.
 
-From a clone, the same thing with `make`:
+The install is controlled by flags passed after `sh -s --`. All flags are described in the
+[documentation](https://github.com/CustomFF/myfox/wiki).
 
-```bash
-git clone https://github.com/CustomFF/myfox.git && cd myfox
-make install                    # the form in the terminal; `make install gui` for a window
-MYFOX_INSTALL=AUTO make install # the defaults, no questions
-```
+Firefox is installed into your home directory (by default ~/.local/share/myfox/firefox) with its own
+profile. No root is needed; a system-wide Firefox is not affected.
 
-`make refresh`, `make reinstall` and `make uninstall` (each with an optional `gui`) just run the
-installed `myfox` command below.
+After the install, the application menu has a Firefox shortcut and ~/.local/bin has the `myfox`
+command (the directory must be in PATH).
 
-## Requirements
+## Updating
 
-- Linux, x86_64 or aarch64
-- Python 3.8 or newer, `curl`
-- For the window (`--gui`): a graphical session; the GUI library is downloaded by MyFox itself
+Firefox updates itself through Mozilla's built-in updater, not through the distribution's
+package manager. The tweaks, the themes and MyFox are updated with `myfox refresh` or the
+"Update MyFox" item in the shortcut's context menu.
 
-## What you get
+Updated tweaks take effect after Firefox restarts. `myfox refresh` offers a restart, and the
+shortcut's menu has a "Restart" item; windows and tabs are restored.
 
-- **Firefox** in `~/.local/share/myfox/firefox` (or a directory you choose), in its own profile,
-  with the shortcut **«Firefox»** («Firefox with the MyFox tweaks») — it never clashes with a
-  system Firefox.
-- **The tweaks** in that profile only. Any other profile is stock Firefox; delete the MyFox profile
-  and nothing of MyFox is left in it. Nothing is written install-wide (no policies).
-- **Both themes**, dark and light; the one you picked is turned on at first start, once — your later
-  choice in Firefox is never overwritten.
-- **KDE Plasma integration** under a Plasma session.
-- **Bookmarklet styling** from [ddblm](https://github.com/CustomFF/ddblm); the «Add bookmarklets»
-  bookmark on the bookmarks toolbar opens the gallery.
-- **The `myfox` command** in `~/.local/bin` (make sure it's on your `PATH`).
-
-## The `myfox` command
+## Other commands
 
 ```text
-myfox browser [args…]                    Start the installed Firefox; arguments go to Firefox
-myfox browser --myfox-restart            Restart it with its windows and tabs (not running: start it)
-myfox refresh [--force] [--gui]          Update the tweaks, themes, bookmarklets and MyFox
-myfox reinstall [--gui]                  Download Firefox again and re-apply the tweaks
-myfox uninstall [--remove-profile] [--gui]  Remove MyFox
-myfox command [on|off] [--gui]           Whether `firefox` runs this Firefox; alone: show
-myfox help                               This list
-myfox --version
+myfox reinstall     download Firefox again; the profile is kept
+myfox command on    make the firefox command start this Firefox
+myfox help          the list of all commands
 ```
 
-Every command shows what it is about to do and asks first — in the terminal, or in a window with
-`--gui`; `-y` skips the question. Without a terminal (cron, a script) nothing is asked: MyFox shows
-what it would do and the command to run with `-y`.
-
-- **Updating.** Firefox updates itself. `myfox refresh` updates the tweaks, the themes, the
-  bookmarklet styling and MyFox and shows what's new; the shortcut's context menu has «Update MyFox»
-  too. New tweaks apply once Firefox restarts: `refresh` offers to restart it, and the shortcut's
-  menu has «Restart» (windows and tabs come back).
-- **Reinstalling.** `myfox reinstall` replaces Firefox only once the new copy is fully downloaded;
-  your profile stays as it is.
-- **The `firefox` command.** `myfox command on` (or the install form's «firefox command») links
-  `~/.local/bin/firefox` to this Firefox, so `firefox` in a terminal or a script runs it. A
-  `firefox` already there is kept and put back by `myfox command off` (or left aside with
-  `--keep-backup`) or on uninstall. MyFox warns
-  when `~/.local/bin` isn't in `PATH` or another `firefox` comes first; a shell alias named
-  `firefox` would still win, and an open terminal may need `hash -r`.
-- **Uninstalling.** `myfox uninstall` removes Firefox, the shortcut, the `myfox` command and
-  `~/.local/share/myfox`. The profile (bookmarks, history, passwords) stays on disk unless you tick
-  «also delete the profile» or pass `--remove-profile`.
-
-None of these run while Firefox from this install is open.
-
-## Applying the tweaks by hand
-
-The tweaks also work without MyFox, including on a Firefox you already have — see
-[CustomFF/myfox-tweaks](https://github.com/CustomFF/myfox-tweaks#apply-by-hand).
-
-## Development
+## Uninstalling
 
 ```bash
-python3 -m unittest discover -t . -s myfox/tests -p "test_*.py" < /dev/null   # tests
-python3 -m myfox.wizard --dry-run [--gui]                                     # the install form, installs nothing
+myfox uninstall
 ```
 
-Never run a real install against your own `$HOME` — use the sandbox, which redirects `$HOME` and
-every `$XDG_*` directory:
+Removes Firefox, the shortcut, the `myfox` command and ~/.local/share/myfox. The profile
+(bookmarks, history, passwords) is kept; to delete it too, tick "Also delete the profile" in the
+dialog.
 
-```bash
-R=$PWD
-scratch/sandbox.sh /tmp/mf --fresh -- bash -c "cd /tmp && cat $R/get.sh | \
-    MYFOX_BOOTSTRAP_URL=file://$R/bootstrap.py MYFOX_CORE_DIR=$R sh -s -- -y"
-```
-
-Manual checklist: [tests/README.md](tests/README.md). How it works: [docs/logic.md](docs/logic.md).
-
-**Releasing MyFox:** bump `__version__` in `myfox/__init__.py`, add a `## <version> — <date>`
-section to `CHANGELOG.md`, commit, push, then push the tag `core-<version>`. The `core.yml` workflow
-checks that the three agree and publishes `myfox-core.tar.gz` and `changelog.json`; installed copies
-pick it up with `myfox refresh`.
-
-License: [MIT](LICENSE) © DayDve.
+License: [MIT](LICENSE).

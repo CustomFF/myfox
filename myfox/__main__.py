@@ -10,9 +10,12 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 from . import __version__, command, i18n, refresh, reinstall, task, uninstall
 from .state import State
+
+LOGO = Path(__file__).resolve().parent / "ui" / "assets" / "logo.txt"
 
 
 def _common_parser() -> argparse.ArgumentParser:
@@ -124,6 +127,10 @@ def main(argv: list[str] | None = None) -> int:
     # rewrite the files it renders (refresh.sync_from_new_core).
     if argv == [refresh.SYNC_COMMAND]:
         refresh.sync_shortcut(state)
+        return 0
+    # Unlisted on purpose.
+    if argv == ["why"]:
+        print(LOGO.read_text(encoding="utf-8"), end="")
         return 0
 
     parser = build_parser()

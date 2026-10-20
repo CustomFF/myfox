@@ -333,5 +333,16 @@ class CommandCliTests(IsolatedStateCase):
         self.assertEqual((rc, json.loads(out)), (1, {"error": i18n.t("err_not_installed")}))
 
 
+
+class WhyTests(IsolatedStateCase):
+    def test_prints_the_logo_without_being_installed(self):
+        rc, out = _run(["why"])
+        self.assertEqual((rc, out), (0, cli.LOGO.read_text(encoding="utf-8")))
+
+    def test_is_not_in_the_help(self):
+        _rc, out = _run(["help"])
+        self.assertNotIn("why", out)
+
+
 if __name__ == "__main__":
     unittest.main()

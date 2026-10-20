@@ -1,4 +1,7 @@
 #!/bin/sh
 export MOZ_APP_LAUNCHER="@WRAPPER@"
 export MOZ_APP_REMOTINGNAME="firefox-myfox"
+# From a deleted directory Firefox can't hand the URL to the running one
+# and falls over the locked profile instead. The builtin pwd trusts $PWD.
+env pwd -P >/dev/null 2>&1 || cd "$HOME" || :
 exec "@FIREFOX@" "$@"
