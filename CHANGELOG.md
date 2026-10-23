@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.25 — 2026-10-23
+
+- The install form has a «DNS over HTTPS» checkbox (on by default, with the tweaks); unticked, or with `--no-doh`, the tweaks leave DNS over HTTPS off in the new profile
+
 ## 1.1.24 — 2026-10-23
 
 - The install no longer leaves the cache of Firefox's throwaway first-run profile and an empty downloads folder behind
