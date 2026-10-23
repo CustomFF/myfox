@@ -270,6 +270,20 @@ def _store_profile_dirs(store_dir: Path) -> set[str]:
     return {d.name for d in store_dir.iterdir() if d.is_dir() and (d / "prefs.js").is_file()}
 
 
+def _cache_store() -> Path:
+    """Firefox keeps a profile's cache in <this>/<the profile's dir name>."""
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "mozilla" / "firefox"
+
+
+def _missing_top(path: Path) -> Path | None:
+    top = None
+    for p in (path, *path.parents):
+        if p.exists():
+            break
+        top = p
+    return top
+
+
 def _purge_headless_strays(store_dir: Path | None, ini: Path | None, our_dir: Path, before_names: set[str]) -> None:
     if store_dir is None or not store_dir.is_dir():
         return
@@ -282,6 +296,29 @@ def _purge_headless_strays(store_dir: Path | None, ini: Path | None, our_dir: Pa
             if entry:
                 remove_ini_section(ini, entry.section)
         shutil.rmtree(abs_path, ignore_errors=True)
+        shutil.rmtree(_cache_store() / name, ignore_errors=True)
+
+
+def _remove_first_run_dirs(home_before: set[str], cache_top: Path | None) -> None:
+    """A first start also makes the cache directories and the downloads
+    folder; those the headless pass made go, if left empty."""
+    if cache_top is not None:
+        p = _cache_store()
+        while True:
+            try:
+                p.rmdir()
+            except OSError:
+                break
+            if p == cache_top:
+                break
+            p = p.parent
+    home = Path.home()
+    if not home.is_dir():
+        return
+    for name in set(os.listdir(home)) - home_before:
+        p = home / name
+        if p.is_dir() and not p.is_symlink() and not any(p.iterdir()):
+            p.rmdir()
 
 
 def headless_once(install_dir: Path, our_profile: Path) -> str | None:
@@ -301,6 +338,8 @@ def headless_once(install_dir: Path, our_profile: Path) -> str | None:
 
     store_dir = ini.parent if ini else (search_dirs()[0] if search_dirs() else None)
     before_names = _store_profile_dirs(store_dir) if store_dir else set()
+    home_before = set(os.listdir(Path.home())) if Path.home().is_dir() else set()
+    cache_top = _missing_top(_cache_store())
 
     found_hash: str | None = None
     for _attempt in range(2):
@@ -324,6 +363,7 @@ def headless_once(install_dir: Path, our_profile: Path) -> str | None:
 
     if store_dir:
         _purge_headless_strays(store_dir, ini, our_profile, before_names)
+    _remove_first_run_dirs(home_before, cache_top)
     return found_hash
 
 
@@ -345,7 +385,8 @@ def install_hash_fresh(install_dir: Path) -> str | None:
         tmp = Path(tmp_home)
         shot = tmp / ".myfox-shot.png"
         env = _headless_env()
-        env.update(HOME=str(tmp), XDG_CONFIG_HOME=str(tmp / ".config"), XDG_DATA_HOME=str(tmp / ".local" / "share"))
+        env.update(HOME=str(tmp), XDG_CONFIG_HOME=str(tmp / ".config"), XDG_DATA_HOME=str(tmp / ".local" / "share"),
+                   XDG_CACHE_HOME=str(tmp / ".cache"))
         try:
             subprocess.run(
                 [str(binary), "--headless", "--screenshot", str(shot), "about:blank"],

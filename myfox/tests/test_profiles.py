@@ -251,6 +251,58 @@ class PinInstallTests(IsolatedHomeCase):
         self.assertIsNone(result)  # no hash was ever written, by design of this fake
         self.assertFalse((store / "abcd1234.default-release").exists())
 
+    def test_headless_once_removes_what_the_first_start_left_outside_the_store(self):
+        store = self._make_store_with_ini()
+        install_dir = self.home / "install"
+        install_dir.mkdir()
+        binary = install_dir / "firefox"
+        binary.write_text("#!/bin/sh\n", encoding="utf-8")
+        binary.chmod(0o755)
+        our_profile = store / "myfox-1"
+        our_profile.mkdir()
+        (self.home / "Music").mkdir()  # empty, but there before
+        cache = self.home / ".cache" / "mozilla" / "firefox"
+
+        def fake_run(*args, **kwargs):
+            stray = store / "abcd1234.default-release"
+            stray.mkdir()
+            (stray / "prefs.js").write_text("", encoding="utf-8")
+            (cache / "abcd1234.default-release" / "cache2").mkdir(parents=True)
+            (self.home / "Downloads").mkdir(exist_ok=True)
+            return mock.Mock(returncode=0)
+
+        with mock.patch("subprocess.run", side_effect=fake_run):
+            profiles.headless_once(install_dir, our_profile)
+
+        self.assertFalse((self.home / ".cache").exists())
+        self.assertFalse((self.home / "Downloads").exists())
+        self.assertTrue((self.home / "Music").is_dir())
+
+    def test_headless_once_keeps_a_cache_store_and_folders_that_were_in_use(self):
+        store = self._make_store_with_ini()
+        install_dir = self.home / "install"
+        install_dir.mkdir()
+        binary = install_dir / "firefox"
+        binary.write_text("#!/bin/sh\n", encoding="utf-8")
+        binary.chmod(0o755)
+        cache = self.home / ".cache" / "mozilla" / "firefox"
+        (cache / "other.default").mkdir(parents=True)
+
+        def fake_run(*args, **kwargs):
+            stray = store / "abcd1234.default-release"
+            stray.mkdir()
+            (stray / "prefs.js").write_text("", encoding="utf-8")
+            (cache / "abcd1234.default-release").mkdir()
+            (self.home / "Downloads").mkdir(exist_ok=True)
+            (self.home / "Downloads" / "file").write_text("", encoding="utf-8")
+            return mock.Mock(returncode=0)
+
+        with mock.patch("subprocess.run", side_effect=fake_run):
+            profiles.headless_once(install_dir, store / "myfox-1")
+
+        self.assertEqual([p.name for p in cache.iterdir()], ["other.default"])
+        self.assertTrue((self.home / "Downloads" / "file").is_file())
+
     def test_headless_once_returns_none_without_an_executable_binary(self):
         store = self._make_store_with_ini()
         install_dir = self.home / "install"
