@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.23 — 2026-10-23
+
+- The install can be cancelled while it runs: Cancel, Esc, Ctrl+C, closing the window or the terminal; what it has created is removed
+- A failed install removes what it has created, so it can be started again right away
+- `myfox reinstall` can be cancelled until the new Firefox is swapped in
+- While the network doesn't answer, the progress line counts the seconds; after 20 seconds the download stops with an error
+- In the install form the shell command's checkbox is «Shell command»
+
 ## 1.1.22 — 2026-10-20
 
 - The `firefox` command is called the firefox shell command; in the install form its checkbox is «Shell integration»
