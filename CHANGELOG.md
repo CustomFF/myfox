@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.24 — 2026-10-23
+
+- The install no longer leaves the cache of Firefox's throwaway first-run profile and an empty downloads folder behind
+
 ## 1.1.23 — 2026-10-23
 
 - The install can be cancelled while it runs: Cancel, Esc, Ctrl+C, closing the window or the terminal; what it has created is removed
