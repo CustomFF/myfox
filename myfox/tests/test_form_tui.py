@@ -23,6 +23,7 @@ from picotui.defs import KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_ESC, KEY_LEFT, 
 LANGS = [Lang("en-US", "English (US)", "English (US)"), Lang("ru", "Russian", "Русский")]
 TO_INSTALL = [KEY_SHIFT_TAB, KEY_SHIFT_TAB]  # from the first field, backwards past Cancel
 TO_INSTALL_FROM_BROWSE = [KEY_SHIFT_TAB] * 3  # Browse -> dir -> Cancel -> Install
+TO_INSTALL_FROM_DOH = [KEY_TAB] * 4  # DoH -> command -> search -> list -> Install
 
 
 @contextlib.contextmanager
@@ -73,15 +74,15 @@ class FormTuiTests(unittest.TestCase):
         self.assertEqual(self.installed, [])
 
     def test_search_narrows_the_list_and_picks_the_match(self):
-        # dir -> browse -> channel -> tweaks -> theme -> search, type, -> list -> Install
-        keys = [KEY_TAB] * 6 + [b"r", b"u", b"s", b"s"] + [KEY_TAB, KEY_TAB, KEY_ENTER]
+        # dir -> browse -> channel -> tweaks -> theme -> DoH -> command -> search, type, -> list -> Install
+        keys = [KEY_TAB] * 7 + [b"r", b"u", b"s", b"s"] + [KEY_TAB, KEY_TAB, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertEqual(answers.lang, "ru")
 
     def test_enter_walks_search_list_install(self):
         # Enter in search -> list; Down moves English -> Russian; Enter -> Install; Enter presses it.
-        keys = [KEY_TAB] * 6 + [KEY_ENTER, KEY_DOWN, KEY_ENTER, KEY_ENTER]
+        keys = [KEY_TAB] * 7 + [KEY_ENTER, KEY_DOWN, KEY_ENTER, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertEqual(answers.lang, "ru")
@@ -89,18 +90,25 @@ class FormTuiTests(unittest.TestCase):
 
     def test_down_in_search_enters_the_list(self):
         # Down from search -> list (English); Down -> Russian; Enter -> Install; Enter presses it.
-        keys = [KEY_TAB] * 6 + [KEY_DOWN, KEY_DOWN, KEY_ENTER, KEY_ENTER]
+        keys = [KEY_TAB] * 7 + [KEY_DOWN, KEY_DOWN, KEY_ENTER, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertEqual(answers.lang, "ru")
 
     def test_unticking_tweaks_hides_and_skips_the_theme(self):
-        # dir -> browse -> channel -> tweaks, Space; then Tab must jump past theme to the command.
+        # dir -> browse -> channel -> tweaks, Space; then Tab must jump past theme and DoH to the command.
         keys = [KEY_TAB] * 3 + [b" ", KEY_TAB, b" ", KEY_TAB, KEY_TAB, KEY_TAB, KEY_ENTER]
         with _drive(keys):
             answers = form_tui.run(self.form, self.install)
         self.assertFalse(answers.tweaks)
         self.assertTrue(answers.firefox_command)  # the Space after one Tab ticked it, not the theme
+
+    def test_doh_is_on_unless_unticked(self):
+        with _drive(TO_INSTALL + [KEY_ENTER]):
+            self.assertTrue(form_tui.run(self.form, self.install).doh)
+        # dir -> browse -> channel -> tweaks -> theme -> DoH, Space
+        with _drive([KEY_TAB] * 5 + [b" "] + TO_INSTALL_FROM_DOH + [KEY_ENTER]):
+            self.assertFalse(form_tui.run(self.form, self.install).doh)
 
     def test_firefox_command_is_off_unless_ticked(self):
         with _drive(TO_INSTALL + [KEY_ENTER]):

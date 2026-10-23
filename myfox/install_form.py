@@ -86,6 +86,7 @@ class Answers:
     profile_dir: str | None = None  # None = create a new one; after the install, the one used
     tweaks: bool = True
     theme: str = "dark"
+    doh: bool = True  # off: the tweaks leave DNS over HTTPS alone (myfox.doh)
     firefox_command: bool = False  # `firefox` on the command line runs this one (command.py)
     # Filled by the install: things to tell the user in the terminal once
     # the form is closed (the TUI owns the terminal while it's open).
@@ -155,6 +156,10 @@ class InstallForm:
     def theme_applies(self) -> bool:
         return self.answers.tweaks
 
+    @property
+    def doh_applies(self) -> bool:
+        return self.answers.tweaks
+
     def filter_langs(self, query: str) -> list[Lang]:
         return [lang for lang in self.langs if lang.matches(query)]
 
@@ -181,6 +186,7 @@ def summary(answers: Answers) -> list[str]:
     ]
     if answers.tweaks:
         rows.append((i18n.t("form_theme"), i18n.t(f"wizard_theme_{answers.theme}")))
+        rows.append((i18n.t("form_doh"), i18n.t("summary_yes" if answers.doh else "summary_no")))
     rows.append((i18n.t("form_lang"), answers.lang))
     rows.append((i18n.t("form_command"), i18n.t("summary_yes" if answers.firefox_command else "summary_no")))
     width = max(len(label) for label, _value in rows)

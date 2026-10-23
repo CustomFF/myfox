@@ -74,17 +74,27 @@ def apply_chrome(profile_dir: Path) -> bool:
     return backed_up
 
 
-def apply_theme_pref(profile_dir: Path, theme: str) -> None:
-    """Pre-seeds myfox.theme into user.js — a fresh profile hasn't run
-    Firefox yet to have a prefs.js of its own. Idempotent: replaces any
-    existing myfox.theme line instead of piling up duplicates on repeat
-    installs against the same profile."""
+def _user_pref(profile_dir: Path, name: str, value: str) -> None:
+    """Pre-seeds a pref into user.js — a fresh profile hasn't run Firefox
+    yet to have a prefs.js of its own. Idempotent: replaces an existing
+    line for the pref instead of piling up duplicates on repeat installs
+    against the same profile. `value` is the JavaScript literal."""
     f = profile_dir / "user.js"
     lines = []
     if f.is_file():
-        lines = [ln for ln in f.read_text(encoding="utf-8").splitlines() if not ln.startswith('user_pref("myfox.theme"')]
-    lines.append(f'user_pref("myfox.theme", "{theme}");')
+        lines = [ln for ln in f.read_text(encoding="utf-8").splitlines() if not ln.startswith(f'user_pref("{name}"')]
+    lines.append(f'user_pref("{name}", {value});')
     f.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def apply_theme_pref(profile_dir: Path, theme: str) -> None:
+    _user_pref(profile_dir, "myfox.theme", f'"{theme}"')
+
+
+def apply_doh_off(profile_dir: Path) -> None:
+    """The tweaks turn on DNS over HTTPS at a profile's first start, unless
+    this says not to."""
+    _user_pref(profile_dir, "myfox.doh", "false")
 
 
 # What MyFox takes from ddblm; its version is the newest commit touching them.

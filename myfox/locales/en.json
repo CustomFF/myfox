@@ -33,6 +33,7 @@
     "form_channel": "Channel:",
     "form_tweaks": "MyFox tweaks:",
     "form_theme": "Theme:",
+    "form_doh": "DNS over HTTPS:",
     "form_lang": "Firefox language:",
     "summary_yes": "yes",
     "summary_no": "no",

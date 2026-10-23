@@ -60,8 +60,15 @@ class _Checkbox(WCheckbox):
     """WCheckbox draws with whatever attributes were left active (and only
     a foreground when focused); this always paints on the box background."""
 
+    hidden = False
+
     def redraw(self):
         self.goto(self.x, self.y)
+        if self.hidden:
+            self.attr_color(*BOX_BG)
+            self.wr(" " * (3 + (len(self.t) + 1 if self.t else 0)))
+            self.attr_reset()
+            return
         self.attr_color(*(FOCUS_BG if self.focus else BOX_BG))
         self.wr("[x]" if self.choice else "[ ]")
         self.attr_color(*BOX_BG)
@@ -443,7 +450,7 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     d = _FormDialog(x, y, w, h, title=i18n.t("form_title"))
 
     labels = [i18n.t(k) for k in ("form_dir", "form_channel", "form_profile", "form_tweaks", "form_theme",
-                                      "form_command")]
+                                      "form_doh", "form_command")]
     ctrl_x = 2 + max(len(label) for label in labels) + 2
     ctrl_w = w - ctrl_x - 2
     row = 1
@@ -473,6 +480,9 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     theme = _Dropdown(form.themes, a.theme)
     theme_label = add_row("form_theme", theme)
     theme.hidden = theme_label.hidden = not form.theme_applies
+    doh = _Checkbox("", choice=a.doh)
+    doh_label = add_row("form_doh", doh)
+    doh.hidden = doh_label.hidden = not form.doh_applies
     firefox_command = _Checkbox("", choice=a.firefox_command)
     add_row("form_command", firefox_command)
     row += 1
@@ -513,8 +523,9 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     def on_tweaks(widget) -> None:
         a.tweaks = widget.choice
         theme.hidden = theme_label.hidden = not form.theme_applies
-        theme.redraw()
-        theme_label.redraw()
+        doh.hidden = doh_label.hidden = not form.doh_applies
+        for widget in (theme, theme_label, doh, doh_label):
+            widget.redraw()
 
     def on_browse(widget) -> None:
         picked = pick_dir(dir_entry.get(), i18n.t("form_browse_title"))
@@ -538,6 +549,7 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
         a.channel = channel.value
         a.profile_dir = (profile.value or None) if profile else None
         a.theme = theme.value
+        a.doh = doh.choice
         a.firefox_command = firefox_command.choice
         a.lang = langs.value or a.lang
         error = form.validate()

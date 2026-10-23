@@ -131,6 +131,17 @@ class ApplyChromeTests(_TweaksCase):
             self.assertFalse(stray.exists())
 
 
+class ApplyDohOffTests(unittest.TestCase):
+    def test_writes_the_opt_out_next_to_the_theme_and_survives_a_theme_rewrite(self):
+        with tempfile.TemporaryDirectory() as d:
+            profile_dir = Path(d)
+            apply.apply_theme_pref(profile_dir, "dark")
+            apply.apply_doh_off(profile_dir)
+            apply.apply_theme_pref(profile_dir, "light")
+            lines = (profile_dir / "user.js").read_text(encoding="utf-8").splitlines()
+        self.assertEqual(sorted(lines), ['user_pref("myfox.doh", false);', 'user_pref("myfox.theme", "light");'])
+
+
 class ApplyThemePrefTests(unittest.TestCase):
     def test_writes_a_fresh_user_js(self):
         with tempfile.TemporaryDirectory() as d:

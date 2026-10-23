@@ -7,6 +7,7 @@ only picks how it looks:
   no tty          plain: -y installs, otherwise the defaults and the command
   -y              no questions, defaults
   --firefox-command  `firefox` on the command line runs this Firefox
+  --no-doh        the tweaks don't turn on DNS over HTTPS
 
 Runs from bootstrap.py's "not installed yet" branch — there's no `install`
 subcommand. For development:
@@ -26,9 +27,10 @@ from .ui import _has_tty
 
 
 def run(gui: bool = False, noninteractive: bool = False, install: Installer = real_install,
-        firefox_command: bool = False) -> Answers | None:
+        firefox_command: bool = False, doh: bool = True) -> Answers | None:
     form = InstallForm.load()
     form.answers.firefox_command = firefox_command
+    form.answers.doh = doh
     if noninteractive:
         from .ui import form_plain
 
@@ -58,11 +60,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="show the install's stages without installing")
     parser.add_argument("--firefox-command", action="store_true",
                         help="make `firefox` on the command line run this Firefox")
+    parser.add_argument("--no-doh", action="store_false", dest="doh",
+                        help="the tweaks don't turn on DNS over HTTPS")
     args = parser.parse_args(argv)
     i18n.load()
     install = simulate_install if args.dry_run else real_install
     answers = run(gui=args.gui, noninteractive=args.noninteractive, install=install,
-                  firefox_command=args.firefox_command)
+                  firefox_command=args.firefox_command, doh=args.doh)
     if answers:
         if "myfox.ui.picotui_base" in sys.modules:
             sys.modules["myfox.ui.picotui_base"].end_screen()

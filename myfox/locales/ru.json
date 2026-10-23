@@ -33,6 +33,7 @@
     "form_channel": "Канал:",
     "form_tweaks": "Твики MyFox:",
     "form_theme": "Оформление:",
+    "form_doh": "DNS через HTTPS:",
     "form_lang": "Язык Firefox:",
     "summary_yes": "да",
     "summary_no": "нет",

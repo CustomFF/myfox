@@ -25,6 +25,8 @@ def _summary(form: InstallForm) -> None:
     rows.append((i18n.t("form_tweaks"), i18n.t("summary_yes" if a.tweaks else "summary_no")))
     if form.theme_applies:
         rows.append((i18n.t("form_theme"), _label(form.themes, a.theme)))
+    if form.doh_applies:
+        rows.append((i18n.t("form_doh"), i18n.t("summary_yes" if a.doh else "summary_no")))
     lang = next((lang for lang in form.langs if lang.code == a.lang), None)
     rows.append((i18n.t("form_lang"), lang.label() if lang else a.lang))
     rows.append((i18n.t("form_command"), i18n.t("summary_yes" if a.firefox_command else "summary_no")))

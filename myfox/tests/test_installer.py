@@ -67,6 +67,13 @@ class InstallTests(IsolatedStateCase):
         # What the summary shows.
         self.assertEqual((answers.profile_dir, answers.firefox_version), (str(self.profile_dir), "152.0"))
 
+    def test_doh_off_is_written_only_when_unticked(self):
+        with mock.patch("myfox.apply.apply_doh_off") as off:
+            self._install(Answers(install_dir=str(self.install_dir)))
+            off.assert_not_called()
+            self._install(Answers(install_dir=str(self.install_dir), doh=False))
+            off.assert_called_once_with(self.profile_dir)
+
     def test_firefox_command_when_asked(self):
         with mock.patch("myfox.command.enable") as enable, \
              mock.patch("myfox.command.check", return_value=["note"]):

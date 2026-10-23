@@ -358,6 +358,8 @@ class _Window:
                     self.tweaks = dpg.add_checkbox(default_value=a.tweaks, callback=self._on_tweaks)
                 with self._row(i18n.t("form_theme")) as self.theme_row:
                     self.theme = _combo(self.form.themes, a.theme, lambda v: setattr(a, "theme", v))
+                with self._row(i18n.t("form_doh")) as self.doh_row:
+                    self.doh = dpg.add_checkbox(default_value=a.doh, callback=lambda s, value: setattr(a, "doh", value))
                 with self._row(i18n.t("form_command")):
                     self.firefox_command = dpg.add_checkbox(
                         default_value=a.firefox_command, callback=lambda s, value: setattr(a, "firefox_command", value),
@@ -389,6 +391,7 @@ class _Window:
         for item in (self.dir_input, self.search):
             dpg.bind_item_theme(item, self._idle_input)
         dpg.configure_item(self.theme_row, show=self.form.theme_applies)
+        dpg.configure_item(self.doh_row, show=self.form.doh_applies)
         if self.form.error:
             self._show_error(self.form.error)
             dpg.configure_item(self.install, enabled=False)
@@ -405,8 +408,8 @@ class _Window:
         dpg.set_primary_window("root", True)
 
     def _form_items(self) -> list[int]:
-        items = [self.dir_input, self.browse, self.channel, self.tweaks, self.theme, self.firefox_command, self.search,
-                 self.install]
+        items = [self.dir_input, self.browse, self.channel, self.tweaks, self.theme, self.doh, self.firefox_command,
+                 self.search, self.install]
         return items + ([self.profile] if self.profile else [])
 
     def _show_error(self, text: str) -> None:
@@ -416,6 +419,7 @@ class _Window:
     def _on_tweaks(self, sender, checked: bool) -> None:
         self.answers.tweaks = checked
         dpg.configure_item(self.theme_row, show=self.form.theme_applies)
+        dpg.configure_item(self.doh_row, show=self.form.doh_applies)
 
     def _on_browse(self) -> None:
         if self._picking:

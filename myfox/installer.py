@@ -158,6 +158,8 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
         apply.apply_autoconfig(install_dir)
         apply.apply_chrome(profile_dir)
         apply.apply_theme_pref(profile_dir, answers.theme)
+        if not answers.doh:
+            apply.apply_doh_off(profile_dir)
 
         stages.report("themes", i18n.t("progress_tweaks_themes_download"))
         themes_version, _missing = addons.fetch_themes(profile_dir, local_dir=os.environ.get("MYFOX_TWEAKS_LOCAL"))
