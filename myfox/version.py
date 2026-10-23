@@ -27,7 +27,7 @@ TWEAKS_TAG_RE = re.compile(r"^\d+\.\d+$")
 def _fetch_releases(repo: str = GITHUB_REPO) -> list[dict]:
     url = f"https://api.github.com/repos/{repo}/releases?per_page=100"
     req = net.request(url, headers={"Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with urllib.request.urlopen(req, timeout=net.TIMEOUT) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 

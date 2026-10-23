@@ -133,7 +133,7 @@ def dir_claim_state(path: Path) -> str:
 def fetch_lang_names() -> dict[str, tuple[str, str]]:
     """code -> (English name, native name), straight from Mozilla's own
     JSON — no scraping. Native falls back to English if ever missing."""
-    with urllib.request.urlopen(net.request(LANGUAGES_URL), timeout=30) as resp:
+    with urllib.request.urlopen(net.request(LANGUAGES_URL), timeout=net.TIMEOUT) as resp:
         raw = json.loads(resp.read().decode("utf-8"))
     return {code: (info["English"], info.get("native") or info["English"]) for code, info in raw.items()}
 
@@ -156,34 +156,25 @@ def resolve_download(arch: str, lang: str, channel: str) -> tuple[str, str]:
     """Follows the download.mozilla.org redirect without downloading the
     tarball — gives the real file URL and the version parsed out of it."""
     req = net.request(_download_url(arch, lang, channel), method="HEAD")
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=net.TIMEOUT) as resp:
         effective_url = resp.geturl()
     m = re.search(r"firefox-([^/]+)\.tar", effective_url)
     version = m.group(1) if m else "unknown"
     return effective_url, version
 
 
-def download_and_extract(url: str, install_dir: Path, on_download=None, on_extract=None) -> None:
+def download_and_extract(url: str, install_dir: Path, on_download=None, on_extract=None, on_wait=None) -> None:
     """Streams the tarball to a temp file, then extracts it with
     --strip-components=1 semantics (Mozilla's tarball has one top-level
-    "firefox/" directory). on_download(bytes_done, bytes_total or None) and
+    "firefox/" directory). on_download(bytes_done, bytes_total or None),
+    on_wait(seconds the network has been silent) and
     on_extract(archive_bytes_done, archive_bytes_total) report progress if
-    given."""
+    given; any of them may raise to stop."""
     install_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(suffix=".tar.xz", delete=False) as tmp:
         tmp_path = Path(tmp.name)
         try:
-            with urllib.request.urlopen(net.request(url), timeout=60) as resp:
-                total = int(resp.headers.get("Content-Length") or 0) or None
-                written = 0
-                while True:
-                    chunk = resp.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    tmp.write(chunk)
-                    written += len(chunk)
-                    if on_download:
-                        on_download(written, total)
+            net.download(url, tmp, on_data=on_download, on_wait=on_wait)
             tmp.flush()
             # One streamed pass: listing the members first decompresses the
             # whole archive once more, a long pause with nothing to report.
@@ -242,7 +233,8 @@ def open_url(install_dir: Path, url: str) -> None:
     _launch(install_dir, url)
 
 
-def install_tarball(install_dir: Path, lang: str, channel: str, on_download=None, on_extract=None) -> str:
+def install_tarball(install_dir: Path, lang: str, channel: str, on_download=None, on_extract=None,
+                    on_wait=None) -> str:
     """Downloads + extracts, returns the installed version. Raises on
     failure (unsupported arch, network error) — the caller decides what to
     tell the user."""
@@ -250,6 +242,6 @@ def install_tarball(install_dir: Path, lang: str, channel: str, on_download=None
     if arch is None:
         raise RuntimeError("unsupported_arch")
     url, version = resolve_download(arch, lang, channel)
-    download_and_extract(url, install_dir, on_download=on_download, on_extract=on_extract)
+    download_and_extract(url, install_dir, on_download=on_download, on_extract=on_extract, on_wait=on_wait)
     (install_dir / ".myfox-version").write_text(version + "\n", encoding="utf-8")
     return version

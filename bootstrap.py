@@ -27,6 +27,8 @@ from pathlib import Path
 
 REPO = "CustomFF/myfox"
 CORE_ASSET = "myfox-core.tar.gz"
+# Seconds without an answer before a request gives up (myfox.net.TIMEOUT).
+TIMEOUT = 20
 
 _MESSAGES = {
     "en": {
@@ -89,7 +91,7 @@ def _core_url():
     if override:
         return override, "dev"
     api = f"https://api.github.com/repos/{REPO}/releases?per_page=100"
-    with urllib.request.urlopen(_request(api), timeout=30) as resp:
+    with urllib.request.urlopen(_request(api), timeout=TIMEOUT) as resp:
         releases = json.loads(resp.read().decode("utf-8"))
     for rel in releases:
         if rel.get("tag_name", "").startswith("core-"):
@@ -104,7 +106,7 @@ def fetch_core(dest: Path) -> str:
     url, tag = _core_url()
     archive = dest / CORE_ASSET
     if "://" in url:
-        with urllib.request.urlopen(_request(url), timeout=60) as resp:
+        with urllib.request.urlopen(_request(url), timeout=TIMEOUT) as resp:
             archive.write_bytes(resp.read())
     else:
         archive.write_bytes(Path(url).read_bytes())

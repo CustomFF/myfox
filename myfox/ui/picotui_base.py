@@ -59,6 +59,12 @@ def end_screen() -> None:
     _teardown_screen()
 
 
+def abandon_screen() -> None:
+    """The terminal is gone (hung up): there's nothing left to restore."""
+    global _started
+    _started = False
+
+
 def _teardown_screen() -> None:
     Screen.disable_mouse()
     Screen.attr_reset()

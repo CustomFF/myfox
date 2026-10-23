@@ -7,18 +7,23 @@ install_form.InstallForm; this only draws it.
 from __future__ import annotations
 
 import os
+import select
+import signal
+import sys
 import textwrap
+import threading
 import time
 import unicodedata
 from pathlib import Path
+from typing import Callable
 
 from .. import i18n
-from ..install_form import Answers, Choice, InstallForm, Installer, Lang
-from .picotui_base import BOX_BG, FIELD_BG, FOCUS_BG, SGR_GRAY_ON_CYAN, SGR_WHITE_ON_GRAY, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
+from ..install_form import Answers, Cancel, Cancelled, Choice, InstallForm, Installer, Lang, Progress, signals_to
+from .picotui_base import BOX_BG, FIELD_BG, FOCUS_BG, SGR_GRAY_ON_CYAN, SGR_WHITE_ON_GRAY, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus, abandon_screen, end_screen
 
 from picotui.defs import (  # noqa: E402 (picotui_base put it on sys.path)
-    DOWN_ARROW, KEYMAP, KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_SHIFT_TAB,
-    C_BLACK, C_RED, C_WHITE,
+    DOWN_ARROW, KEYMAP, KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_ESC, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10,
+    KEY_QUIT, KEY_SHIFT_TAB, C_BLACK, C_RED, C_WHITE,
 )
 from picotui.widgets import (  # noqa: E402
     ACTION_CANCEL, ACTION_NEXT, ACTION_OK, WCheckbox, WDropDown, WFrame, WLabel, WListBox, WTextEntry,
@@ -354,6 +359,76 @@ def _bar(fraction: float, width: int) -> str:
     return f"[{'#' * filled}{'-' * (width - 7 - filled)}] {round(fraction * 100):3d}%"
 
 
+def run_live(d: BoxDialog, status: _Label, bar: _Label, cancel_btn: ThemedButton,
+             work: Callable[[Progress], None], cancellable: bool = True) -> BaseException | None:
+    """Runs `work` in a thread while the dialog keeps reading keys: Cancel
+    (Enter, a click), Esc and ^C stop it at its next progress report, and
+    so do a kill and a closed terminal. Returns what it raised, None once it
+    ran through. Without a terminal left, the process exits once the work
+    has finished (and, stopped, taken back what it did)."""
+    cancel = Cancel()
+    hangup = threading.Event()
+    latest: list = [None]
+    raised: list = [None]
+
+    def report(message: str, fraction: float) -> None:
+        latest[0] = (message, fraction)
+
+    def target() -> None:
+        try:
+            work(cancel.checked(report) if cancellable else report)
+        except BaseException as exc:  # handed to the dialog's thread
+            raised[0] = exc
+
+    def on_signal(signum: int) -> None:
+        cancel.request()
+        if signum == signal.SIGHUP:
+            hangup.set()
+
+    if cancellable:
+        d.change_focus(cancel_btn)
+    else:
+        cancel_btn.disabled = True
+        cancel_btn.redraw()
+    worker = threading.Thread(target=target, daemon=True)
+    shown = None
+    with signals_to(on_signal):
+        worker.start()
+        while True:
+            worker.join(0.05)
+            if not worker.is_alive():
+                break
+            if hangup.is_set():
+                continue
+            try:
+                key = d.get_input() if d.kbuf or select.select([0], [], [], 0.05)[0] else None
+            except (OSError, IndexError):  # read nothing: the terminal is gone
+                on_signal(signal.SIGHUP)
+                continue
+            if cancellable and (key in (KEY_ESC, KEY_QUIT, KEY_ENTER, b" ")
+                                or isinstance(key, list) and cancel_btn.inside(*key)):
+                cancel.request()
+            if cancel.requested and cancellable:
+                if shown != "cancelling":
+                    shown = "cancelling"
+                    status.t, cancel_btn.disabled = i18n.t("progress_cancelling"), True
+                    status.redraw()
+                    cancel_btn.redraw()
+            elif latest[0] is not shown and latest[0] is not None:
+                shown = latest[0]
+                status.t, bar.t = shown[0], _bar(shown[1], bar.w)
+                status.redraw()
+                bar.redraw()
+    if hangup.is_set():
+        abandon_screen()
+        raise SystemExit(1)
+    if raised[0] is None and latest[0] is not None and latest[0] is not shown:
+        status.t, bar.t = latest[0][0], _bar(latest[0][1], bar.w)
+        status.redraw()
+        bar.redraw()
+    return raised[0]
+
+
 def run(form: InstallForm, install: Installer) -> Answers | None:
     """Shows the form until the user leaves it or the install is done; the
     answers if the install went through, None if cancelled or failed."""
@@ -473,19 +548,18 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     dir_entry.set(a.install_dir)
     status.fg = bar.fg = C_BLACK
 
-    def progress(message: str, fraction: float) -> None:
-        status.t, bar.t = message, _bar(fraction, w - 4)
-        status.redraw()
-        bar.redraw()
-
     install_btn.disabled = True
     install_btn.redraw()
-    try:
-        install(a, progress)
-    except Exception as exc:  # shown in the form; the user decides what next
-        show_error(str(exc) or type(exc).__name__)
-    else:
+    failure = run_live(d, status, bar, cancel_btn, lambda progress: install(a, progress))
+    if failure is None:
         return a  # done: the summary goes to the terminal
+    if isinstance(failure, Cancelled):
+        end_screen()
+        print(i18n.t("install_cancelled"), file=sys.stderr)
+        return None
+    if not isinstance(failure, Exception):
+        raise failure
+    show_error(str(failure) or type(failure).__name__)  # the user decides what next
 
     # The error stays on screen; one button left: Close.
     d.childs.remove(install_btn)

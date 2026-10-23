@@ -96,7 +96,7 @@ def install_into(target: Path, reuse_importable: bool = True) -> None:
     if local:
         data = (Path(local) / name).read_bytes()
     else:
-        with urllib.request.urlopen(net.request(f"{RELEASE_URL}/{name}"), timeout=60) as resp:
+        with urllib.request.urlopen(net.request(f"{RELEASE_URL}/{name}"), timeout=net.TIMEOUT) as resp:
             data = resp.read()
     tag = name[len(f"dearpygui-{VERSION}-"):-len(".whl")]
     if hashlib.sha256(data).hexdigest() != _SHA256[tag]:

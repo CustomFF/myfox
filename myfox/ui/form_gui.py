@@ -7,13 +7,14 @@ from __future__ import annotations
 
 import contextlib
 import subprocess
+import sys
 import threading
 from pathlib import Path
 
 import dearpygui.dearpygui as dpg
 
 from .. import i18n
-from ..install_form import Answers, Choice, InstallForm, Installer, Lang
+from ..install_form import Answers, Cancel, Cancelled, Choice, InstallForm, Installer, Lang, signals_to
 from . import portal
 
 ASSETS = Path(__file__).resolve().parent / "assets"
@@ -292,6 +293,9 @@ class _Window:
         self._progress: tuple[str, float] | None = None
         self._failure: str | None = None
         self._worker: threading.Thread | None = None
+        self._cancel = Cancel()
+        self.cancelled = False
+        self._signalled = False
         self._search_was_active = False
         self._was_typing = False
         # Where the keyboard is beyond ImGui's own text fields: None (the
@@ -379,7 +383,7 @@ class _Window:
                 )
                 self.cancel = dpg.add_button(
                     label=i18n.t("ui_cancel"), width=px(BTN_W), height=px(BTN_H), pos=(x_cancel, y),
-                    callback=lambda: dpg.stop_dearpygui(),
+                    callback=self.on_cancel,
                 )
 
         for item in (self.dir_input, self.search):
@@ -440,13 +444,31 @@ class _Window:
         self._progress = ("", 0.0)
 
         def run() -> None:
+            report = self._cancel.checked(lambda message, fraction: setattr(self, "_progress", (message, fraction)))
             try:
-                self._install(self.answers, lambda message, fraction: setattr(self, "_progress", (message, fraction)))
+                self._install(self.answers, report)
+            except Cancelled:
+                self.cancelled = True
             except Exception as exc:  # shown in the window; the user decides what next
                 self._failure = str(exc) or type(exc).__name__
 
         self._worker = threading.Thread(target=run, daemon=True)
         self._worker.start()
+
+    def on_cancel(self) -> None:
+        """Cancel, the window's close button, ^C in the terminal: before the
+        install the window closes; during it the install stops and takes
+        back what it did, then the window closes."""
+        if self._worker is None:
+            dpg.stop_dearpygui()
+        elif not self._cancel.requested:
+            self._cancel.request()
+            dpg.bind_item_theme(self.status, self._normal_theme)
+            dpg.set_value(self.status, i18n.t("progress_cancelling"))
+            dpg.configure_item(self.cancel, enabled=False)
+
+    def on_signal(self, _signum: int) -> None:
+        self._signalled = True  # handled in tick(), outside dearpygui's calls
 
     def _buttons(self) -> list[int]:
         return [b for b in (self.install, self.cancel)
@@ -475,7 +497,7 @@ class _Window:
         elif where in self._button_themes:
             buttons = self._buttons()
             if enter:
-                (self._on_install if where == self.install else dpg.stop_dearpygui)()
+                (self._on_install if where == self.install else self.on_cancel)()
             elif key in (dpg.mvKey_Left, dpg.mvKey_Right, dpg.mvKey_Tab) and where in buttons:
                 step = -1 if key == dpg.mvKey_Left else 1
                 self._set_keyboard(buttons[(buttons.index(where) + step) % len(buttons)])
@@ -484,6 +506,9 @@ class _Window:
 
     def tick(self) -> None:
         """Per-frame work dpg has no event for; runs on the UI thread."""
+        if self._signalled:
+            self._signalled = False
+            self.on_cancel()
         # Starting to edit a text field takes the keyboard back to the form.
         typing = dpg.is_item_active(self.search) or dpg.is_item_active(self.dir_input)
         if typing and not self._was_typing and self._keyboard is not None:
@@ -504,12 +529,15 @@ class _Window:
             dpg.configure_item(self.browse, enabled=not self._picking)
 
         if self._worker is not None:
-            if self._progress is not None:
+            if self._progress is not None and not self._cancel.requested:
                 message, fraction = self._progress
                 dpg.set_value(self.status, message)
                 dpg.set_value(self.progress, fraction)
             if not self._worker.is_alive():
                 self._worker = None
+                if self.cancelled:
+                    dpg.stop_dearpygui()
+                    return
                 if not self._failure:
                     self.result = self.answers
                     dpg.stop_dearpygui()  # done: the summary goes to the terminal
@@ -534,16 +562,20 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     w, h = px(WIN_W), px(WIN_H)
     dpg.create_viewport(
         title="MyFox", width=w, height=h, min_width=w, max_width=w, min_height=h, max_height=h, resizable=False,
-        small_icon=str(ASSETS / "icon-48.png"), large_icon=str(ASSETS / "icon-256.png"),
+        small_icon=str(ASSETS / "icon-48.png"), large_icon=str(ASSETS / "icon-256.png"), disable_close=True,
     )
+    dpg.set_exit_callback(window.on_cancel)
     dpg.setup_dearpygui()
     dpg.show_viewport()
     dpg.render_dearpygui_frame()
     window.langs.scroll_to_value()
     try:
-        while dpg.is_dearpygui_running():
-            window.tick()
-            dpg.render_dearpygui_frame()
+        with signals_to(window.on_signal):
+            while dpg.is_dearpygui_running():
+                window.tick()
+                dpg.render_dearpygui_frame()
     finally:
         dpg.destroy_context()
+    if window.cancelled:
+        print(i18n.t("install_cancelled"), file=sys.stderr)
     return window.result

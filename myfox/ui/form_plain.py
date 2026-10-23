@@ -7,9 +7,10 @@ install_form.InstallForm.
 from __future__ import annotations
 
 import sys
+from typing import Callable
 
 from .. import i18n
-from ..install_form import INSTALL_COMMAND, Answers, Choice, InstallForm, Installer
+from ..install_form import INSTALL_COMMAND, Answers, Cancel, Cancelled, Choice, InstallForm, Installer, Progress, signals_to
 
 
 def _label(choices: list[Choice], value: str) -> str:
@@ -45,6 +46,34 @@ def printer():
     return progress
 
 
+def _say(text: str) -> None:
+    try:
+        print(text, file=sys.stderr, flush=True)
+    except OSError:
+        pass  # the terminal is gone
+
+
+def run_stoppable(work: Callable[[Progress], None]) -> None:
+    """Runs `work` with a line per stage. ^C, a kill or a closed terminal
+    stop it at its next progress report (it raises Cancelled then)."""
+    cancel = Cancel()
+
+    def on_signal(_signum: int) -> None:
+        if not cancel.requested:
+            cancel.request()
+            _say(i18n.t("progress_cancelling"))
+
+    show = printer()
+
+    def report(message: str, fraction: float) -> None:
+        # Stopping: no more stage lines, only how it ended.
+        if not cancel.requested or fraction >= 1.0:
+            show(message, fraction)
+
+    with signals_to(on_signal):
+        work(cancel.checked(report))
+
+
 def run(form: InstallForm, install: Installer, noninteractive: bool = False) -> Answers | None:
     if form.error:
         print(form.error, file=sys.stderr)
@@ -59,7 +88,10 @@ def run(form: InstallForm, install: Installer, noninteractive: bool = False) -> 
         print(i18n.t("needs_yes_install", INSTALL_COMMAND), file=sys.stderr)
         return None
     try:
-        install(form.answers, printer())
+        run_stoppable(lambda progress: install(form.answers, progress))
+    except Cancelled:
+        _say(i18n.t("install_cancelled"))
+        return None
     except Exception as exc:
         print(str(exc) or type(exc).__name__, file=sys.stderr)
         return None

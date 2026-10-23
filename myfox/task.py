@@ -33,6 +33,7 @@ class Task:
     lines: list[str] = field(default_factory=list)
     options: list[Option] = field(default_factory=list)
     destructive: bool = False        # focus starts on Cancel
+    cancellable: bool = False        # Cancel stays live while it runs (run takes back what it did)
     blocked: str | None = None       # why the action can't run now; shown, button disabled
     more: Callable[[], None] | None = None  # shows all of `lines` when they don't fit
     closes: Callable[[], bool] | None = None  # the GUI closes itself once run, if this says so

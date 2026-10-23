@@ -32,7 +32,7 @@ _THEME_FILES = {
 def _release_assets(repo: str, tag: str) -> dict[str, str]:
     """name -> browser_download_url for every asset of a tagged release."""
     url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
-    with urllib.request.urlopen(net.request(url), timeout=15) as resp:
+    with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     return {a["name"]: a["browser_download_url"] for a in data.get("assets", [])}
 
@@ -95,7 +95,7 @@ def fetch_themes(profile_dir: Path, local_dir: str | None = None, current: str |
             missing.append(addon_id)
             continue
         try:
-            with urllib.request.urlopen(net.request(url), timeout=60) as resp:
+            with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
                 dests[addon_id].write_bytes(resp.read())
         except (urllib.error.URLError, OSError):
             missing.append(addon_id)
@@ -146,7 +146,7 @@ def pkg_install_hint() -> str | None:
 def addon_guid(slug: str) -> str | None:
     url = f"https://addons.mozilla.org/api/v5/addons/addon/{slug}/"
     try:
-        with urllib.request.urlopen(net.request(url), timeout=30) as resp:
+        with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, json.JSONDecodeError):
         return None
@@ -158,7 +158,7 @@ def addon_fetch(slug: str, out: Path) -> bool:
     doing here."""
     url = f"https://addons.mozilla.org/firefox/downloads/latest/{slug}/addon-latest.xpi"
     try:
-        with urllib.request.urlopen(net.request(url), timeout=60) as resp:
+        with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
             data = resp.read()
     except (urllib.error.URLError, OSError):
         return False

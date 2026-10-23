@@ -6,16 +6,19 @@ are checked live."""
 from __future__ import annotations
 
 import contextlib
+import io
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from myfox.install_form import InstallForm, Lang
+from myfox import i18n
+from myfox.install_form import Cancelled, InstallForm, Lang
 from myfox.ui import form_tui
-from myfox.ui.picotui_base import Dialog, Screen
-from picotui.defs import KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_ESC, KEY_LEFT, KEY_SHIFT_TAB, KEY_TAB
+from myfox.ui.picotui_base import Dialog, Screen, ThemedButton
+from picotui.defs import KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_ESC, KEY_LEFT, KEY_QUIT, KEY_SHIFT_TAB, KEY_TAB
 
 LANGS = [Lang("en-US", "English (US)", "English (US)"), Lang("ru", "Russian", "Русский")]
 TO_INSTALL = [KEY_SHIFT_TAB, KEY_SHIFT_TAB]  # from the first field, backwards past Cancel
@@ -30,7 +33,15 @@ def _drive(keys):
         assert keys, "ran out of scripted keys — a real run would have blocked on input here"
         return keys.pop(0)
 
+    def ready(rlist, _wlist, _xlist, timeout):
+        # While work runs, a key is there only while the script has one.
+        if keys:
+            return rlist, [], []
+        time.sleep(timeout)
+        return [], [], []
+
     with mock.patch.object(Dialog, "get_input", get_input), \
+         mock.patch("select.select", ready), \
          mock.patch.object(Screen, "screen_size", return_value=(80, 24)), \
          mock.patch.object(Screen, "wr"), \
          mock.patch("myfox.ui.form_tui._ensure_screen"):
@@ -136,6 +147,57 @@ class FormTuiTests(unittest.TestCase):
 
         with _drive(TO_INSTALL + [KEY_ENTER, KEY_ENTER]):
             self.assertIsNone(form_tui.run(self.form, failing))
+
+
+    def test_escape_or_ctrl_c_during_the_install_stops_it(self):
+        for key in (KEY_ESC, KEY_QUIT):
+            with self.subTest(key=key):
+                stopped = []
+
+                def slow(answers, progress):
+                    try:
+                        for i in range(500):
+                            progress("working", i / 500)
+                            time.sleep(0.01)
+                    except Cancelled:
+                        stopped.append(True)
+                        raise
+
+                with _drive(TO_INSTALL + [KEY_ENTER, key]), contextlib.redirect_stderr(io.StringIO()) as err:
+                    self.assertIsNone(form_tui.run(self.form, slow))
+                self.assertEqual(stopped, [True])
+                self.assertIn(i18n.t("install_cancelled"), err.getvalue())
+
+
+class RunLiveTests(unittest.TestCase):
+    def _dialog(self):
+        d = form_tui._FormDialog(0, 0, 40, 8)
+        status, bar, cancel = form_tui._Label("", 36), form_tui._Label("", 36), ThemedButton(12, "Cancel")
+        d.add(2, 1, status)
+        d.add(2, 2, bar)
+        d.add(14, 5, cancel)
+        return d, status, bar, cancel
+
+    @staticmethod
+    def _slow(progress):
+        for i in range(30):
+            progress("working", i / 30)
+            time.sleep(0.01)
+        progress("done", 1.0)
+
+    def test_a_click_on_cancel_stops_the_work(self):
+        with _drive([[15, 5]]):
+            d, status, bar, cancel = self._dialog()
+            failure = form_tui.run_live(d, status, bar, cancel, self._slow)
+        self.assertIsInstance(failure, Cancelled)
+
+    def test_work_that_cant_stop_runs_through_and_shows_its_last_report(self):
+        with _drive([KEY_ESC]):
+            d, status, bar, cancel = self._dialog()
+            failure = form_tui.run_live(d, status, bar, cancel, self._slow, cancellable=False)
+        self.assertIsNone(failure)
+        self.assertEqual(status.t, "done")
+        self.assertTrue(cancel.disabled)
 
 
 class PickDirTests(unittest.TestCase):

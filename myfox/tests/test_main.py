@@ -10,6 +10,7 @@ from unittest import mock
 
 from myfox import __main__ as cli
 from myfox import i18n, reinstall
+from myfox.install_form import Cancelled
 from myfox.state import State, state_file
 from ._helpers import IsolatedStateCase
 
@@ -121,7 +122,7 @@ class UninstallTests(IsolatedStateCase):
         ])
 
 
-def _fake_tarball(dest, lang, channel, on_download=None, on_extract=None):
+def _fake_tarball(dest, lang, channel, on_download=None, on_extract=None, on_wait=None):
     (Path(dest) / "firefox").write_text("new", encoding="utf-8")
     return "158.0"
 
@@ -183,6 +184,37 @@ class ReinstallTests(IsolatedStateCase):
                 self.assertEqual(cli.cmd_reinstall(state, noninteractive=True), 1)
             self.assertEqual((install_dir / "firefox").read_text(encoding="utf-8"), "old")
             self.assertEqual([p.name for p in Path(d).iterdir()], ["firefox"])
+
+    def test_stopped_during_the_download_keeps_the_current_firefox(self):
+        def fake(dest, lang, channel, on_download=None, **_kwargs):
+            on_download(1, 2)
+            return _fake_tarball(dest, lang, channel)
+
+        def progress(message, fraction):
+            raise Cancelled()
+
+        with tempfile.TemporaryDirectory() as d:
+            state, install_dir = self._installed(d)
+            with mock.patch("myfox.firefox.install_tarball", side_effect=fake), self.assertRaises(Cancelled):
+                reinstall.run(state, progress)
+            self.assertEqual((install_dir / "firefox").read_text(encoding="utf-8"), "old")
+            self.assertEqual([p.name for p in Path(d).iterdir()], ["firefox"])
+
+    def test_a_stop_after_the_swap_is_too_late(self):
+        def progress(message, fraction):
+            raise Cancelled()
+
+        with tempfile.TemporaryDirectory() as d:
+            profile_dir = Path(d) / "profile"
+            profile_dir.mkdir()
+            state, install_dir = self._installed(d, profile_dir=str(profile_dir))
+            with mock.patch("myfox.firefox.install_tarball", side_effect=_fake_tarball), \
+                 mock.patch("myfox.profiles.pin_install", return_value="HASH"), \
+                 mock.patch("myfox.apply.reapply_tweaks") as reapply:
+                reinstall.run(state, progress)
+            self.assertEqual((install_dir / "firefox").read_text(encoding="utf-8"), "new")
+            reapply.assert_called_once()
+            self.assertEqual(State().get("firefox_version"), "158.0")
 
     def test_skips_profile_steps_when_no_profile_is_recorded(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):

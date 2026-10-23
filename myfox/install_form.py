@@ -6,9 +6,12 @@ subcommand.
 
 from __future__ import annotations
 
+import signal
+import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Iterator
 
 from . import addons, firefox, i18n, launcher
 from . import profiles as profiles_mod
@@ -22,6 +25,57 @@ def default_install_dir() -> str:
 # (message, overall fraction 0..1) — how an install reports progress.
 Progress = Callable[[str, float], None]
 Installer = Callable[["Answers", Progress], None]
+
+
+class Cancelled(Exception):
+    """Raised through running work once the user asked to stop it."""
+
+
+class Cancel:
+    """A stop request from the view. The work sees it the next time it
+    reports progress, which it does at least once a second while waiting
+    for the network."""
+
+    def __init__(self) -> None:
+        self._event = threading.Event()
+
+    def request(self) -> None:
+        self._event.set()
+
+    @property
+    def requested(self) -> bool:
+        return self._event.is_set()
+
+    def checked(self, progress: Progress) -> Progress:
+        def report(message: str, fraction: float) -> None:
+            progress(message, fraction)
+            if self.requested:
+                raise Cancelled()
+        return report
+
+
+def settled(progress: Progress) -> Progress:
+    """For work past the point where stopping would leave it halfway: a
+    stop request no longer interrupts it."""
+    def report(message: str, fraction: float) -> None:
+        try:
+            progress(message, fraction)
+        except Cancelled:
+            pass
+    return report
+
+
+@contextmanager
+def signals_to(handler: Callable[[int], None]) -> Iterator[None]:
+    """While running work, ^C, a kill or a closed terminal go to `handler`
+    instead of ending the process halfway through. Main thread only."""
+    caught = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    previous = {sig: signal.signal(sig, lambda signum, _frame: handler(signum)) for sig in caught}
+    try:
+        yield
+    finally:
+        for sig, old in previous.items():
+            signal.signal(sig, old)
 
 
 @dataclass

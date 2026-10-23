@@ -72,7 +72,7 @@ def install(release: Release) -> str:
     Raises OSError on failure, leaving the current package in place."""
     dest = paths.share_dir() / "myfox"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(net.request(release.archive_url), timeout=60) as resp:
+    with urllib.request.urlopen(net.request(release.archive_url), timeout=net.TIMEOUT) as resp:
         data = resp.read()
     with tempfile.TemporaryDirectory(dir=dest.parent, prefix=".core-") as tmp:
         archive = Path(tmp) / ARCHIVE

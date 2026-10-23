@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import sys
 
+from .. import i18n
+from ..install_form import Cancelled
 from ..task import Task
-from .form_plain import printer
+from .form_plain import _say, printer, run_stoppable
 
 
 def run(task: Task, confirmed: bool) -> bool:
@@ -31,7 +33,13 @@ def run(task: Task, confirmed: bool) -> bool:
             print(line, file=sys.stderr)
         return False
     try:
-        task.run(printer())
+        if task.cancellable:
+            run_stoppable(task.run)
+        else:
+            task.run(printer())
+    except Cancelled:
+        _say(i18n.t("task_cancelled"))
+        return False
     except Exception as exc:
         print(str(exc) or type(exc).__name__, file=sys.stderr)
         return False

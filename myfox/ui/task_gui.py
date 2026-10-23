@@ -12,6 +12,7 @@ import threading
 import dearpygui.dearpygui as dpg
 
 from .. import i18n
+from ..install_form import Cancel, Cancelled, signals_to
 from ..task import Task
 from .form_gui import (
     ACCENT, ASSETS, BTN_GAP, BTN_H, BTN_W, ERROR, FOOTER_H, HEADER_H, LABEL_W, LINE, MUTED, PAD, WIN_W,
@@ -47,6 +48,9 @@ class _Window:
         self._progress: tuple[str, float] | None = None
         self._failure: str | None = None
         self._worker: threading.Thread | None = None
+        self._cancel = Cancel()
+        self._cancelled = False
+        self._signalled = False
         self._done = False
         self._measured = False
         self.ok = False
@@ -138,7 +142,7 @@ class _Window:
                 )
                 self.cancel = dpg.add_button(
                     label=i18n.t("ui_cancel"), width=px(BTN_W), height=px(BTN_H), pos=(x_cancel, y),
-                    callback=lambda: dpg.stop_dearpygui(),
+                    callback=self.on_close,
                 )
 
         if self.task.blocked:
@@ -186,9 +190,18 @@ class _Window:
         dpg.set_viewport_height(h)
 
     def on_close(self) -> None:
-        """The window's own close button: ignored while the action runs."""
+        """Cancel, the window's own close button, Escape, ^C in the terminal:
+        while the action runs, a cancellable one is stopped (it takes back
+        what it did), any other is let finish."""
         if self._worker is None:
             dpg.stop_dearpygui()
+        elif self.task.cancellable and not self._cancel.requested:
+            self._cancel.request()
+            dpg.set_value(self.status, i18n.t("progress_cancelling"))
+            dpg.configure_item(self.cancel, enabled=False)
+
+    def on_signal(self, _signum: int) -> None:
+        self._signalled = True  # handled in tick(), outside dearpygui's calls
 
     def _focus(self, button: int) -> None:
         self._focused = button
@@ -201,6 +214,8 @@ class _Window:
 
     def _on_key(self, key: int) -> None:
         if self._worker is not None:
+            if key == dpg.mvKey_Escape or self._focused == self.cancel and key in (dpg.mvKey_Return, dpg.mvKey_NumPadEnter):
+                self.on_close()
             return
         checks = dict(self.checks) if not self._done else {}
         if key == dpg.mvKey_Escape:
@@ -226,17 +241,25 @@ class _Window:
     def _on_action(self) -> None:
         if self._worker is not None or self._done or self.task.blocked:
             return
-        # Closing mid-run would kill the worker halfway through.
+        # Closing mid-run would kill the worker halfway through: Cancel
+        # only stays for an action that can stop cleanly.
         dpg.configure_item(self.action, enabled=False)
-        dpg.configure_item(self.cancel, enabled=False)
+        dpg.configure_item(self.cancel, enabled=self.task.cancellable)
+        if self.task.cancellable:
+            self._focus(self.cancel)
         for item, _option in self.checks:
             dpg.configure_item(item, enabled=False)
         dpg.configure_item(self.bar, show=True)
         self._progress = ("", 0.0)
 
         def run() -> None:
+            def report(message: str, fraction: float) -> None:
+                self._progress = (message, fraction)
+
             try:
-                self.task.run(lambda message, fraction: setattr(self, "_progress", (message, fraction)))
+                self.task.run(self._cancel.checked(report) if self.task.cancellable else report)
+            except Cancelled:
+                self._cancelled = True
             except Exception as exc:  # shown in the window
                 self._failure = str(exc) or type(exc).__name__
 
@@ -244,19 +267,26 @@ class _Window:
         self._worker.start()
 
     def tick(self) -> None:
+        if self._signalled:
+            self._signalled = False
+            self.on_close()
         if self._worker is None:
             return
-        if self._progress is not None:
+        if self._progress is not None and not self._cancel.requested:
             message, fraction = self._progress
             dpg.set_value(self.status, message)
             dpg.set_value(self.bar, fraction)
         if not self._worker.is_alive():
             self._worker, self._done = None, True
-            if self._failure:
+            if self._cancelled:
+                dpg.set_value(self.status, i18n.t("task_cancelled"))
+            elif self._failure:
                 dpg.set_value(self.status, self._failure)
                 dpg.bind_item_theme(self.status, _color_theme(Text=ERROR))
             else:
                 self.ok = True
+                if self._cancel.requested and self._progress is not None:
+                    dpg.set_value(self.status, self._progress[0])  # past the point of stopping
                 if self.task.closes and self.task.closes():
                     dpg.stop_dearpygui()
                     return
@@ -283,11 +313,12 @@ def run(task: Task) -> bool:
     dpg.setup_dearpygui()
     dpg.show_viewport()
     try:
-        while dpg.is_dearpygui_running():
-            window.tick()
-            dpg.render_dearpygui_frame()
-            if not window._measured:
-                window.relayout()
+        with signals_to(window.on_signal):
+            while dpg.is_dearpygui_running():
+                window.tick()
+                dpg.render_dearpygui_frame()
+                if not window._measured:
+                    window.relayout()
     finally:
         dpg.destroy_context()
     return window.ok

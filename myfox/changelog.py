@@ -40,7 +40,7 @@ def changes_since(changelog_url: str, current: str | None) -> list[str]:
     """The changelog's lines for every version newer than `current`, newest
     first. Raises OSError if it can't be fetched or read."""
     try:
-        with urllib.request.urlopen(net.request(changelog_url), timeout=30) as resp:
+        with urllib.request.urlopen(net.request(changelog_url), timeout=net.TIMEOUT) as resp:
             entries = json.loads(resp.read().decode("utf-8"))["versions"]
         since = parse(current)
         changes = []

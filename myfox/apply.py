@@ -105,7 +105,7 @@ def latest_ddblm_release() -> DdblmRelease | None:
     for path in _DDBLM_PATHS:
         url = f"https://api.github.com/repos/{DDBLM_REPO}/commits?sha={DDBLM_BRANCH}&path={path}&per_page=1"
         try:
-            with urllib.request.urlopen(net.request(url), timeout=15) as resp:
+            with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
                 commits = json.loads(resp.read().decode("utf-8"))
             if not commits:
                 continue
@@ -131,7 +131,7 @@ def _ddblm_fetch(rel: str, out: Path, local_dir: str | None, ref: str = DDBLM_BR
             shutil.copy2(src, out)
             return True
     try:
-        with urllib.request.urlopen(net.request(f"{DDBLM_RAW}/{ref}/{rel}"), timeout=30) as resp:
+        with urllib.request.urlopen(net.request(f"{DDBLM_RAW}/{ref}/{rel}"), timeout=net.TIMEOUT) as resp:
             out.write_bytes(resp.read())
         return True
     except (urllib.error.URLError, OSError):

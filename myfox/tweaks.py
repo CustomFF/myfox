@@ -52,7 +52,7 @@ def latest_release() -> Release | None:
 
 
 def _download(url: str) -> bytes:
-    with urllib.request.urlopen(net.request(url), timeout=60) as resp:
+    with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
         return resp.read()
 
 

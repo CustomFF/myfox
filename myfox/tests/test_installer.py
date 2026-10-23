@@ -6,7 +6,7 @@ from unittest import mock
 
 import myfox
 from myfox import i18n, installer
-from myfox.install_form import Answers
+from myfox.install_form import Answers, Cancelled
 from myfox.state import State
 
 from ._helpers import IsolatedStateCase
@@ -21,7 +21,7 @@ class InstallTests(IsolatedStateCase):
         self.reports = []
         self.calls = []
 
-    def _fake_tarball(self, install_dir, lang, channel, on_download=None, on_extract=None):
+    def _fake_tarball(self, install_dir, lang, channel, on_download=None, on_extract=None, on_wait=None):
         self.calls.append("tarball")
         install_dir.mkdir(parents=True, exist_ok=True)
         for done in (10, 50, 100):
@@ -29,7 +29,8 @@ class InstallTests(IsolatedStateCase):
         on_extract(5, 5)
         return "152.0"
 
-    def _install(self, answers, plasma=False, pkg=True, addon_fails=False, gui_error=None):
+    def _install(self, answers, plasma=False, pkg=True, addon_fails=False, gui_error=None, desktop_error=None,
+                 progress=None):
         record = lambda name: (lambda *a, **k: self.calls.append(name))  # noqa: E731
         amo = lambda *a, **k: self.calls.append("plasma") or (["plasma-integration"] if addon_fails else [])  # noqa: E731
         with mock.patch("myfox.addons.is_plasma_session", return_value=plasma), \
@@ -47,8 +48,8 @@ class InstallTests(IsolatedStateCase):
              mock.patch("myfox.apply.apply_bookmarklets", side_effect=record("bookmarklets")), \
              mock.patch("myfox.launcher.install_self", return_value=Path("/x/bin/myfox")), \
              mock.patch("myfox.gui_deps.install_into", side_effect=gui_error or record("gui")), \
-             mock.patch("myfox.desktop.write_entry", side_effect=record("desktop")):
-            installer.install(answers, lambda message, fraction: self.reports.append((message, fraction)))
+             mock.patch("myfox.desktop.write_entry", side_effect=desktop_error or record("desktop")):
+            installer.install(answers, progress or (lambda message, fraction: self.reports.append((message, fraction))))
 
     def test_full_install_runs_every_step_and_saves_state(self):
         answers = Answers(install_dir=str(self.install_dir), lang="ru", theme="light")
@@ -121,6 +122,42 @@ class InstallTests(IsolatedStateCase):
         self._install(Answers(install_dir=str(self.install_dir)))
         self.assertNotIn("tarball", self.calls)
         self.assertEqual(State().get("firefox_version"), "151.0")
+
+
+    def test_stopped_during_the_download_it_takes_everything_back(self):
+        def progress(message, fraction):
+            if fraction > 0.2:
+                raise Cancelled()
+
+        with self.assertRaises(Cancelled):
+            self._install(Answers(install_dir=str(self.install_dir / "deep")), progress=progress)
+        self.assertEqual(self.calls, ["tarball"])
+        self.assertFalse(self.install_dir.exists())  # with the parent made for it
+        self.assertIsNone(State().get("install_dir"))
+
+    def test_a_failure_later_takes_back_the_new_profile_and_firefox(self):
+        with self.assertRaises(OSError), mock.patch("myfox.profiles.unpin_install") as unpin:
+            self._install(Answers(install_dir=str(self.install_dir)), desktop_error=OSError("disk full"))
+        self.assertFalse(self.install_dir.exists())
+        self.assertFalse(self.profile_dir.exists())
+        unpin.assert_called_once_with("HASH")
+        self.assertIsNone(State().get("install_dir"))
+
+    def test_a_picked_profile_and_an_existing_folder_stay(self):
+        self.install_dir.mkdir()
+        with self.assertRaises(OSError):
+            self._install(Answers(install_dir=str(self.install_dir), profile_dir=str(self.profile_dir)),
+                          desktop_error=OSError("disk full"))
+        self.assertTrue(self.profile_dir.is_dir())
+        self.assertEqual(list(self.install_dir.iterdir()), [])
+
+    def test_a_stop_at_the_very_end_is_too_late(self):
+        def progress(message, fraction):
+            if fraction == 1.0:
+                raise Cancelled()
+
+        self._install(Answers(install_dir=str(self.install_dir)), progress=progress)
+        self.assertEqual(State().get("install_dir"), str(self.install_dir))
 
 
 if __name__ == "__main__":

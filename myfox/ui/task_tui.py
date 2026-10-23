@@ -6,8 +6,9 @@ from __future__ import annotations
 import textwrap
 
 from .. import i18n
+from ..install_form import Cancelled
 from ..task import Task
-from .form_tui import _bar, _Checkbox, _FormDialog, _Label
+from .form_tui import _Checkbox, _FormDialog, _Label, run_live
 from .picotui_base import ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
 
 from picotui.defs import C_RED  # noqa: E402 (picotui_base put it on sys.path)
@@ -98,21 +99,20 @@ def run(task: Task) -> bool:
         label.set_xy(check.x, check.y)
         label.owner = d
 
-    def progress(message: str, fraction: float) -> None:
-        status.t, bar.t = message, _bar(fraction, w - 4)
-        status.redraw()
-        bar.redraw()
-
     action_btn.disabled = True
     action_btn.redraw()
-    ok = True
-    try:
-        task.run(progress)
-    except Exception as exc:  # shown in the dialog
-        _show_error(status, bar, str(exc) or type(exc).__name__, w - 4)
+    failure = run_live(d, status, bar, cancel_btn, task.run, cancellable=task.cancellable)
+    if isinstance(failure, Cancelled):
+        status.t, bar.t = i18n.t("task_cancelled"), ""
         status.redraw()
         bar.redraw()
-        ok = False
+    elif isinstance(failure, Exception):  # shown in the dialog
+        _show_error(status, bar, str(failure) or type(failure).__name__, w - 4)
+        status.redraw()
+        bar.redraw()
+    elif failure is not None:
+        raise failure
+    ok = failure is None
 
     d.childs.remove(action_btn)
     d.childs.remove(cancel_btn)
