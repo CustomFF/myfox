@@ -65,6 +65,8 @@ class _Window:
             est.append(PAD // 2 + LINE_H * (1 if task.heading else 0))
             est += [LINE_H * _value_lines(line, 12) for line in self.lines]
         est += [ROW_H] * len(task.options)
+        if task.choices:
+            est.append((LINE_H + 4) * len(task.choices))
         self.height = px(HEADER_H) + 1 + px(PAD * 2 + sum(est)) + 1 + px(FOOTER_H)
         self._build(bold_font)
 
@@ -120,6 +122,11 @@ class _Window:
                             item = dpg.add_text(f"•  {line}", pos=(px(PAD + 12), y), wrap=px(WIN_W - PAD * 2 - 12))
                         self._blocks.append(([item], gap))
                         gap = 0
+                self.radio = None
+                if self.task.choices:
+                    labels = [label for _value, label in self.task.choices]
+                    self.radio = dpg.add_radio_button(items=labels, default_value=labels[0], pos=(px(PAD), y))
+                    self._blocks.append(([self.radio], 0))
                 self.checks = []
                 for option in self.task.options:
                     item = dpg.add_checkbox(
@@ -160,7 +167,7 @@ class _Window:
         self._focus(self.cancel if self.task.destructive or self.task.blocked else self.action)
         with dpg.handler_registry():
             for key in (dpg.mvKey_Return, dpg.mvKey_NumPadEnter, dpg.mvKey_Left, dpg.mvKey_Right, dpg.mvKey_Tab,
-                        dpg.mvKey_Escape, dpg.mvKey_Spacebar):
+                        dpg.mvKey_Escape, dpg.mvKey_Spacebar, dpg.mvKey_Up, dpg.mvKey_Down):
                 dpg.add_key_press_handler(key, callback=lambda sender, key: self._on_key(key))
         dpg.set_primary_window("root", True)
 
@@ -223,7 +230,12 @@ class _Window:
                 self.on_close()
             return
         checks = dict(self.checks) if not self._done else {}
-        if key == dpg.mvKey_Escape:
+        if self.radio is not None and key in (dpg.mvKey_Up, dpg.mvKey_Down):
+            # The choice moves with the arrows wherever the focus is.
+            labels = [label for _value, label in self.task.choices]
+            i = labels.index(dpg.get_value(self.radio)) + (-1 if key == dpg.mvKey_Up else 1)
+            dpg.set_value(self.radio, labels[max(0, min(len(labels) - 1, i))])
+        elif key == dpg.mvKey_Escape:
             dpg.stop_dearpygui()
         elif self._focused == self.link and key in (dpg.mvKey_Return, dpg.mvKey_NumPadEnter):
             self.task.more()
@@ -245,6 +257,12 @@ class _Window:
 
     def _on_action(self) -> None:
         if self._worker is not None or self._done:
+            return
+        if self.radio is not None:
+            chosen = dpg.get_value(self.radio)
+            self.task.choice = next(value for value, label in self.task.choices if label == chosen)
+            self.ok = True
+            dpg.stop_dearpygui()
             return
         # The last look before running: Firefox may have started since.
         if self.task.rechecked() or self.task.blocked:

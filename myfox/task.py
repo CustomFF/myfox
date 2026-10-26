@@ -1,6 +1,6 @@
 """The confirm-then-run dialog behind refresh, reinstall and uninstall: what
 is about to happen (rows, an optional list), one action button, progress,
-then Close. A command builds a Task; ui/task_{gui,tui,plain}.py draw it and
+then Close. With `choices` it is a picker: a list to choose one from. A command builds a Task; ui/task_{gui,tui,plain}.py draw it and
 show() picks one the way the install form does.
 """
 
@@ -38,6 +38,10 @@ class Task:
     recheck: Callable[[], str | None] | None = None  # recomputes `blocked` while the dialog waits
     more: Callable[[], None] | None = None  # shows all of `lines` when they don't fit
     closes: Callable[[], bool] | None = None  # the GUI closes itself once run, if this says so
+    # A picker instead of an action: one of these (value, label) is chosen,
+    # the action only confirms it into `choice` (run is not called).
+    choices: list[tuple[str, str]] = field(default_factory=list)
+    choice: str | None = None
 
     def __post_init__(self) -> None:
         if self.recheck is not None:

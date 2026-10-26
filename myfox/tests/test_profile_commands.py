@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from myfox import __main__ as cli
-from myfox import i18n, importer, profile_commands
+from myfox import i18n, importer, paths, profile_commands
 from myfox.state import State
 
 from ._helpers import IsolatedStateCase
@@ -276,6 +276,33 @@ class ProfileChangeTests(IsolatedStateCase):
         self.assertEqual(self._run("use"), 1)
         self.assertIn("aaaa.dev", self.out.getvalue())
         self.assertIn(i18n.t("err_profile_missing", "myfox profile use <ID>"), self.err.getvalue())
+
+    def test_without_an_id_in_a_terminal_it_asks_which(self):
+        shown = []
+
+        def show(t, gui=False, noninteractive=False):
+            shown.append(t)
+            if t.choices:
+                t.choice = t.choices[0][0]
+            return True
+
+        with mock.patch("myfox.ui._has_tty", return_value=True), mock.patch("myfox.task.show", side_effect=show):
+            self.assertEqual(self._run("use"), 0)
+        picker, confirm = shown
+        # Not the one already used; related only.
+        self.assertEqual(picker.choices, [("aaaa.dev", "dev (aaaa.dev)")])
+        self.assertEqual(confirm.rows[0][1], f"aaaa.dev ({paths.shown(self.dev)})")
+
+    def test_a_cancelled_pick_does_nothing(self):
+        with mock.patch("myfox.ui._has_tty", return_value=True), mock.patch("myfox.task.show", return_value=False):
+            self.assertEqual(self._run("apply"), 1)
+        self.tweak_profile.assert_not_called()
+
+    def test_what_each_command_can_pick(self):
+        made = self._profile("myfox-2", "spare", created=True, tweaked=True)
+        ids = {c: [p.id for p in profile_commands.candidates(State(), c)] for c in ("apply", "use", "remove", "import")}
+        self.assertEqual(ids, {"apply": ["myfox-1", "aaaa.dev", "myfox-2"], "use": ["aaaa.dev", "myfox-2"],
+                               "remove": [made.name], "import": ["aaaa.dev", "cccc.default-release"]})
 
     def test_not_installed(self):
         State().delete_file()

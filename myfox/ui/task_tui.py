@@ -8,11 +8,11 @@ import textwrap
 from .. import i18n
 from ..install_form import Cancelled
 from ..task import Task
-from .form_tui import _Checkbox, _FormDialog, _Label, run_live
+from .form_tui import _Checkbox, _FormDialog, _Label, _list_line, run_live
 from .picotui_base import ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
 
-from picotui.defs import C_BLACK, C_RED  # noqa: E402 (picotui_base put it on sys.path)
-from picotui.widgets import ACTION_CANCEL, ACTION_OK  # noqa: E402
+from picotui.defs import C_BLACK, C_RED, KEY_ENTER  # noqa: E402 (picotui_base put it on sys.path)
+from picotui.widgets import ACTION_CANCEL, ACTION_OK, WListBox  # noqa: E402
 
 _MAX_W = 72
 
@@ -29,14 +29,51 @@ def _show_error(status: _Label, bar: _Label, text: str, width: int) -> None:
     status.fg = bar.fg = C_RED
 
 
-def run(task: Task) -> bool:
-    """True once the action ran through; False if cancelled, blocked or failed."""
+class _ChoiceList(WListBox):
+    """Enter takes the highlighted one."""
+
+    def handle_key(self, key):
+        if key == KEY_ENTER:
+            return ACTION_OK
+        return super().handle_key(key)
+
+    def show_line(self, l, i):
+        _list_line(self, l, i)
+
+
+def _pick(task: Task) -> bool:
     from picotui.screen import Screen
 
     _ensure_screen()
     cols, rows = Screen.screen_size()
+    labels = [label for _value, label in task.choices]
+    w = min(max(_MAX_W, max(map(len, labels)) + 6), cols - 2)
+    list_h = max(1, min(len(labels), rows - 8))
+    h = list_h + 6
+    x, y = _centered(w, h)
+    _clear()
+    d = _FormDialog(x, y, w, h, title=task.title)
+    d.add(2, 1, _Label(task.subtitle, w - 4))
+    choices = _ChoiceList(w - 4, list_h, labels)
+    d.add(2, 3, choices)
+    _button_row(d, w, h - 2, [_button(task.action, ACTION_OK), _button(i18n.t("ui_cancel"), ACTION_CANCEL)])
+    _set_focus(d, choices)
+    if d.loop() != ACTION_OK:
+        return False
+    task.choice = task.choices[choices.cur_line][0]
+    return True
+
+
+def run(task: Task) -> bool:
+    """True once the action ran through; False if cancelled, blocked or failed."""
+    from picotui.screen import Screen
+
+    if task.choices:
+        return _pick(task)
+    _ensure_screen()
+    cols, rows = Screen.screen_size()
     w = min(_MAX_W, cols - 2)
-    label_w = max(len(label) for label, _value in task.rows) + 2
+    label_w = max((len(label) for label, _value in task.rows), default=0) + 2
     row_lines = [textwrap.wrap(value, w - 4 - label_w, break_on_hyphens=False) or [""] for _label, value in task.rows]
     rows_h = sum(len(lines) + 1 for lines in row_lines)
     limit = max(1, rows - rows_h - len(task.options) - 9)

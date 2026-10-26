@@ -204,5 +204,8 @@
     "profile_import_title": "Import a profile",
     "profile_import_subtitle": "A copy of it becomes a new MyFox profile; the original stays",
     "profile_import_action": "Import",
-    "profile_import_done": "{0} imported as {1}."
+    "profile_import_done": "{0} imported as {1}.",
+    "profile_pick_subtitle": "Which profile?",
+    "profile_pick_action": "Next",
+    "profile_pick_none": "There's no profile for this."
 }

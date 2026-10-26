@@ -14,6 +14,8 @@ from .form_plain import _say, printer, run_stoppable
 
 
 def run(task: Task, confirmed: bool) -> bool:
+    if task.choices:
+        return False  # a picker is never shown here: the commands print the list instead
     print(task.title)
     for label, value in task.rows:
         print(f"  {label} {value}")

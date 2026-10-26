@@ -50,7 +50,9 @@ myfox           ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox (sh: pytho
 - `new [--use]`, `import <ID|папка> [--sync none|copy|move] [--allow-downgrade] [--use]`,
   `apply <ID>`, `use <ID>`, `remove <ID> [--no-restore-sync]` — диалоги `task.Task` (как reinstall:
   `-y`, `--gui`, без терминала — подсказка с командой). ID — из `list`; имя годится, если оно одно.
-  Без ID — список и подсказка. `apply`/`use` — только связанные (чужой → готовая команда `import`);
+  Без ID — выбор из подходящих (`candidates`: для `apply` связанные, для `use` — кроме открываемого,
+  для `remove` — созданные MyFox, для `import` — все не-MyFox), это `Task` с `choices`; с `-y` или
+  без терминала — список и подсказка. `apply`/`use` — только связанные (чужой → готовая команда `import`);
   `remove` — только созданные MyFox и не тот, что открывается. Всё, что пишет в `profiles.ini`, ждёт
   закрытия нашего Firefox (он перезаписывает файл при выходе); `apply`, `remove` и источник `import`
   ждут закрытия своего профиля (проверка раз в секунду). Новый профиль — `myfox-N` с именем папки,
@@ -67,7 +69,7 @@ myfox           ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox (sh: pytho
 - **Форма первой установки** — `install_form.InstallForm` (ответы, выбор, проверка каталога, языки
   Firefox с поиском) и виды `ui/form_gui.py` (dearpygui), `ui/form_tui.py` (picotui),
   `ui/form_plain.py`.
-- **Диалог команды** (refresh, reinstall, uninstall) — `task.Task`: строки, необязательный список,
+- **Диалог команды** (refresh, reinstall, uninstall, profile) — `task.Task`: строки, необязательный список,
   галочки, одна кнопка действия, прогресс, «Закрыть». Виды `ui/task_{gui,tui,plain}.py`, выбор —
   `task.show()`. Разрушительное действие начинает с фокуса на «Отмена»; если действие сейчас
   невозможно (запущен Firefox из этой установки), причина показана, кнопка недоступна. Пока диалог

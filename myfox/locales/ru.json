@@ -204,5 +204,8 @@
     "profile_import_title": "Импорт профиля",
     "profile_import_subtitle": "Его копия станет новым профилем MyFox; исходный остаётся",
     "profile_import_action": "Импортировать",
-    "profile_import_done": "{0} импортирован как {1}."
+    "profile_import_done": "{0} импортирован как {1}.",
+    "profile_pick_subtitle": "Какой профиль?",
+    "profile_pick_action": "Далее",
+    "profile_pick_none": "Подходящих профилей нет."
 }

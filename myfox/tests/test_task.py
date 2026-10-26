@@ -160,6 +160,19 @@ class TuiTests(IsolatedStateCase):
                 self.assertTrue(task_tui.run(t))
         self.assertEqual((t.blocked, seen), (None, [False]))
 
+    def test_a_picker_takes_the_highlighted_choice(self):
+        ran = []
+        t = task.Task(title="T", subtitle="Which?", rows=[], action="Next", unconfirmed=[],
+                      run=lambda progress: ran.append(True), choices=[("a", "A"), ("b", "B"), ("c", "C")])
+        self.assertTrue(self._run(t, [KEY_DOWN, KEY_DOWN, KEY_ENTER]))
+        self.assertEqual((t.choice, ran), ("c", []))
+
+    def test_a_cancelled_picker_chooses_nothing(self):
+        t = task.Task(title="T", subtitle="Which?", rows=[], action="Next", unconfirmed=[],
+                      run=lambda progress: None, choices=[("a", "A")])
+        self.assertFalse(self._run(t, [b"\t", b"\t", KEY_ENTER]))  # Tab to Next, to Cancel
+        self.assertIsNone(t.choice)
+
     def test_firefox_started_meanwhile_keeps_it_from_running(self):
         ran, blocks = [], iter([None, "busy"])
         t = _task(ran, recheck=lambda: next(blocks, "busy"))

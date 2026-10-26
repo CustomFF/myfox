@@ -353,6 +353,34 @@ def import_task(state: State, arg: str, sync: str = importer.SYNC_NONE, allow_do
     )
 
 
+def candidates(state: State, command: str) -> list[sources.Profile]:
+    """What `command` can take: related profiles for apply and use, the
+    removable ones for remove, every other one for import."""
+    found = sources.listing(_install_dir(state))
+    used = Path(state.get("profile_dir")) if state.get("profile_dir") else None
+    if command == "import":
+        return [p for p in found if p.owner != sources.MYFOX]
+    if command == "remove":
+        return [p for p in found if not p.store and p.path != used and (p.path / ".myfox-created").is_file()]
+    if command == "use":
+        return [p for p in found if p.related and p.path != used]
+    return [p for p in found if p.related]
+
+
+def pick(state: State, command: str, gui: bool) -> str | None:
+    """The picker for a subcommand run without an ID; the chosen ID."""
+    found = candidates(state, command)
+    if not found:
+        print(i18n.t("profile_pick_none"), file=sys.stderr)
+        return None
+    choices = [(p.id, p.id if p.name in (p.id, p.path.name) else f"{p.name} ({p.id})") for p in found]
+    picker = task_mod.Task(
+        title=i18n.t(f"profile_{command}_title"), subtitle=i18n.t("profile_pick_subtitle"), rows=[],
+        action=i18n.t("profile_pick_action"), unconfirmed=[], run=lambda progress: None, choices=choices,
+    )
+    return picker.choice if task_mod.show(picker, gui=gui) else None
+
+
 def run(state: State, args, gui: bool = False, noninteractive: bool = False) -> int:
     command = args.profile_command
     if command == "list":
@@ -363,23 +391,30 @@ def run(state: State, args, gui: bool = False, noninteractive: bool = False) -> 
     if not state.get("install_dir"):
         print(i18n.t("err_not_installed"), file=sys.stderr)
         return 1
-    if command != "new" and not args.profile:
-        # Without the ID, what there is to pick from.
-        list_profiles(state, show_all=command == "import")
-        print(file=sys.stderr)
-        print(i18n.t("err_profile_missing", f"myfox profile {command} <ID>"), file=sys.stderr)
-        return 1
+    profile = getattr(args, "profile", None)
+    if command != "new" and not profile:
+        from .ui import _has_tty
+
+        if noninteractive or not (gui or _has_tty()):
+            # Without the ID, what there is to pick from.
+            list_profiles(state, show_all=command == "import")
+            print(file=sys.stderr)
+            print(i18n.t("err_profile_missing", f"myfox profile {command} <ID>"), file=sys.stderr)
+            return 1
+        profile = pick(state, command, gui)
+        if profile is None:
+            return 1
     try:
         if command == "new":
             task = new_task(state, use=args.use)
         elif command == "apply":
-            task = apply_task(state, args.profile)
+            task = apply_task(state, profile)
         elif command == "use":
-            task = use_task(state, args.profile)
+            task = use_task(state, profile)
         elif command == "remove":
-            task = remove_task(state, args.profile, restore_sync=not args.no_restore_sync)
+            task = remove_task(state, profile, restore_sync=not args.no_restore_sync)
         else:
-            task = import_task(state, args.profile, sync=args.sync, allow_downgrade=args.allow_downgrade,
+            task = import_task(state, profile, sync=args.sync, allow_downgrade=args.allow_downgrade,
                                use=args.use)
     except Refused as exc:
         print(exc, file=sys.stderr)
