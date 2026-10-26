@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0 — 2026-10-26
+
+- Import a profile from another Firefox (the system one, snap, flatpak, or any folder): the install form's «Profile» field or `--import`; a copy becomes the MyFox profile, the original stays. The Firefox account can stay behind, be copied or move into the copy (`--sync`); a profile from a newer Firefox needs a confirmation (`--allow-downgrade`)
+- `myfox profile list|new|import|apply|use|remove`: several MyFox profiles, the tweaks applied to a profile made with `firefox -p`, switching which profile MyFox's Firefox opens; without an ID the command asks which one
+- `myfox refresh` and `myfox reinstall` update the tweaks in every MyFox profile; `myfox uninstall` handles all of them and moves a Firefox account an import took back into its original profile (`--no-restore-sync` to leave it)
+- The install form offers the profiles made with `firefox -p` in MyFox's Firefox and never-opened ones to use as they are
+- Reinstall and uninstall notice at once when Firefox is closed while their dialog waits
+- Fixed: removing a MyFox profile from Firefox's profile list (for example on uninstall) could hide the profiles listed after it, also another Firefox's
+
 ## 1.1.25 — 2026-10-23
 
 - The install form has a «DNS over HTTPS» checkbox (on by default, with the tweaks); unticked, or with `--no-doh`, the tweaks leave DNS over HTTPS off in the new profile
