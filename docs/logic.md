@@ -181,6 +181,16 @@ Firefox качается в соседний временный каталог �
   headless (`--screenshot about:blank`, без `DISPLAY`/`WAYLAND_DISPLAY`), Firefox пишет свою секцию,
   её `Default=` переключается на наш профиль (в `profiles.ini` и `installs.ini`), а профиль, который
   Firefox создал при этом прогоне, удаляется.
+- **Все видимые профили** (`sources.py`, для импорта и команд профилей): наш каталог, snap
+  (`~/snap/firefox/common`) и flatpak (`~/.var/app/org.mozilla.firefox`, у обоих тот же выбор между
+  `.mozilla` и XDG). Профили — из `profiles.ini` и из групп профилей (`Profile Groups/<StoreID>.sqlite`,
+  оттуда же показываемые имена), плюс наши `myfox-*` с `.myfox-created` без записи. ID — имя папки,
+  для snap/flatpak с приставкой `snap:`/`flatpak:`, для папки вне каталога — путь; имя годится, только
+  если оно у одного профиля. Чей профиль: `.myfox` → MyFox; без неё — по `LastPlatformDir` в
+  `compatibility.ini` (наша установка → наш, созданный через `firefox -p`; нет файла → не
+  запускался; иначе чужой, только импорт). Занят — `lock` ведёт на живой процесс `firefox`; у
+  flatpak pid из `lock` снаружи ничего не значит, там — любой процесс в cgroup flatpak-Firefox.
+  Понижение версии — `LastVersion` профиля новее устанавливаемой (`firefox.latest_version`).
 
 ## Где что лежит
 

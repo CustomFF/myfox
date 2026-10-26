@@ -19,6 +19,7 @@ from pathlib import Path
 from . import archive, net
 
 LANGUAGES_URL = "https://product-details.mozilla.org/1.0/languages.json"
+VERSIONS_URL = "https://product-details.mozilla.org/1.0/firefox_versions.json"
 
 
 class InstallDirError(ValueError):
@@ -136,6 +137,14 @@ def fetch_lang_names() -> dict[str, tuple[str, str]]:
     with urllib.request.urlopen(net.request(LANGUAGES_URL), timeout=net.TIMEOUT) as resp:
         raw = json.loads(resp.read().decode("utf-8"))
     return {code: (info["English"], info.get("native") or info["English"]) for code, info in raw.items()}
+
+
+def latest_version(channel: str) -> str | None:
+    """The version the channel's tarball has now ("158.0.1", "159.0b5").
+    Raises OSError when it can't be asked."""
+    with urllib.request.urlopen(net.request(VERSIONS_URL), timeout=net.TIMEOUT) as resp:
+        raw = json.loads(resp.read().decode("utf-8"))
+    return raw.get("LATEST_FIREFOX_DEVEL_VERSION" if channel == "beta" else "LATEST_FIREFOX_VERSION") or None
 
 
 def fetch_lang_catalog() -> dict[str, str]:
