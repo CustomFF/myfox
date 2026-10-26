@@ -140,8 +140,8 @@ def _next_profile_section(cp: ConfigParser) -> str:
     return f"Profile{(max(nums, default=-1) + 1)}"
 
 
-def _append_profile_entry(ini: Path, path_value: str, is_relative: str) -> str:
-    """Appends a new [ProfileN] Name=myfox section, returns its name. A gap an older
+def _append_profile_entry(ini: Path, path_value: str, is_relative: str, name: str = "myfox") -> str:
+    """Appends a new [ProfileN] section, returns its name. A gap an older
     MyFox left in the numbering is closed first, or the new one would be
     past it, out of Firefox's sight."""
     if ini.is_file():
@@ -152,11 +152,13 @@ def _append_profile_entry(ini: Path, path_value: str, is_relative: str) -> str:
     section = _next_profile_section(_read_ini(ini))
     prefix = "\n" if ini.is_file() and ini.stat().st_size > 0 else ""
     with ini.open("a", encoding="utf-8") as f:
-        f.write(f"{prefix}[{section}]\nName=myfox\nIsRelative={is_relative}\nPath={path_value}\n")
+        f.write(f"{prefix}[{section}]\nName={name}\nIsRelative={is_relative}\nPath={path_value}\n")
     return section
 
 
-def create_new() -> Path:
+def create_new(name: str | None = None) -> Path:
+    """A new myfox-N, registered as `name` (default "myfox"; "" for its
+    folder name)."""
     ini = find_ini()
     if ini:
         ini_dir = ini.parent
@@ -173,7 +175,7 @@ def create_new() -> Path:
     profile_dir.mkdir(parents=True)
     (profile_dir / ".myfox-created").write_text("", encoding="utf-8")
 
-    _append_profile_entry(ini, ppath, "1")
+    _append_profile_entry(ini, ppath, "1", "myfox" if name is None else (name or ppath))
     return profile_dir
 
 

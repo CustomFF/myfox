@@ -58,6 +58,26 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser = profile_sub.add_parser("list", help=i18n.t("cmd_profile_list"))
     list_parser.add_argument("--all", action="store_true", help="also other Firefoxes' profiles (import only)")
     list_parser.add_argument("--json", action="store_true", help="for programs: the profiles as JSON on stdout")
+    gui = {"action": "store_true", "help": "graphical window instead of the terminal"}
+    new_parser = profile_sub.add_parser("new", parents=[common], help=i18n.t("cmd_profile_new"))
+    new_parser.add_argument("--use", action="store_true", help="our Firefox opens it from now on")
+    new_parser.add_argument("--gui", **gui)
+    import_parser = profile_sub.add_parser("import", parents=[common], help=i18n.t("cmd_profile_import"))
+    import_parser.add_argument("profile", nargs="?", help="ID, name or folder (myfox profile list --all)")
+    import_parser.add_argument("--sync", choices=("none", "copy", "move"), default="none",
+                               help="the Firefox account: leave behind (default), copy, or move into the copy")
+    import_parser.add_argument("--allow-downgrade", action="store_true",
+                               help="import a profile a newer Firefox last opened, at your own risk")
+    import_parser.add_argument("--use", action="store_true", help="our Firefox opens it from now on")
+    import_parser.add_argument("--gui", **gui)
+    for name, help_key in (("apply", "cmd_profile_apply"), ("use", "cmd_profile_use"),
+                           ("remove", "cmd_profile_remove")):
+        p = profile_sub.add_parser(name, parents=[common], help=i18n.t(help_key))
+        p.add_argument("profile", nargs="?", help="ID or name (myfox profile list)")
+        p.add_argument("--gui", **gui)
+        if name == "remove":
+            p.add_argument("--no-restore-sync", action="store_true",
+                           help="leave the Firefox account an import moved into it where it is")
     sub.add_parser("help", parents=[common], help=i18n.t("cmd_help"))
     return parser
 
@@ -114,6 +134,13 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(f"  myfox command [on|off] [--gui]    {i18n.t('cmd_command')}")
     print(f"  myfox profile list [--all] [--json]\n"
           f"                                    {i18n.t('cmd_profile_list')}")
+    print(f"  myfox profile new [--use]         {i18n.t('cmd_profile_new')}")
+    print(f"  myfox profile import <ID|folder> [--sync none|copy|move] [--allow-downgrade] [--use]\n"
+          f"                                    {i18n.t('cmd_profile_import')}")
+    print(f"  myfox profile apply <ID>          {i18n.t('cmd_profile_apply')}")
+    print(f"  myfox profile use <ID>            {i18n.t('cmd_profile_use')}")
+    print(f"  myfox profile remove <ID> [--no-restore-sync]\n"
+          f"                                    {i18n.t('cmd_profile_remove')}")
     print(f"  myfox help                        {i18n.t('cmd_help')}")
 
 
@@ -174,7 +201,8 @@ def main(argv: list[str] | None = None) -> int:
         return command.run(state, args.action, gui=args.gui, noninteractive=noninteractive, as_json=args.json,
                            keep_backup=args.keep_backup)
     if args.command == "profile":
-        return profile_commands.run(state, args)
+        return profile_commands.run(state, args, gui=getattr(args, "gui", False),
+                                    noninteractive=noninteractive)
     if args.command == "uninstall":
         return cmd_uninstall(state, noninteractive, gui=args.gui, remove_profile=args.remove_profile,
                              restore_sync=not args.no_restore_sync)

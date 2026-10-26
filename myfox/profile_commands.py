@@ -9,11 +9,15 @@ from __future__ import annotations
 
 import json
 import shlex
+import shutil
 import sys
 import unicodedata
 from pathlib import Path
+from typing import Callable
 
-from . import i18n, importer, paths, sources
+from . import apply, firefox, i18n, importer, paths, profiles, sources
+from . import task as task_mod
+from .install_form import Progress, settled
 from .state import State
 
 
@@ -89,8 +93,285 @@ def list_profiles(state: State, show_all: bool = False, as_json: bool = False) -
     return 0
 
 
-def run(state: State, args) -> int:
-    if args.profile_command == "list":
+# ─── Changing them ───────────────────────────────────────────────────────
+
+class Refused(Exception):
+    """Why a subcommand can't go ahead at all (printed, exit 1)."""
+
+
+def _row(p: sources.Profile) -> tuple[str, str]:
+    return i18n.t("form_profile"), f"{p.id} ({paths.shown(p.path)})" if p.id != str(p.path) else paths.shown(p.path)
+
+
+def _tweaks_row(p: sources.Profile) -> tuple[str, str]:
+    return i18n.t("profile_col_tweaks") + ":", i18n.t("summary_yes" if p.owner == sources.MYFOX else "summary_no")
+
+
+def _find(state: State, arg: str) -> sources.Profile:
+    install_dir = _install_dir(state)
+    try:
+        return sources.resolve(arg, sources.listing(install_dir), install_dir)
+    except sources.ProfileLookupError as exc:
+        raise Refused(str(exc)) from None
+
+
+def _related(p: sources.Profile) -> sources.Profile:
+    if not p.related:
+        raise Refused(i18n.t("err_profile_foreign", p.id, "myfox profile import " + quoted(p.id)))
+    return p
+
+
+def _first(*checks: Callable[[], str | None]) -> Callable[[], str | None]:
+    def recheck() -> str | None:
+        for check in checks:
+            blocked = check()
+            if blocked:
+                return blocked
+        return None
+    return recheck
+
+
+def _ours_closed(state: State) -> Callable[[], str | None]:
+    # Our Firefox rewrites profiles.ini as it knows it when it exits.
+    install_dir = _install_dir(state)
+    return lambda: i18n.t("err_firefox_running") if firefox.running_pids(install_dir) else None
+
+
+def _closed(p: sources.Profile) -> Callable[[], str | None]:
+    return lambda: i18n.t("err_profile_open", p.id) if sources.in_use(p) else None
+
+
+def _use(state: State, profile_dir: Path) -> None:
+    """Our install opens this one from now on."""
+    install_hash = profiles.pin_install(_install_dir(state), profile_dir, saved_hash=state.get("install_hash"))
+    if install_hash is None:
+        raise OSError(i18n.t("err_profile_pin_failed"))
+    state.set("install_hash", install_hash)
+    state.set("profile_dir", str(profile_dir))
+    state.save()
+
+
+def _tweak(state: State, profile_dir: Path, progress: Progress, at: float) -> None:
+    if state.get("tweaks", True):
+        progress(i18n.t("progress_refresh_tweaks_apply"), at)
+        apply.tweak_profile(profile_dir, state)
+        state.save()
+
+
+def _new_profile(undo: list[Callable[[], None]], name: str = "") -> Path:
+    # A name of its own: the profile manager lists them by name.
+    profile_dir = profiles.create_new(" ".join(name.split()))
+    undo.append(lambda: (profiles.remove_myfox_section(profile_dir), shutil.rmtree(profile_dir, ignore_errors=True)))
+    return profile_dir
+
+
+def _undoing(work: Callable[[list], None]) -> None:
+    undo: list[Callable[[], None]] = []
+    try:
+        work(undo)
+    except BaseException:
+        for step in reversed(undo):
+            try:
+                step()
+            except OSError:
+                pass
+        raise
+
+
+def _command(*parts: str) -> str:
+    return " ".join(["myfox", "profile", *parts, "-y"])
+
+
+def new_task(state: State, use: bool = False) -> task_mod.Task:
+    use_option = task_mod.Option(i18n.t("profile_opt_use"), use)
+
+    def run(progress: Progress) -> None:
+        def work(undo: list) -> None:
+            progress(i18n.t("progress_profile"), 0.1)
+            profile_dir = _new_profile(undo)
+            _tweak(state, profile_dir, progress, 0.3)
+            if use_option.value:
+                _use(state, profile_dir)
+            settled(progress)(i18n.t("profile_new_done", profile_dir.name), 1.0)
+        _undoing(work)
+
+    return task_mod.Task(
+        title=i18n.t("profile_new_title"), subtitle=i18n.t("profile_new_subtitle"),
+        rows=[(i18n.t("profile_col_tweaks") + ":", i18n.t("summary_yes" if state.get("tweaks", True) else "summary_no"))],
+        options=[use_option], action=i18n.t("profile_new_action"),
+        unconfirmed=[i18n.t("needs_yes_profile", _command("new", *(["--use"] if use else [])))],
+        run=run, recheck=_ours_closed(state),
+    )
+
+
+def apply_task(state: State, arg: str) -> task_mod.Task:
+    p = _related(_find(state, arg))
+    if not state.get("tweaks", True):
+        raise Refused(i18n.t("err_profile_no_tweaks"))
+
+    def run(progress: Progress) -> None:
+        apply.tweak_profile(p.path, state)
+        state.save()
+        progress(i18n.t("profile_apply_done", p.id), 1.0)
+
+    return task_mod.Task(
+        title=i18n.t("profile_apply_title"), subtitle=i18n.t("profile_apply_subtitle"),
+        rows=[_row(p), _tweaks_row(p)], action=i18n.t("profile_apply_action"),
+        unconfirmed=[i18n.t("needs_yes_profile", _command("apply", quoted(p.id)))],
+        run=run, recheck=_closed(p),
+    )
+
+
+def use_task(state: State, arg: str) -> task_mod.Task:
+    p = _related(_find(state, arg))
+    if state.get("profile_dir") and Path(state.get("profile_dir")) == p.path:
+        raise Refused(i18n.t("profile_use_already", p.id))
+    lines = [i18n.t("profile_use_no_tweaks", "myfox profile apply " + quoted(p.id))] \
+        if p.owner != sources.MYFOX and state.get("tweaks", True) else []
+
+    def run(progress: Progress) -> None:
+        _use(state, p.path)
+        progress(i18n.t("profile_use_done", p.id), 1.0)
+
+    return task_mod.Task(
+        title=i18n.t("profile_use_title"), subtitle=i18n.t("profile_use_subtitle"),
+        rows=[_row(p), _tweaks_row(p)], lines=lines, action=i18n.t("profile_use_action"),
+        unconfirmed=[i18n.t("needs_yes_profile", _command("use", quoted(p.id)))],
+        run=run, recheck=_ours_closed(state),
+    )
+
+
+def remove_task(state: State, arg: str, restore_sync: bool = True) -> task_mod.Task:
+    p = _find(state, arg)
+    if p.store or not (p.path / ".myfox-created").is_file():
+        raise Refused(i18n.t("err_profile_not_created", p.id))
+    if state.get("profile_dir") and Path(state.get("profile_dir")) == p.path:
+        raise Refused(i18n.t("err_profile_used", p.id, "myfox profile use"))
+    options = []
+    source_path = importer.restorable_source(p.path)
+    source = None
+    if source_path is not None:
+        try:
+            source = sources.resolve(str(source_path), sources.listing())
+        except sources.ProfileLookupError:
+            pass
+    restore = None
+    if source is not None:
+        restore = task_mod.Option(i18n.t("uninstall_restore_sync", paths.shown(source.path)), restore_sync)
+        options.append(restore)
+
+    def source_closed() -> str | None:
+        if restore is not None and restore.value and sources.in_use(source):
+            return i18n.t("err_restore_sync_in_use", paths.shown(source.path))
+        return None
+
+    def run(progress: Progress) -> None:
+        if restore is not None and restore.value:
+            progress(i18n.t("progress_uninstall_restore_sync"), 0.1)
+            importer.restore_sync(source.path)
+        progress(i18n.t("progress_uninstall_profile_files"), 0.3)
+        profiles.remove_myfox_section(p.path)
+        shutil.rmtree(p.path, ignore_errors=True)
+        progress(i18n.t("profile_remove_done", p.id), 1.0)
+
+    keep = " --no-restore-sync" if restore is not None and not restore_sync else ""
+    return task_mod.Task(
+        title=i18n.t("profile_remove_title"), subtitle=i18n.t("profile_remove_subtitle"),
+        rows=[_row(p)], options=options, action=i18n.t("profile_remove_action"),
+        unconfirmed=[i18n.t("needs_yes_profile", _command("remove", quoted(p.id)) + keep)]
+        + ([i18n.t("needs_yes_uninstall_keep_sync", _command("remove", quoted(p.id)) + " --no-restore-sync")]
+           if restore is not None and restore_sync else []),
+        run=run, destructive=True, recheck=_first(_ours_closed(state), _closed(p), source_closed),
+    )
+
+
+def import_task(state: State, arg: str, sync: str = importer.SYNC_NONE, allow_downgrade: bool = False,
+                use: bool = False) -> task_mod.Task:
+    source = _find(state, arg)
+    if not sources.is_profile(source.path):
+        raise Refused(i18n.t("err_not_a_profile", arg))
+    if sync != importer.SYNC_NONE and not importer.has_account(source.path):
+        sync = importer.SYNC_NONE  # nothing to carry over
+    version = state.get("firefox_version")
+    options, checks = [], [_ours_closed(state), lambda: i18n.t("err_import_in_use", source.id)
+                           if sources.in_use(source) else None]
+    use_option = task_mod.Option(i18n.t("profile_opt_use"), use)
+    options.append(use_option)
+    downgrade = None
+    if sources.is_downgrade(source.last_version, version):
+        downgrade = task_mod.Option(i18n.t("profile_opt_downgrade", source.last_version, version), allow_downgrade)
+        options.append(downgrade)
+        checks.append(lambda: None if downgrade.value else i18n.t("err_profile_downgrade", source.last_version,
+                                                                   version))
+
+    def run(progress: Progress) -> None:
+        def work(undo: list) -> None:
+            progress(i18n.t("progress_import_start"), 0.0)
+            # Not the same name as the original: that one would stop
+            # being a name to call either by.
+            profile_dir = _new_profile(undo, f"{source.name} (MyFox)")
+
+            def on_copy(done: int, total: int) -> None:
+                mb = 1024 * 1024
+                progress(i18n.t("progress_import", done // mb, total // mb), 0.8 * done / total if total else 0.8)
+
+            importer.copy_profile(source.path, profile_dir, sync, on_copy=on_copy)
+            if downgrade is not None and downgrade.value:
+                importer.accept_downgrade(_install_dir(state), profile_dir)
+            done = settled(progress)  # past the copy: no stopping halfway
+            _tweak(state, profile_dir, done, 0.85)
+            backups: list[Path] = []
+            if sync == importer.SYNC_MOVE and importer.has_account(source.path):
+                undo.append(lambda: importer.restore_sync(source.path))
+                backups = importer.move_sync_out(source.path)
+            importer.write_origin(profile_dir, source.path, sync, backups)
+            if use_option.value:
+                _use(state, profile_dir)
+            done(i18n.t("profile_import_done", source.id, profile_dir.name), 1.0)
+        _undoing(work)
+
+    flags = [quoted(source.id)] + (["--sync", sync] if sync != importer.SYNC_NONE else []) \
+        + (["--allow-downgrade"] if downgrade is not None else []) + (["--use"] if use else [])
+    return task_mod.Task(
+        title=i18n.t("profile_import_title"), subtitle=i18n.t("profile_import_subtitle"),
+        rows=[(i18n.t("summary_imported"), _row(source)[1]), (i18n.t("form_sync"), i18n.t("form_sync_" + sync)),
+              (i18n.t("profile_col_tweaks") + ":", i18n.t("summary_yes" if state.get("tweaks", True)
+                                                          else "summary_no"))],
+        options=options, action=i18n.t("profile_import_action"),
+        unconfirmed=[i18n.t("needs_yes_profile", _command("import", *flags))],
+        run=run, cancellable=True, recheck=_first(*checks),
+    )
+
+
+def run(state: State, args, gui: bool = False, noninteractive: bool = False) -> int:
+    command = args.profile_command
+    if command == "list":
         return list_profiles(state, show_all=args.all, as_json=args.json)
-    print(i18n.t("profile_usage"), file=sys.stderr)
-    return 1
+    if command is None:
+        print(i18n.t("profile_usage"), file=sys.stderr)
+        return 1
+    if not state.get("install_dir"):
+        print(i18n.t("err_not_installed"), file=sys.stderr)
+        return 1
+    if command != "new" and not args.profile:
+        # Without the ID, what there is to pick from.
+        list_profiles(state, show_all=command == "import")
+        print(file=sys.stderr)
+        print(i18n.t("err_profile_missing", f"myfox profile {command} <ID>"), file=sys.stderr)
+        return 1
+    try:
+        if command == "new":
+            task = new_task(state, use=args.use)
+        elif command == "apply":
+            task = apply_task(state, args.profile)
+        elif command == "use":
+            task = use_task(state, args.profile)
+        elif command == "remove":
+            task = remove_task(state, args.profile, restore_sync=not args.no_restore_sync)
+        else:
+            task = import_task(state, args.profile, sync=args.sync, allow_downgrade=args.allow_downgrade,
+                               use=args.use)
+    except Refused as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    return 0 if task_mod.show(task, gui=gui, noninteractive=noninteractive) else 1

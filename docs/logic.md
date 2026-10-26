@@ -38,10 +38,27 @@ myfox           ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox (sh: pytho
 
 Подкоманды `myfox` (`__main__.py`): `browser [аргументы Firefox]` (exec обёртки
 `<install>/firefox-myfox`), `refresh [--force]`, `reinstall`, `uninstall [--remove-profile] [--no-restore-sync]`,
-`command [on|off]`, `profile list [--all] [--json]` (`profile_commands.py`: связанные с MyFox
-профили — ID, имя, твики, состояние; `--all` — и чужие, «только импорт»), `help`,
+`command [on|off]`, `profile …` (ниже), `help`,
 `--version`. Общие флаги: `-y` (без вопросов), `--gui` (окно). Подкоманды `install` нет:
 первая установка — только из `bootstrap.py`.
+
+### `myfox profile` (`profile_commands.py`)
+
+- `list [--all] [--json]` — связанные с MyFox профили (MyFox, сделанные через `firefox -p` из нашей
+  установки, не запускавшиеся): ID, имя, твики, состояние (открывается в MyFox, импортирован из …,
+  сейчас открыт); `--all` — и чужие, «только импорт»; `--json` — для программ.
+- `new [--use]`, `import <ID|папка> [--sync none|copy|move] [--allow-downgrade] [--use]`,
+  `apply <ID>`, `use <ID>`, `remove <ID> [--no-restore-sync]` — диалоги `task.Task` (как reinstall:
+  `-y`, `--gui`, без терминала — подсказка с командой). ID — из `list`; имя годится, если оно одно.
+  Без ID — список и подсказка. `apply`/`use` — только связанные (чужой → готовая команда `import`);
+  `remove` — только созданные MyFox и не тот, что открывается. Всё, что пишет в `profiles.ini`, ждёт
+  закрытия нашего Firefox (он перезаписывает файл при выходе); `apply`, `remove` и источник `import`
+  ждут закрытия своего профиля (проверка раз в секунду). Новый профиль — `myfox-N` с именем папки,
+  импортированный — «<имя исходного> (MyFox)». `import` — как при установке: копия, понижение версии
+  (галочка «на свой страх и риск», без неё блок; `--allow-downgrade`), твики, перенос аккаунта,
+  `.myfox-import`; отмена или ошибка откатывает. `remove` у импортированного с «Перенести» —
+  галочка возврата аккаунта, как в uninstall. `use` — пиннинг (`profiles.pin_install` с сохранённым
+  хэшем), `profile_dir` в state.
 
 ## Как показывается интерфейс
 

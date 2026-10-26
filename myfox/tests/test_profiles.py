@@ -238,9 +238,9 @@ class RemoveMyfoxSectionTests(IsolatedHomeCase):
         (store / "profiles.ini").write_text(
             "[Profile0]\nName=a\nIsRelative=1\nPath=a\n\n[Profile2]\nName=b\nIsRelative=1\nPath=b\n",
             encoding="utf-8")
-        made = profiles.create_new()
-        self.assertEqual([(e.section, e.path) for e in profiles.parse_profiles(store / "profiles.ini")],
-                         [("Profile0", "a"), ("Profile1", "b"), ("Profile2", made.name)])
+        made = profiles.create_new("")
+        self.assertEqual([(e.section, e.path, e.name) for e in profiles.parse_profiles(store / "profiles.ini")],
+                         [("Profile0", "a", "a"), ("Profile1", "b", "b"), ("Profile2", made.name, made.name)])
 
 
 class PinInstallTests(IsolatedHomeCase):
