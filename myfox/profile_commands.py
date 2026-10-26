@@ -12,6 +12,7 @@ import shlex
 import shutil
 import sys
 import unicodedata
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -69,22 +70,40 @@ def _status(p: sources.Profile, used: Path | None, found: list[sources.Profile],
     return parts
 
 
+def last_used(path: Path) -> str | None:
+    """When a Firefox last opened it: every start touches .parentlock (an
+    import leaves it behind, so a copy not opened yet has none)."""
+    try:
+        mtime = (path / ".parentlock").stat().st_mtime
+    except OSError:
+        return None
+    return datetime.fromtimestamp(mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _record(p: sources.Profile, used: Path | None) -> dict:
     origin = importer.read_origin(p.path) if p.owner == sources.MYFOX else None
     return {
         "id": p.id, "name": p.name, "path": str(p.path), "store": p.store or "myfox", "owner": p.owner,
         "tweaks": p.owner == sources.MYFOX, "used": used is not None and p.path == used, "open": sources.in_use(p),
+        "created": not p.store and (p.path / ".myfox-created").is_file(), "last_used": last_used(p.path),
         "last_version": p.last_version, "imported_from": origin["source"] if origin else None,
     }
 
 
 def list_profiles(state: State, show_all: bool = False, as_json: bool = False) -> int:
-    found = sources.listing(_install_dir(state))
-    shown = found if show_all else [p for p in found if p.related]
     used = Path(state.get("profile_dir")) if state.get("profile_dir") else None
     if as_json:
-        print(json.dumps([_record(p, used) for p in shown], ensure_ascii=False, indent=2))
+        # For about:myfox: one line, whatever happens.
+        try:
+            found = sources.listing(_install_dir(state))
+            records = [_record(p, used) for p in found if show_all or p.related]
+        except OSError as exc:
+            print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+            return 1
+        print(json.dumps(records, ensure_ascii=False))
         return 0
+    found = sources.listing(_install_dir(state))
+    shown = found if show_all else [p for p in found if p.related]
     if not shown:
         print(i18n.t("profile_list_none"))
     else:
@@ -353,6 +372,21 @@ def import_task(state: State, arg: str, sync: str = importer.SYNC_NONE, allow_do
     )
 
 
+def apply_json(state: State, arg: str) -> int:
+    """`apply --json`, for about:myfox: no questions; {"ok": true, "id": …}
+    or {"error": …} on stdout."""
+    try:
+        task = apply_task(state, arg)
+        if task.blocked:
+            raise Refused(task.blocked)
+        task.run(lambda message, fraction: None)
+    except (Refused, OSError) as exc:
+        print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+        return 1
+    print(json.dumps({"ok": True, "id": _find(state, arg).id}, ensure_ascii=False))
+    return 0
+
+
 def candidates(state: State, command: str) -> list[sources.Profile]:
     """What `command` can take: related profiles for apply and use, the
     removable ones for remove, every other one for import."""
@@ -388,6 +422,15 @@ def run(state: State, args, gui: bool = False, noninteractive: bool = False) -> 
     if command is None:
         print(i18n.t("profile_usage"), file=sys.stderr)
         return 1
+    if command == "apply" and getattr(args, "json", False):
+        if not state.get("install_dir"):
+            print(json.dumps({"error": i18n.t("err_not_installed")}, ensure_ascii=False))
+            return 1
+        if not args.profile:
+            print(json.dumps({"error": i18n.t("err_profile_missing", "myfox profile apply <ID> --json")},
+                             ensure_ascii=False))
+            return 1
+        return apply_json(state, args.profile)
     if not state.get("install_dir"):
         print(i18n.t("err_not_installed"), file=sys.stderr)
         return 1

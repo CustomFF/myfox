@@ -46,7 +46,9 @@ myfox           ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox (sh: pytho
 
 - `list [--all] [--json]` — связанные с MyFox профили (MyFox, сделанные через `firefox -p` из нашей
   установки, не запускавшиеся): ID, имя, твики, состояние (открывается в MyFox, импортирован из …,
-  сейчас открыт); `--all` — и чужие, «только импорт»; `--json` — для программ.
+  сейчас открыт); `--all` — и чужие, «только импорт»; `--json` — одна строка для about:myfox
+  (возможность `profiles` в `myfox.json`; ещё `created` и `last_used` — время `.parentlock`, который
+  Firefox трогает при каждом запуске). `apply <ID> --json` — без вопросов, `{"ok"…}` или `{"error"…}`.
 - `new [--use]`, `import <ID|папка> [--sync none|copy|move] [--allow-downgrade] [--use]`,
   `apply <ID>`, `use <ID>`, `remove <ID> [--no-restore-sync]` — диалоги `task.Task` (как reinstall:
   `-y`, `--gui`, без терминала — подсказка с командой). ID — из `list`; имя годится, если оно одно.

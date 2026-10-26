@@ -75,6 +75,8 @@ def build_parser() -> argparse.ArgumentParser:
         p = profile_sub.add_parser(name, parents=[common], help=i18n.t(help_key))
         p.add_argument("profile", nargs="?", help="ID or name (myfox profile list)")
         p.add_argument("--gui", **gui)
+        if name == "apply":
+            p.add_argument("--json", action="store_true", help="for programs: no questions, the result as JSON")
         if name == "remove":
             p.add_argument("--no-restore-sync", action="store_true",
                            help="leave the Firefox account an import moved into it where it is")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 from unittest import mock
 
@@ -80,13 +81,32 @@ class ProfileListTests(IsolatedStateCase):
         self.assertNotIn(i18n.t("profile_list_hidden", 1, "myfox profile list --all"), out)
 
     def test_json(self):
-        records = {r["id"]: r for r in json.loads(self._run("--all", "--json"))}
+        out = self._run("--all", "--json")
+        self.assertEqual(out.count("\n"), 1)  # one line
+        records = {r["id"]: r for r in json.loads(out)}
         self.assertEqual(len(records), 5)
         self.assertEqual({k: records["myfox-1"][k] for k in ("tweaks", "used", "owner", "store", "last_version")},
                          {"tweaks": True, "used": True, "owner": "myfox", "store": "myfox", "last_version": "158.0"})
         self.assertEqual(records["myfox-2"]["imported_from"], str(self.store / "cccc.default-release"))
         self.assertTrue(records["aaaa.dev"]["open"])
         self.assertEqual(records["cccc.default-release"]["owner"], "foreign")
+        self.assertEqual([records[i]["created"] for i in ("myfox-1", "aaaa.dev")], [False, False])
+        self.assertIsNone(records["myfox-1"]["last_used"])
+
+    def test_json_created_and_last_used(self):
+        (self.store / "myfox-2" / ".myfox-created").touch()
+        lock = self.store / "myfox-1" / ".parentlock"
+        lock.touch()
+        os.utime(lock, (1767225600, 1767225600))
+        records = {r["id"]: r for r in json.loads(self._run("--json"))}
+        self.assertTrue(records["myfox-2"]["created"])
+        self.assertEqual(records["myfox-1"]["last_used"], "2026-01-01T00:00:00Z")
+
+    def test_json_error(self):
+        with mock.patch("myfox.sources.listing", side_effect=OSError("denied")), \
+             contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(cli.main(["profile", "list", "--json"]), 1)
+        self.assertEqual(json.loads(out.getvalue()), {"error": "denied"})
 
     def test_none_related(self):
         state = State()
@@ -303,6 +323,22 @@ class ProfileChangeTests(IsolatedStateCase):
         ids = {c: [p.id for p in profile_commands.candidates(State(), c)] for c in ("apply", "use", "remove", "import")}
         self.assertEqual(ids, {"apply": ["myfox-1", "aaaa.dev", "myfox-2"], "use": ["aaaa.dev", "myfox-2"],
                                "remove": [made.name], "import": ["aaaa.dev", "cccc.default-release"]})
+
+    def test_apply_json(self):
+        self.assertEqual(self._run("apply", "dev", "--json"), 0)
+        self.assertEqual(json.loads(self.out.getvalue()), {"ok": True, "id": "aaaa.dev"})
+        self.assertTrue((self.dev / ".myfox").is_file())
+
+    def test_apply_json_errors(self):
+        self.open = {self.dev}
+        self.assertEqual(self._run("apply", "dev", "--json"), 1)
+        self.assertEqual(json.loads(self.out.getvalue()), {"error": i18n.t("err_profile_open", "aaaa.dev")})
+        self.assertEqual(self._run("apply", "default-release", "--json"), 1)
+        self.assertIn("error", json.loads(self.out.getvalue()))
+        self.tweak_profile.side_effect = OSError("no network")
+        self.open = set()
+        self.assertEqual(self._run("apply", "dev", "--json"), 1)
+        self.assertEqual(json.loads(self.out.getvalue()), {"error": "no network"})
 
     def test_not_installed(self):
         State().delete_file()
