@@ -215,6 +215,8 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
         # Last: the only change to the other Firefox's profile.
         undo.add(lambda: importer.restore_sync(source))
         backups = importer.move_sync_out(source)
+    if source is not None:
+        importer.write_origin(profile_dir, source, answers.sync, backups)
 
     state = State()
     for key, value in (
@@ -223,8 +225,7 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
         ("lang", answers.lang), ("channel", answers.channel), ("theme", answers.theme),
         ("tweaks", answers.tweaks), ("opt_bl", answers.tweaks), ("opt_plasma", plasma),
         ("core_version", __version__), ("tweaks_version", tweaks_version), ("themes_version", themes_version),
-        ("ddblm_version", ddblm_version), ("import_source", str(source) if source else None),
-        ("import_sync", answers.sync if source else None), ("import_backups", [str(b) for b in backups] or None),
+        ("ddblm_version", ddblm_version), ("doh", answers.doh),
     ):
         state.set(key, value)
     state.save()

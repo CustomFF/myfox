@@ -115,6 +115,22 @@ class SourcesTests(IsolatedStateCase):
                                                  encoding="utf-8")
         self.assertEqual([p.id for p in sources.listing()], [str(outside)])
 
+    def test_myfox_dirs_the_used_one_first_then_the_marked_ones(self):
+        from myfox.state import State
+        for folder in ("myfox-1", "myfox-2", "aaaa.work"):
+            self._profile(self.store, folder)
+        (self.store / "myfox-1" / ".myfox").touch()
+        (self.store / "myfox-2" / ".myfox").touch()
+        snap = self.home / "snap" / "firefox" / "common" / ".mozilla" / "firefox"
+        (self._profile(snap, "bbbb.x") / ".myfox").touch()
+        self._ini(snap, ("x", "bbbb.x"))
+        self._ini(self.store, ("myfox", "myfox-1"), ("myfox", "myfox-2"), ("work", "aaaa.work"))
+        state = State()
+        state.set("profile_dir", str(self.store / "myfox-2"))
+        self.assertEqual(sources.myfox_dirs(state), [self.store / "myfox-2", self.store / "myfox-1"])
+        state.set("tweaks", False)
+        self.assertEqual(sources.myfox_dirs(state), [])
+
     def test_resolve_by_id_name_and_path(self):
         self._profile(self.store, "aaaa.default-beta")
         self._profile(self.store, "bbbb.default-beta")

@@ -115,6 +115,7 @@
     "uninstall_subtitle": "Firefox и MyFox будут удалены",
     "uninstall_action": "Удалить",
     "uninstall_remove_profile": "Удалить и профиль (закладки, история, пароли)",
+    "uninstall_remove_profiles": "Удалить и профили MyFox (закладки, история, пароли)",
     "uninstall_restore_sync": "Вернуть аккаунт Firefox в {0}",
     "err_restore_sync_in_use": "Закройте Firefox, в котором открыт {0}, или не возвращайте аккаунт.",
     "progress_uninstall_restore_sync": "Возврат аккаунта Firefox…",

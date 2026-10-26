@@ -93,16 +93,14 @@ class InstallTests(IsolatedStateCase):
         self.assertFalse((self.profile_dir / "signedInUser.json").exists())  # sync: none
         self.assertTrue((source / "signedInUser.json").is_file())
         self.assertIn(i18n.t("progress_import_start"), seen)
-        state = State()
-        self.assertEqual((state.get("import_source"), state.get("import_sync"), state.get("import_backups")),
-                         (str(source), "none", None))
+        self.assertEqual(importer.read_origin(self.profile_dir), {"source": str(source), "sync": "none", "backups": []})
 
     def test_moving_sync_signs_the_source_out_with_a_backup(self):
         source = self._source()
         self._install(Answers(install_dir=str(self.install_dir), import_from=str(source), sync=importer.SYNC_MOVE))
         self.assertTrue((self.profile_dir / "signedInUser.json").is_file())
         self.assertFalse((source / "signedInUser.json").exists())
-        self.assertEqual(sorted(Path(p).name for p in State().get("import_backups")),
+        self.assertEqual(sorted(Path(p).name for p in importer.read_origin(self.profile_dir)["backups"]),
                          ["prefs.js.myfox-backup", "signedInUser.json.myfox-backup"])
 
     def test_a_failed_import_install_gives_the_source_its_account_back(self):

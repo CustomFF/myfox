@@ -6,6 +6,7 @@ files are backed up next to themselves first and can be put back
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import stat
@@ -23,11 +24,13 @@ SYNC_MODES = (SYNC_NONE, SYNC_MOVE, SYNC_COPY)
 # dumps, our markers, and chrome/ (the tweaks bring their own).
 SKIP = {
     "lock", ".parentlock", "parent.lock", "startupCache", "cache2", "OfflineCache", "shader-cache",
-    "safebrowsing", "crashes", "minidumps", "chrome", ".myfox", ".myfox-created",
+    "safebrowsing", "crashes", "minidumps", "chrome", ".myfox", ".myfox-created", ".myfox-import",
 }
 ACCOUNT = "signedInUser.json"
 SYNC_STATE = "weave"
 BACKUP_SUFFIX = ".myfox-backup"
+# In the copy: where it came from, so the account can go back later.
+ORIGIN = ".myfox-import"
 _CHUNK = 1024 * 1024
 
 
@@ -92,6 +95,30 @@ def _strip_sync_prefs(prefs: Path) -> None:
     kept = [line for line in lines if not _is_sync_pref(line)]
     if len(kept) != len(lines):
         prefs.write_text("".join(kept), encoding="utf-8", errors="surrogateescape")
+
+
+def write_origin(copy: Path, source: Path, sync: str, backups: list[Path]) -> None:
+    (copy / ORIGIN).write_text(json.dumps({"source": str(source), "sync": sync,
+                                           "backups": [str(b) for b in backups]}, indent=2) + "\n",
+                               encoding="utf-8")
+
+
+def read_origin(copy: Path) -> dict | None:
+    try:
+        data = json.loads((copy / ORIGIN).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) and isinstance(data.get("source"), str) else None
+
+
+def restorable_source(copy: Path) -> Path | None:
+    """The profile an import moved the account out of, while it can still
+    take it back."""
+    origin = read_origin(copy)
+    if origin is None or origin.get("sync") != SYNC_MOVE:
+        return None
+    source = Path(origin["source"])
+    return source if can_restore_sync(source) else None
 
 
 def _backup(path: Path) -> Path:

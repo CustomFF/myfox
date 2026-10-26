@@ -9,7 +9,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from . import apply, desktop, firefox, i18n, launcher, paths, profiles
+from . import apply, desktop, firefox, i18n, launcher, paths, profiles, sources
 from . import task as task_mod
 from .install_form import Progress, settled
 from .installer import Stages, firefox_progress
@@ -66,7 +66,7 @@ def run(state: State, progress: Progress) -> None:
         if pinned:
             state.set("install_hash", pinned)
         stages.report("tweaks", i18n.t("progress_refresh_tweaks_apply"))
-        apply.reapply_tweaks(install_dir, Path(profile_dir), state)
+        apply.reapply_tweaks(install_dir, sources.myfox_dirs(state), state)
 
     state.set("firefox_version", version)
     state.save()

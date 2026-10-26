@@ -198,16 +198,15 @@ def apply_bookmarklets(profile_dir: Path, local_dir: str | None = None, current:
     return None if local_dir else (tag or current)
 
 
-def reapply_tweaks(install_dir: Path, profile_dir: Path | None, state) -> None:
-    """Applies the tweaks in paths.tweaks_dir() again (after reinstall or a
-    tweaks update), with the choices the install saved in `state`."""
+def tweak_profile(profile_dir: Path, state) -> None:
+    """Everything the tweaks put into one profile, with the choices the
+    install saved in `state`."""
     from . import addons
 
-    apply_autoconfig(install_dir)
-    if profile_dir is None:
-        return
     apply_chrome(profile_dir)
     apply_theme_pref(profile_dir, state.get("theme", "dark"))
+    if state.get("doh") is False:
+        apply_doh_off(profile_dir)
     # Downloaded only if there's a newer release or a theme is missing.
     themes, _missing = addons.fetch_themes(profile_dir, local_dir=os.environ.get("MYFOX_TWEAKS_LOCAL"),
                                            current=state.get("themes_version"))
@@ -218,3 +217,11 @@ def reapply_tweaks(install_dir: Path, profile_dir: Path | None, state) -> None:
         # Downloaded only if ddblm changed or the CSS is missing.
         state.set("ddblm_version", apply_bookmarklets(profile_dir, local_dir=os.environ.get("MYFOX_DDBLM_LOCAL"),
                                                       current=state.get("ddblm_version")))
+
+
+def reapply_tweaks(install_dir: Path, profile_dirs: list[Path], state) -> None:
+    """Applies the tweaks in paths.tweaks_dir() again (after reinstall or a
+    tweaks update) to the install and every MyFox profile."""
+    apply_autoconfig(install_dir)
+    for profile_dir in profile_dirs:
+        tweak_profile(profile_dir, state)

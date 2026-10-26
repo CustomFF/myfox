@@ -109,6 +109,27 @@ class UninstallTests(IsolatedStateCase):
             cli.cmd_uninstall(state, noninteractive=True, remove_profile=True)
             self.assertTrue(profile_dir.exists())
 
+    def test_every_myfox_profile_and_only_created_ones_go(self):
+        store = Path.home() / ".mozilla" / "firefox"
+        used, made, applied = store / "myfox-1", store / "myfox-2", store / "aaaa.work"
+        for p in (used, made, applied):
+            p.mkdir(parents=True)
+            (p / "prefs.js").touch()
+            (p / ".myfox").touch()
+        (used / ".myfox-created").touch()
+        (made / ".myfox-created").touch()
+        (store / "profiles.ini").write_text(
+            "".join(f"[Profile{i}]\nName=n{i}\nIsRelative=1\nPath={p.name}\n\n"
+                    for i, p in enumerate((used, made, applied))), encoding="utf-8")
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            state, _install_dir = self._installed(d, profile_dir=str(used))
+            task = uninstall.build(state)
+            self.assertEqual([v for _k, v in task.rows[2:]], [paths.shown(p) for p in (used, made, applied)])
+            self.assertEqual(task.options[0].label, i18n.t("uninstall_remove_profiles"))
+            cli.cmd_uninstall(state, noninteractive=True, remove_profile=True)
+        self.assertEqual((used.exists(), made.exists(), applied.exists()), (False, False, True))
+        self.assertEqual((store / "profiles.ini").read_text(encoding="utf-8").count("[Profile"), 1)
+
     def test_without_yes_both_commands_are_named(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
              contextlib.redirect_stderr(io.StringIO()) as err, \
@@ -121,6 +142,13 @@ class UninstallTests(IsolatedStateCase):
             i18n.t("needs_yes_uninstall_profile", "myfox uninstall -y --remove-profile"),
         ])
 
+
+
+def task_plain_run(t) -> bool:
+    from myfox.ui import task_plain
+
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        return task_plain.run(t, confirmed=True)
 
 
 class UninstallRestoreSyncTests(IsolatedStateCase):
@@ -143,13 +171,11 @@ class UninstallRestoreSyncTests(IsolatedStateCase):
         (self.copy / ".myfox-created").touch()
         (self.copy / "signedInUser.json").write_text(self.ACCOUNT, encoding="utf-8")
         (self.copy / "prefs.js").write_text(self.PREFS, encoding="utf-8")
-        backups = importer.move_sync_out(self.source)
+        importer.write_origin(self.copy, self.source, importer.SYNC_MOVE, importer.move_sync_out(self.source))
         install_dir = self.tmp_path / "firefox"
         install_dir.mkdir()
         self.state = State()
-        for key, value in (("install_dir", str(install_dir)), ("profile_dir", str(self.copy)),
-                           ("import_source", str(self.source)), ("import_sync", importer.SYNC_MOVE),
-                           ("import_backups", [str(b) for b in backups])):
+        for key, value in (("install_dir", str(install_dir)), ("profile_dir", str(self.copy))):
             self.state.set(key, value)
         self.state.save()
 
@@ -192,6 +218,26 @@ class UninstallRestoreSyncTests(IsolatedStateCase):
             restore.value = False
             self.assertTrue(task.rechecked())
             self.assertIsNone(task.blocked)
+
+    def test_one_option_per_import_that_moved_an_account(self):
+        second = self.source.parent / "bbbb.home"
+        second.mkdir()
+        (second / "signedInUser.json").write_text(self.ACCOUNT, encoding="utf-8")
+        (second / "prefs.js").write_text(self.PREFS, encoding="utf-8")
+        copy2 = self.source.parent / "myfox-2"
+        copy2.mkdir()
+        for f in (".myfox", ".myfox-created", "prefs.js"):
+            (copy2 / f).touch()
+        (self.copy / ".myfox").touch()
+        (self.copy / "prefs.js").touch()
+        importer.write_origin(copy2, second, importer.SYNC_MOVE, importer.move_sync_out(second))
+        task = uninstall.build(self.state)
+        self.assertEqual([o.label for o in task.options[1:]],
+                         [i18n.t("uninstall_restore_sync", paths.shown(p)) for p in (self.source, second)])
+        task.options[2].value = False
+        self.assertTrue(task_plain_run(task))
+        self.assertTrue((self.source / "signedInUser.json").is_file())
+        self.assertFalse((second / "signedInUser.json").exists())
 
     def test_no_option_once_the_source_signed_in_again(self):
         (self.source / "signedInUser.json").write_text("{}", encoding="utf-8")
@@ -258,7 +304,7 @@ class ReinstallTests(IsolatedStateCase):
             self.assertTrue((install_dir / ".myfox-installed").is_file())
             self.assertEqual(sorted(p.name for p in Path(d).iterdir()), ["firefox", "profile"])  # no leftovers
             pin.assert_called_once()
-            self.assertEqual(reapply.call_args.args[:2], (install_dir, profile_dir))
+            self.assertEqual(reapply.call_args.args[:2], (install_dir, [profile_dir]))
             self.assertEqual(State().get("install_hash"), "HASH")
             self.assertEqual(State().get("firefox_version"), "158.0")
 

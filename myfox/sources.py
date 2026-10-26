@@ -163,6 +163,19 @@ def listing(install_dir: Path | None = None) -> list[Profile]:
     return result
 
 
+def myfox_dirs(state) -> list[Path]:
+    """The profiles the tweaks go into: our store's ones with the .myfox
+    marker, and the one our Firefox opens, first. None for an install
+    without the tweaks."""
+    if not state.get("tweaks", True):
+        return []
+    found = [Path(state.get("profile_dir"))] if state.get("profile_dir") else []
+    for p in listing():
+        if p.owner == MYFOX and not p.store and p.path not in found:
+            found.append(p.path)
+    return found
+
+
 def is_profile(path: Path) -> bool:
     return (path / "prefs.js").is_file() or (path / "times.json").is_file()
 

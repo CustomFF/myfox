@@ -264,7 +264,7 @@ class ApplyUpdatesTests(IsolatedStateCase):
              mock.patch("myfox.apply.reapply_tweaks") as reapply:
             refresh.apply_updates(plan, lambda message, fraction: None)
         install.assert_called_once_with(plan.todo[0].release)
-        self.assertEqual(reapply.call_args.args[:2], (Path("/opt/firefox"), Path("/p/myfox-1")))
+        self.assertEqual(reapply.call_args.args[:2], (Path("/opt/firefox"), [Path("/p/myfox-1")]))
         self.assertEqual(State().get("tweaks_version"), "151.3")
 
     def test_core_is_replaced_last_and_recorded(self):
@@ -307,6 +307,15 @@ class ApplyThemesTests(IsolatedStateCase):
 
     def test_force_downloads_even_the_recorded_release(self):
         self.assertIsNone(self._apply(force=True).call_args.kwargs["current"])
+
+    def test_into_every_myfox_profile(self):
+        other = Path.home() / ".mozilla" / "firefox" / "myfox-2"
+        other.mkdir(parents=True)
+        (other / "prefs.js").touch()
+        (other / ".myfox").touch()
+        (other / ".myfox-created").touch()
+        fetch = self._apply(themes="themes-20261101120000")
+        self.assertEqual([c.args for c in fetch.call_args_list], [(Path("/p/myfox-1"),), (other,)])
 
 
 class ApplyDdblmTests(IsolatedStateCase):

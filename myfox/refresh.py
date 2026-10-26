@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import addons, apply, changelog, core, desktop, firefox, i18n, launcher, tweaks
+from . import addons, apply, changelog, core, desktop, firefox, i18n, launcher, sources, tweaks
 from . import task as task_mod
 from .install_form import Progress
 from .state import State
@@ -80,7 +80,7 @@ class RefreshPlan:
         tracks = []
         for track in TRACKS:
             # The themes and the bookmarklet styling come with the tweaks, into the profile.
-            with_tweaks = state.get("tweaks", True) and state.get("profile_dir")
+            with_tweaks = state.get("tweaks", True) and sources.myfox_dirs(state)
             if track.key == "themes_version" and not with_tweaks:
                 continue
             if track.key == "ddblm_version" and not (with_tweaks and state.get("opt_bl", True)):
@@ -158,7 +158,7 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
     version. Themes, bookmarklet styling: into the profile. Core last (TRACKS order):
     replace the installed package, which takes effect on the next start."""
     state = State()
-    install_dir, profile_dir = state.get("install_dir"), state.get("profile_dir")
+    install_dir, profile_dirs = state.get("install_dir"), sources.myfox_dirs(state)
     todo = plan.todo
     for i, t in enumerate(todo):
         base, share = i / len(todo), 1 / len(todo)
@@ -166,21 +166,23 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
         if t.track.key == "themes_version":
             progress(i18n.t("progress_refresh_themes_download", tag), base)
             # Forced: downloaded again even if it's the recorded release.
-            installed, _missing = addons.fetch_themes(Path(profile_dir), tag=t.release.tag,
-                                                      current=None if plan.force else state.get("themes_version"))
+            current, installed = None if plan.force else state.get("themes_version"), state.get("themes_version")
+            for profile_dir in profile_dirs:
+                installed, _missing = addons.fetch_themes(profile_dir, tag=t.release.tag, current=current)
             state.set("themes_version", installed)
             state.save()
         elif t.track.key == "ddblm_version":
             progress(i18n.t("progress_refresh_bookmarklets_download", tag), base)
-            installed = apply.apply_bookmarklets(Path(profile_dir), release=t.release,
-                                                 current=None if plan.force else state.get("ddblm_version"))
+            current, installed = None if plan.force else state.get("ddblm_version"), state.get("ddblm_version")
+            for profile_dir in profile_dirs:
+                installed = apply.apply_bookmarklets(profile_dir, release=t.release, current=current)
             state.set("ddblm_version", installed)
             state.save()
         elif t.track.key == "tweaks_version":
             progress(i18n.t("progress_refresh_tweaks_download", tag), base)
             installed = tweaks.install(t.release)
             progress(i18n.t("progress_refresh_tweaks_apply"), base + share / 2)
-            apply.reapply_tweaks(Path(install_dir), Path(profile_dir) if profile_dir else None, state)
+            apply.reapply_tweaks(Path(install_dir), profile_dirs, state)
             state.set("tweaks_version", installed)
             state.save()
         else:
