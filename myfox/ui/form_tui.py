@@ -220,7 +220,12 @@ _SEQUENCES = {
 
 
 class _FormDialog(BoxDialog):
+    on_idle: Callable[[], None] | None = None  # called once a second while no key comes
+
     def get_input(self):
+        if self.on_idle is not None and not self.kbuf:
+            while not select.select([0], [], [], 1)[0]:
+                self.on_idle()
         # picotui hands out the first character of a read whole but then
         # takes its leftover buffer one byte at a time, splitting multibyte
         # (e.g. Cyrillic) characters typed or pasted together. And a read

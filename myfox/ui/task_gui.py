@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 import threading
+import time
 
 import dearpygui.dearpygui as dpg
 
@@ -145,10 +146,8 @@ class _Window:
                     callback=self.on_close,
                 )
 
-        if self.task.blocked:
-            dpg.set_value(self.status, self.task.blocked)
-            dpg.bind_item_theme(self.status, _color_theme(Text=ERROR))
-            dpg.configure_item(self.action, enabled=False)
+        self._show_block()
+        self._rechecked_at = time.monotonic()
         self._themes = {
             self.action: (_button_theme(True, False), _button_theme(True, True)),
             self.cancel: (_button_theme(False, False), _button_theme(False, True)),
@@ -164,6 +163,12 @@ class _Window:
                         dpg.mvKey_Escape, dpg.mvKey_Spacebar):
                 dpg.add_key_press_handler(key, callback=lambda sender, key: self._on_key(key))
         dpg.set_primary_window("root", True)
+
+    def _show_block(self) -> None:
+        blocked = self.task.blocked
+        dpg.set_value(self.status, blocked or "")
+        dpg.bind_item_theme(self.status, _color_theme(Text=ERROR) if blocked else 0)
+        dpg.configure_item(self.action, enabled=not blocked)
 
     def relayout(self) -> None:
         """Once a frame is drawn: stacks the body by the measured heights of
@@ -239,8 +244,14 @@ class _Window:
                 self._focus(order[0])
 
     def _on_action(self) -> None:
-        if self._worker is not None or self._done or self.task.blocked:
+        if self._worker is not None or self._done:
             return
+        # The last look before running: Firefox may have started since.
+        if self.task.rechecked() or self.task.blocked:
+            self._show_block()
+            if self.task.blocked:
+                self._focus(self.cancel)
+                return
         # Closing mid-run would kill the worker halfway through: Cancel
         # only stays for an action that can stop cleanly.
         dpg.configure_item(self.action, enabled=False)
@@ -271,6 +282,13 @@ class _Window:
             self._signalled = False
             self.on_close()
         if self._worker is None:
+            # Closing Firefox while the window waits frees the action.
+            if not self._done and time.monotonic() - self._rechecked_at >= 1:
+                self._rechecked_at = time.monotonic()
+                if self.task.rechecked():
+                    self._show_block()
+                    if self.task.blocked and self._focused == self.action:
+                        self._focus(self.cancel)
             return
         if self._progress is not None and not self._cancel.requested:
             message, fraction = self._progress

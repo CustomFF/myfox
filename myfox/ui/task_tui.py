@@ -11,7 +11,7 @@ from ..task import Task
 from .form_tui import _Checkbox, _FormDialog, _Label, run_live
 from .picotui_base import ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
 
-from picotui.defs import C_RED  # noqa: E402 (picotui_base put it on sys.path)
+from picotui.defs import C_BLACK, C_RED  # noqa: E402 (picotui_base put it on sys.path)
 from picotui.widgets import ACTION_CANCEL, ACTION_OK  # noqa: E402
 
 _MAX_W = 72
@@ -90,8 +90,34 @@ def run(task: Task) -> bool:
         action_btn.disabled = True
     _set_focus(d, cancel_btn if task.destructive or task.blocked else action_btn)
 
-    if d.loop() != ACTION_OK or task.blocked:
-        return False
+    def show_block() -> None:
+        # Focus stays put when the action frees up: an Enter meant for
+        # Cancel mustn't start it.
+        if task.blocked:
+            _show_error(status, bar, task.blocked, w - 4)
+            if d.focus_w is action_btn:
+                d.change_focus(cancel_btn)
+        else:
+            status.t = bar.t = ""
+            status.fg = bar.fg = C_BLACK
+        action_btn.disabled = bool(task.blocked)
+        for widget in (status, bar, action_btn, cancel_btn):
+            widget.redraw()
+
+    def idle() -> None:
+        if task.rechecked():
+            show_block()
+
+    if task.recheck is not None:
+        d.on_idle = idle
+    while True:
+        if d.loop() != ACTION_OK:
+            return False
+        # The last look before running: Firefox may have started since.
+        if not task.rechecked() and not task.blocked:
+            break
+        show_block()
+    d.on_idle = None
     for check, option in checks:
         option.value = check.choice
         # Settled once the action runs: shown, no longer focusable.

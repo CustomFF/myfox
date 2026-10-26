@@ -35,8 +35,22 @@ class Task:
     destructive: bool = False        # focus starts on Cancel
     cancellable: bool = False        # Cancel stays live while it runs (run takes back what it did)
     blocked: str | None = None       # why the action can't run now; shown, button disabled
+    recheck: Callable[[], str | None] | None = None  # recomputes `blocked` while the dialog waits
     more: Callable[[], None] | None = None  # shows all of `lines` when they don't fit
     closes: Callable[[], bool] | None = None  # the GUI closes itself once run, if this says so
+
+    def __post_init__(self) -> None:
+        if self.recheck is not None:
+            self.blocked = self.recheck()
+
+    def rechecked(self) -> bool:
+        """Recomputes `blocked` (e.g. Firefox was closed meanwhile); True if
+        it changed."""
+        if self.recheck is None:
+            return False
+        blocked = self.recheck()
+        changed, self.blocked = blocked != self.blocked, blocked
+        return changed
 
     def lines_shown(self, limit: int) -> list[str]:
         """At most `limit` lines, the last saying how many more there are

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import os
+import select
 import shutil
 import subprocess
 import tempfile
@@ -122,6 +123,29 @@ class TuiTests(IsolatedStateCase):
         ran = []
         self.assertFalse(self._run(_task(ran, blocked="busy"), [KEY_LEFT, KEY_ENTER]))
         self.assertEqual(ran, [])
+
+    def test_closing_firefox_meanwhile_frees_the_action(self):
+        ran, blocks = [], iter(["busy", None])
+        t = _task(ran, recheck=lambda: next(blocks, None))
+        with _drive([KEY_LEFT, KEY_ENTER, KEY_ENTER]), mock.patch("myfox.ui.task_tui._ensure_screen"):
+            ready, calls = select.select, []
+
+            def first_idle(rlist, wlist, xlist, timeout):
+                calls.append(timeout)
+                return ([], [], []) if len(calls) == 1 else ready(rlist, wlist, xlist, timeout)
+
+            with mock.patch("select.select", first_idle):
+                # A second without a key: the recheck clears the block, focus
+                # stays on Cancel; Left to the action, Enter runs, Enter closes.
+                self.assertTrue(task_tui.run(t))
+        self.assertEqual((t.blocked, ran), (None, [True]))
+
+    def test_firefox_started_meanwhile_keeps_it_from_running(self):
+        ran, blocks = [], iter([None, "busy"])
+        t = _task(ran, recheck=lambda: next(blocks, "busy"))
+        # Enter on the action finds it blocked now, focus moves to Cancel.
+        self.assertFalse(self._run(t, [KEY_ENTER, KEY_ENTER]))
+        self.assertEqual((t.blocked, ran), ("busy", []))
 
 
 class ShownPathTests(unittest.TestCase):

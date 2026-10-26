@@ -38,7 +38,7 @@ def build(state: State, remove_profile: bool = False) -> task_mod.Task:
            if profile_dir and not remove_profile else []),
         run=lambda progress: run(state, progress, remove_profile=bool(options) and options[0].value),
         destructive=True,
-        blocked=i18n.t("err_firefox_running") if firefox.running_pids(install_dir) else None,
+        recheck=lambda: i18n.t("err_firefox_running") if firefox.running_pids(install_dir) else None,
     )
 
 

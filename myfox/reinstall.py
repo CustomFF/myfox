@@ -32,7 +32,7 @@ def build(state: State) -> task_mod.Task:
         unconfirmed=[i18n.t("needs_yes_reinstall", "myfox reinstall -y")],
         run=lambda progress: run(state, progress),
         cancellable=True,
-        blocked=i18n.t("err_firefox_running") if firefox.running_pids(install_dir) else None,
+        recheck=lambda: i18n.t("err_firefox_running") if firefox.running_pids(install_dir) else None,
     )
 
 
