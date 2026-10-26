@@ -102,37 +102,6 @@ def resolve_dir(ini_dir: Path, entry: ProfileEntry) -> Path:
     return p if p.is_absolute() else ini_dir / entry.path
 
 
-def list_myfox() -> list[tuple[Path, str]]:
-    """Our own profiles only: (path, name) pairs — [ProfileN] entries under
-    a myfox-* directory, plus orphaned myfox-* directories carrying
-    .myfox-created but no profiles.ini entry (kept that way by uninstall so
-    a later reinstall can find them again)."""
-    seen: set[Path] = set()
-    result: list[tuple[Path, str]] = []
-
-    ini = find_ini()
-    if ini:
-        ini_dir = ini.parent
-        for entry in parse_profiles(ini):
-            abs_path = resolve_dir(ini_dir, entry)
-            if abs_path in seen:
-                continue
-            if abs_path.name.startswith("myfox-") and abs_path.is_dir():
-                seen.add(abs_path)
-                result.append((abs_path, entry.name))
-
-    base_dir = native_dir()
-    if base_dir.is_dir():
-        for d in sorted(base_dir.glob("myfox-*")):
-            if not d.is_dir() or d in seen:
-                continue
-            if not (d / ".myfox-created").is_file():
-                continue
-            seen.add(d)
-            result.append((d, ""))
-    return result
-
-
 # ─── Creating a new profile ──────────────────────────────────────────────
 
 def _next_profile_section(cp: ConfigParser) -> str:

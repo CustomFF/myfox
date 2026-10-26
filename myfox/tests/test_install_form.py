@@ -17,10 +17,9 @@ NAMES = {"en-US": ("English (US)", "English (US)"), "ru": ("Russian", "Русс�
 VERSIONS = {"stable": "158.0.1", "beta": "159.0b5"}
 
 
-def _load(names=NAMES, profiles=(), env_lang="ru_RU.UTF-8", found=()) -> InstallForm:
+def _load(names=NAMES, env_lang="ru_RU.UTF-8", found=()) -> InstallForm:
     with mock.patch("myfox.firefox.fetch_lang_names", return_value=names), \
          mock.patch("myfox.firefox.latest_versions", return_value=VERSIONS), \
-         mock.patch("myfox.profiles.list_myfox", return_value=list(profiles)), \
          mock.patch("myfox.sources.listing", return_value=list(found)), \
          mock.patch.dict("os.environ", {"LANG": env_lang}):
         return InstallForm.load()
@@ -58,23 +57,32 @@ class LoadTests(unittest.TestCase):
         self.assertEqual([c.value for c in _load().profiles], ["", OTHER])
 
     def test_existing_profiles_come_after_a_create_new_choice(self):
-        form = _load(profiles=[(Path("/p/abc.myfox"), "myfox")])
+        form = _load(found=[_found("/p/abc.myfox", "myfox", owner=sources.MYFOX)])
         self.assertEqual([c.value for c in form.profiles], ["", "/p/abc.myfox", OTHER])
         self.assertEqual(form.profiles[0].label, i18n.t("wizard_profile_new"))
+
+    def test_related_profiles_are_used_in_place(self):
+        found = [_found("/s/myfox-1", "myfox", owner=sources.MYFOX), _found("/s/a.dev", "dev", owner=sources.OURS),
+                 _found("/s/b.new", "new", owner=sources.UNUSED), _found("/s/myfox-2", "myfox", owner=sources.MYFOX),
+                 _found("/s/c.default", "default")]
+        form = _load(found=found)
+        self.assertEqual([(c.value, c.label) for c in form.profiles[1:5]], [
+            ("/s/myfox-1", "myfox (myfox-1)"), ("/s/a.dev", "dev"), ("/s/b.new", "new"),
+            ("/s/myfox-2", "myfox (myfox-2)")])
+        self.assertEqual(form.profiles[5].value, IMPORT + "/s/c.default")
 
     def test_other_firefoxes_profiles_to_import(self):
         found = [_found("/s/a.default", "default"), _found("/s/b.default", "default"),
                  _found("/snap/c.work", "work", store="snap"), _found("/s/myfox-1", "myfox", owner=sources.MYFOX)]
         form = _load(found=found)
         self.assertEqual([c.value for c in form.profiles], [
-            "", IMPORT + "/s/a.default", IMPORT + "/s/b.default", IMPORT + "/snap/c.work", OTHER])
-        self.assertEqual([c.label for c in form.profiles[1:4]], [
+            "", "/s/myfox-1", IMPORT + "/s/a.default", IMPORT + "/s/b.default", IMPORT + "/snap/c.work", OTHER])
+        self.assertEqual([c.label for c in form.profiles[2:5]], [
             i18n.t("form_profile_import", "default (a.default)"), i18n.t("form_profile_import", "default (b.default)"),
             i18n.t("form_profile_import", "work (snap:c.work)")])
 
     def test_unreachable_mozilla_is_an_error_not_a_fallback_list(self):
         with mock.patch("myfox.firefox.fetch_lang_names", side_effect=urllib.error.URLError("no dns")), \
-             mock.patch("myfox.profiles.list_myfox", return_value=[]), \
              mock.patch("myfox.sources.listing", return_value=[]):
             form = InstallForm.load()
         self.assertEqual(form.langs, [])

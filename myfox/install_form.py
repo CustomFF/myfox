@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Callable, Iterator
 
 from . import addons, firefox, i18n, importer, launcher, paths, sources
-from . import profiles as profiles_mod
 
 
 def default_install_dir() -> str:
@@ -150,11 +149,16 @@ class InstallForm:
 
     @classmethod
     def load(cls) -> InstallForm:
-        existing = profiles_mod.list_myfox()
-        found = [p for p in sources.listing() if p.owner != sources.MYFOX]
-        names = [p.name for p in found]
-        profiles = [Choice(str(path), name or path.name) for path, name in existing]
-        profiles += [import_choice(p, names.count(p.name) > 1) for p in found]
+        # Used in place: MyFox's own and those only our Firefox has opened
+        # (or none has); every other Firefox's profile is only imported.
+        found = sources.listing(Path(default_install_dir()))
+        existing = [p for p in found if p.related and not p.store]
+        others = [p for p in found if p not in existing]
+        names = [p.name for p in existing]
+        profiles = [Choice(str(p.path), p.name + (f" ({p.id})" if names.count(p.name) > 1 else ""))
+                    for p in existing]
+        names = [p.name for p in others]
+        profiles += [import_choice(p, names.count(p.name) > 1) for p in others]
         profiles = [Choice("", i18n.t("wizard_profile_new"))] + profiles + [Choice(OTHER, i18n.t("form_profile_other"))]
         try:
             names = firefox.fetch_lang_names()

@@ -90,28 +90,6 @@ class ParseAndResolveTests(IsolatedHomeCase):
         self.assertEqual((("myfox-1" in text), ("x.default" in text)), (False, True))
 
 
-class ListMyfoxTests(IsolatedHomeCase):
-    def test_lists_entries_from_ini_plus_orphaned_created_dirs(self):
-        store = self.home / ".mozilla" / "firefox"
-        store.mkdir(parents=True)
-        (store / "profiles.ini").write_text(
-            "[Profile0]\nName=myfox\nIsRelative=1\nPath=myfox-1\n", encoding="utf-8"
-        )
-        (store / "myfox-1").mkdir()
-        # orphan: has the marker but no profiles.ini entry (left by uninstall)
-        (store / "myfox-2").mkdir()
-        (store / "myfox-2" / ".myfox-created").write_text("", encoding="utf-8")
-        # decoy: myfox-* dir with neither an ini entry nor the marker
-        (store / "myfox-3").mkdir()
-
-        result = profiles.list_myfox()
-        paths = {p.name for p, _name in result}
-        self.assertEqual(paths, {"myfox-1", "myfox-2"})
-
-    def test_empty_store_gives_empty_list(self):
-        self.assertEqual(profiles.list_myfox(), [])
-
-
 class CreateNewTests(IsolatedHomeCase):
     def test_creates_profiles_ini_when_none_exists(self):
         profile_dir = profiles.create_new()
