@@ -44,6 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
     uninstall_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
     uninstall_parser.add_argument("--remove-profile", action="store_true",
                                   help="also delete the profile (bookmarks, history, passwords)")
+    uninstall_parser.add_argument("--no-restore-sync", action="store_true",
+                                  help="leave the Firefox account an import moved into MyFox where it is")
     command_parser = sub.add_parser("command", parents=[common], help=i18n.t("cmd_command"))
     command_parser.add_argument("action", nargs="?", choices=("on", "off"))
     command_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
@@ -69,11 +71,12 @@ def cmd_browser(firefox_args: list[str], state: State) -> int:
     os.execv(target, [target, *firefox_args])  # never returns on success
 
 
-def cmd_uninstall(state: State, noninteractive: bool, gui: bool = False, remove_profile: bool = False) -> int:
+def cmd_uninstall(state: State, noninteractive: bool, gui: bool = False, remove_profile: bool = False,
+                  restore_sync: bool = True) -> int:
     if not state.get("install_dir"):
         _not_installed()
         return 0
-    return 0 if task.show(uninstall.build(state, remove_profile), gui=gui, noninteractive=noninteractive) else 1
+    return 0 if task.show(uninstall.build(state, remove_profile, restore_sync), gui=gui, noninteractive=noninteractive) else 1
 
 
 def cmd_reinstall(state: State, noninteractive: bool = False, gui: bool = False) -> int:
@@ -101,7 +104,7 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(f"  myfox browser --myfox-restart     {i18n.t('cmd_restart')}")
     print(f"  myfox refresh [--force] [--gui]   {i18n.t('cmd_refresh')}")
     print(f"  myfox reinstall [--gui]           {i18n.t('cmd_reinstall')}")
-    print(f"  myfox uninstall [--remove-profile] [--gui]\n"
+    print(f"  myfox uninstall [--remove-profile] [--no-restore-sync] [--gui]\n"
           f"                                    {i18n.t('cmd_uninstall')}")
     print(f"  myfox command [on|off] [--gui]    {i18n.t('cmd_command')}")
     print(f"  myfox help                        {i18n.t('cmd_help')}")
@@ -164,7 +167,8 @@ def main(argv: list[str] | None = None) -> int:
         return command.run(state, args.action, gui=args.gui, noninteractive=noninteractive, as_json=args.json,
                            keep_backup=args.keep_backup)
     if args.command == "uninstall":
-        return cmd_uninstall(state, noninteractive, gui=args.gui, remove_profile=args.remove_profile)
+        return cmd_uninstall(state, noninteractive, gui=args.gui, remove_profile=args.remove_profile,
+                             restore_sync=not args.no_restore_sync)
 
     print_top_help(parser)
     return 1

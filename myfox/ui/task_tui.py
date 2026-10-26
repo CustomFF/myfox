@@ -104,7 +104,14 @@ def run(task: Task) -> bool:
         for widget in (status, bar, action_btn, cancel_btn):
             widget.redraw()
 
+    def take_options() -> None:
+        # A recheck may depend on them (e.g. an option that needs another
+        # Firefox closed).
+        for check, option in checks:
+            option.value = check.choice
+
     def idle() -> None:
+        take_options()
         if task.rechecked():
             show_block()
 
@@ -114,12 +121,12 @@ def run(task: Task) -> bool:
         if d.loop() != ACTION_OK:
             return False
         # The last look before running: Firefox may have started since.
+        take_options()
         if not task.rechecked() and not task.blocked:
             break
         show_block()
     d.on_idle = None
-    for check, option in checks:
-        option.value = check.choice
+    for check, _option in checks:
         # Settled once the action runs: shown, no longer focusable.
         d.childs[d.childs.index(check)] = label = _Label(("[x] " if check.choice else "[ ] ") + check.t, check.w)
         label.set_xy(check.x, check.y)

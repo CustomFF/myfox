@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from myfox import __main__ as cli
-from myfox import i18n, reinstall
+from myfox import i18n, importer, paths, reinstall, uninstall
 from myfox.install_form import Cancelled
 from myfox.state import State, state_file
 from ._helpers import IsolatedStateCase
@@ -120,6 +120,92 @@ class UninstallTests(IsolatedStateCase):
             i18n.t("needs_yes_uninstall", "myfox uninstall -y"),
             i18n.t("needs_yes_uninstall_profile", "myfox uninstall -y --remove-profile"),
         ])
+
+
+
+class UninstallRestoreSyncTests(IsolatedStateCase):
+    """An import that moved the account: uninstall moves it back."""
+
+    ACCOUNT = '{"accountData": {"email": "a@b"}}'
+    PREFS = 'user_pref("browser.x", 1);\nuser_pref("services.sync.username", "a@b");\n'
+
+    def setUp(self):
+        super().setUp()
+        running = mock.patch("myfox.firefox.running_pids", return_value=[])
+        running.start()
+        self.addCleanup(running.stop)
+        self.source = Path.home() / ".mozilla" / "firefox" / "aaaa.work"
+        self.source.mkdir(parents=True)
+        (self.source / "signedInUser.json").write_text(self.ACCOUNT, encoding="utf-8")
+        (self.source / "prefs.js").write_text(self.PREFS, encoding="utf-8")
+        self.copy = self.source.parent / "myfox-1"
+        self.copy.mkdir()
+        (self.copy / ".myfox-created").touch()
+        (self.copy / "signedInUser.json").write_text(self.ACCOUNT, encoding="utf-8")
+        (self.copy / "prefs.js").write_text(self.PREFS, encoding="utf-8")
+        backups = importer.move_sync_out(self.source)
+        install_dir = self.tmp_path / "firefox"
+        install_dir.mkdir()
+        self.state = State()
+        for key, value in (("install_dir", str(install_dir)), ("profile_dir", str(self.copy)),
+                           ("import_source", str(self.source)), ("import_sync", importer.SYNC_MOVE),
+                           ("import_backups", [str(b) for b in backups])):
+            self.state.set(key, value)
+        self.state.save()
+
+    def _uninstall(self, **kwargs) -> int:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as self.err:
+            return cli.cmd_uninstall(self.state, noninteractive=True, **kwargs)
+
+    def test_moves_the_account_back_and_signs_the_kept_copy_out(self):
+        self.assertEqual(self._uninstall(), 0)
+        self.assertEqual((self.source / "signedInUser.json").read_text(encoding="utf-8"), self.ACCOUNT)
+        self.assertIn("services.sync.username", (self.source / "prefs.js").read_text(encoding="utf-8"))
+        self.assertFalse(list(self.source.glob("*" + importer.BACKUP_SUFFIX)))
+        self.assertFalse((self.copy / "signedInUser.json").exists())
+        self.assertNotIn("services.sync.", (self.copy / "prefs.js").read_text(encoding="utf-8"))
+
+    def test_with_the_copy_removed(self):
+        self.assertEqual(self._uninstall(remove_profile=True), 0)
+        self.assertTrue((self.source / "signedInUser.json").is_file())
+        self.assertFalse(self.copy.exists())
+
+    def test_no_restore_sync_leaves_both_as_they_are(self):
+        self.assertEqual(self._uninstall(restore_sync=False), 0)
+        self.assertFalse((self.source / "signedInUser.json").exists())
+        self.assertTrue(list(self.source.glob("*" + importer.BACKUP_SUFFIX)))
+        self.assertTrue((self.copy / "signedInUser.json").is_file())
+
+    def test_an_open_source_blocks_it_unless_left_alone(self):
+        with mock.patch("myfox.sources.in_use", return_value=True):
+            self.assertEqual(self._uninstall(), 1)
+            self.assertIn(i18n.t("err_restore_sync_in_use", paths.shown(self.source)), self.err.getvalue())
+            self.assertTrue(self.state.get("install_dir"))
+            self.assertEqual(self._uninstall(restore_sync=False), 0)
+
+    def test_the_option_follows_the_checkbox(self):
+        task = uninstall.build(self.state)
+        restore = task.options[-1]
+        self.assertEqual(restore.label, i18n.t("uninstall_restore_sync", paths.shown(self.source)))
+        with mock.patch("myfox.sources.in_use", return_value=True):
+            self.assertTrue(task.rechecked())
+            restore.value = False
+            self.assertTrue(task.rechecked())
+            self.assertIsNone(task.blocked)
+
+    def test_no_option_once_the_source_signed_in_again(self):
+        (self.source / "signedInUser.json").write_text("{}", encoding="utf-8")
+        task = uninstall.build(self.state)
+        self.assertEqual(len(task.options), 1)
+        self._uninstall()
+        self.assertEqual((self.source / "signedInUser.json").read_text(encoding="utf-8"), "{}")
+
+    def test_without_yes_the_keep_command_is_named(self):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err, \
+             mock.patch("myfox.ui._has_tty", return_value=False):
+            self.assertEqual(cli.cmd_uninstall(self.state, noninteractive=False), 1)
+        self.assertIn(i18n.t("needs_yes_uninstall_keep_sync", "myfox uninstall -y --no-restore-sync"),
+                      err.getvalue().splitlines())
 
 
 def _fake_tarball(dest, lang, channel, on_download=None, on_extract=None, on_wait=None):
@@ -252,7 +338,7 @@ class DispatchWiringTests(IsolatedStateCase):
     def test_uninstall_forwards_remove_profile(self):
         with mock.patch("myfox.__main__.cmd_uninstall", return_value=0) as cmd:
             cli.main(["uninstall", "--remove-profile", "-y"])
-        cmd.assert_called_once_with(mock.ANY, True, gui=False, remove_profile=True)
+        cmd.assert_called_once_with(mock.ANY, True, gui=False, remove_profile=True, restore_sync=True)
 
     def test_reinstall_dispatches(self):
         with mock.patch("myfox.__main__.cmd_reinstall", return_value=0) as cmd:
@@ -262,7 +348,12 @@ class DispatchWiringTests(IsolatedStateCase):
     def test_uninstall_forwards_the_noninteractive_flag(self):
         with mock.patch("myfox.__main__.cmd_uninstall", return_value=0) as cmd:
             cli.main(["uninstall", "-y"])
-        cmd.assert_called_once_with(mock.ANY, True, gui=False, remove_profile=False)
+        cmd.assert_called_once_with(mock.ANY, True, gui=False, remove_profile=False, restore_sync=True)
+
+    def test_uninstall_forwards_no_restore_sync(self):
+        with mock.patch("myfox.__main__.cmd_uninstall", return_value=0) as cmd:
+            cli.main(["uninstall", "-y", "--no-restore-sync"])
+        cmd.assert_called_once_with(mock.ANY, True, gui=False, remove_profile=False, restore_sync=False)
 
 
 class BrowserCommandTests(IsolatedStateCase):

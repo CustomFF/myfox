@@ -140,6 +140,26 @@ class TuiTests(IsolatedStateCase):
                 self.assertTrue(task_tui.run(t))
         self.assertEqual((t.blocked, ran), (None, [True]))
 
+    def test_unticking_an_option_the_block_depends_on_frees_the_action(self):
+        seen = []
+        option = task.Option("Give the account back", True)
+        t = task.Task(title="T", subtitle="S", rows=[("Row:", "v")], action="Go", unconfirmed=["Run: go -y"],
+                      run=lambda progress: seen.append(option.value), options=[option], destructive=True,
+                      recheck=lambda: "close it" if option.value else None)
+        with _drive([KEY_LEFT, b" ", KEY_DOWN, KEY_ENTER, KEY_ENTER]), \
+             mock.patch("myfox.ui.task_tui._ensure_screen"):
+            ready, calls = select.select, []
+
+            def idle_after_space(rlist, wlist, xlist, timeout):
+                calls.append(timeout)
+                return ([], [], []) if len(calls) == 3 else ready(rlist, wlist, xlist, timeout)
+
+            with mock.patch("select.select", idle_after_space):
+                # Cancel first (blocked); Left to the checkbox, Space unticks
+                # it, a second passes, Down to the freed action, Enter runs.
+                self.assertTrue(task_tui.run(t))
+        self.assertEqual((t.blocked, seen), (None, [False]))
+
     def test_firefox_started_meanwhile_keeps_it_from_running(self):
         ran, blocks = [], iter([None, "busy"])
         t = _task(ran, recheck=lambda: next(blocks, "busy"))

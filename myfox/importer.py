@@ -121,6 +121,15 @@ def move_sync_out(src: Path) -> list[Path]:
     return backups
 
 
+def sign_out(profile: Path) -> None:
+    """Drops the account and the device's sync identity, keeps no backup."""
+    try:
+        (profile / ACCOUNT).unlink()
+    except FileNotFoundError:
+        pass
+    _strip_sync_prefs(profile / "prefs.js")
+
+
 def can_restore_sync(src: Path) -> bool:
     """A backup is there and the source hasn't been signed in again since
     (that account would be overwritten)."""
