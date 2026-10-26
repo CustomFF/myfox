@@ -67,6 +67,28 @@ class ParseAndResolveTests(IsolatedHomeCase):
     def test_find_ini_returns_none_when_absent(self):
         self.assertIsNone(profiles.find_ini())
 
+    def test_a_sandboxed_firefox_store_is_never_ours(self):
+        flatpak = Path.home() / ".var" / "app" / "org.mozilla.firefox" / ".mozilla" / "firefox"
+        flatpak.mkdir(parents=True)
+        (flatpak / "profiles.ini").write_text("[Profile0]\nName=default\nIsRelative=1\nPath=x.default\n",
+                                              encoding="utf-8")
+        self.assertIsNone(profiles.find_ini())
+        created = profiles.create_new()
+        self.assertEqual(created.parent, profiles.native_dir())
+        self.assertNotIn("myfox", (flatpak / "profiles.ini").read_text(encoding="utf-8"))
+
+    def test_cleanup_also_reaches_an_entry_left_in_a_sandbox_store(self):
+        flatpak = Path.home() / ".var" / "app" / "org.mozilla.firefox" / ".mozilla" / "firefox"
+        (flatpak / "myfox-1").mkdir(parents=True)
+        (flatpak / "profiles.ini").write_text(
+            "[Profile0]\nName=default\nIsRelative=1\nPath=x.default\n\n"
+            "[Profile1]\nName=myfox\nIsRelative=1\nPath=myfox-1\n\n[InstallABC]\nDefault=myfox-1\nLocked=1\n",
+            encoding="utf-8")
+        profiles.remove_myfox_section(flatpak / "myfox-1")
+        profiles.unpin_install("ABC")
+        text = (flatpak / "profiles.ini").read_text(encoding="utf-8")
+        self.assertEqual((("myfox-1" in text), ("x.default" in text)), (False, True))
+
 
 class ListMyfoxTests(IsolatedHomeCase):
     def test_lists_entries_from_ini_plus_orphaned_created_dirs(self):

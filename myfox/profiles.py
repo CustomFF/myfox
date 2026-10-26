@@ -50,6 +50,8 @@ def native_dir() -> Path:
 
 
 def search_dirs() -> list[Path]:
+    """Ours, then the flatpak's and the snap's. Only for cleaning up: our
+    Firefox reads ours alone, so nothing of ours is ever made in the others."""
     dirs = [native_dir()]
     flatpak = Path.home() / ".var" / "app" / "org.mozilla.firefox"
     if flatpak.is_dir():
@@ -61,11 +63,9 @@ def search_dirs() -> list[Path]:
 
 
 def find_ini() -> Path | None:
-    for d in search_dirs():
-        candidate = d / "profiles.ini"
-        if candidate.is_file():
-            return candidate
-    return None
+    """Our Firefox's profiles.ini, if there is one yet."""
+    candidate = native_dir() / "profiles.ini"
+    return candidate if candidate.is_file() else None
 
 
 # ─── Parsing profiles.ini ────────────────────────────────────────────────
@@ -121,9 +121,8 @@ def list_myfox() -> list[tuple[Path, str]]:
                 seen.add(abs_path)
                 result.append((abs_path, entry.name))
 
-    for base_dir in search_dirs():
-        if not base_dir.is_dir():
-            continue
+    base_dir = native_dir()
+    if base_dir.is_dir():
         for d in sorted(base_dir.glob("myfox-*")):
             if not d.is_dir() or d in seen:
                 continue
@@ -234,15 +233,19 @@ def register_entry(ini: Path, profile_abs: Path) -> str:
     return path_value
 
 
+def _all_inis() -> list[Path]:
+    # An older MyFox registered in the flatpak's or the snap's profiles.ini
+    # when ours didn't exist yet; cleaning up looks there too.
+    return [d / "profiles.ini" for d in search_dirs() if (d / "profiles.ini").is_file()]
+
+
 def remove_myfox_section(profile_dir: Path) -> None:
     """Scoped to this exact profile directory — never "any [ProfileN] named
     myfox", which would also rip out unrelated myfox installs elsewhere."""
-    ini = find_ini()
-    if not ini:
-        return
-    entry = _find_entry_for_dir(ini, profile_dir)
-    if entry:
-        remove_ini_section(ini, entry.section)
+    for ini in _all_inis():
+        entry = _find_entry_for_dir(ini, profile_dir)
+        if entry:
+            remove_ini_section(ini, entry.section)
 
 
 # ─── Headless pinning ────────────────────────────────────────────────────
@@ -429,12 +432,13 @@ def pin_install(install_dir: Path, profile_abs: Path, saved_hash: str | None) ->
 
 
 def unpin_install(hash_: str) -> None:
+    """The hash is our install's own, so its sections are ours wherever
+    they are."""
     if not hash_:
         return
-    ini = find_ini()
-    if not ini:
-        return
-    remove_ini_section(ini, f"Install{hash_}")
-    installs_ini = ini.parent / "installs.ini"
-    if installs_ini.is_file():
-        remove_ini_section(installs_ini, hash_)
+    for ini in _all_inis():
+        if f"Install{hash_}" in _install_sections(ini):
+            remove_ini_section(ini, f"Install{hash_}")
+        installs_ini = ini.parent / "installs.ini"
+        if hash_ in _hash_sections(installs_ini):
+            remove_ini_section(installs_ini, hash_)
