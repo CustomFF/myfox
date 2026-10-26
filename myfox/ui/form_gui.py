@@ -13,8 +13,8 @@ from pathlib import Path
 
 import dearpygui.dearpygui as dpg
 
-from .. import i18n
-from ..install_form import Answers, Cancel, Cancelled, Choice, InstallForm, Installer, Lang, signals_to
+from .. import i18n, sources
+from ..install_form import OTHER, Answers, Cancel, Cancelled, Choice, InstallForm, Installer, Lang, signals_to
 from . import portal
 
 ASSETS = Path(__file__).resolve().parent / "assets"
@@ -289,6 +289,7 @@ class _Window:
         self._normal_theme = _color_theme(Text=(35, 38, 41))
         self._focused: set[int] = set()
         self._picked: str | None = None
+        self._picked_profile: tuple[str | None] | None = None  # (folder or None if cancelled), once picked
         self._picking = False
         self._progress: tuple[str, float] | None = None
         self._failure: str | None = None
@@ -350,10 +351,13 @@ class _Window:
                 self.profile = None
                 if self.form.profiles:
                     with self._row(i18n.t("form_profile")):
-                        self.profile = _combo(
-                            self.form.profiles, a.profile_dir or "",
-                            lambda v: setattr(a, "profile_dir", v or None),
+                        self.profile = dpg.add_combo(
+                            [c.label for c in self.form.profiles], width=-1,
+                            default_value=self._profile_label(self.form.profile_value),
+                            callback=lambda sender, label: self._on_profile(label),
                         )
+                with self._row(i18n.t("form_sync")) as self.sync_row:
+                    self.sync = _combo(self.form.syncs, a.sync, lambda v: setattr(a, "sync", v))
                 with self._row(i18n.t("form_tweaks")):
                     self.tweaks = dpg.add_checkbox(default_value=a.tweaks, callback=self._on_tweaks)
                 with self._row(i18n.t("form_theme")) as self.theme_row:
@@ -392,6 +396,7 @@ class _Window:
             dpg.bind_item_theme(item, self._idle_input)
         dpg.configure_item(self.theme_row, show=self.form.theme_applies)
         dpg.configure_item(self.doh_row, show=self.form.doh_applies)
+        dpg.configure_item(self.sync_row, show=self.form.sync_applies)
         if self.form.error:
             self._show_error(self.form.error)
             dpg.configure_item(self.install, enabled=False)
@@ -408,8 +413,8 @@ class _Window:
         dpg.set_primary_window("root", True)
 
     def _form_items(self) -> list[int]:
-        items = [self.dir_input, self.browse, self.channel, self.tweaks, self.theme, self.doh, self.firefox_command,
-                 self.search, self.install]
+        items = [self.dir_input, self.browse, self.channel, self.sync, self.tweaks, self.theme, self.doh,
+                 self.firefox_command, self.search, self.install]
         return items + ([self.profile] if self.profile else [])
 
     def _show_error(self, text: str) -> None:
@@ -420,6 +425,33 @@ class _Window:
         self.answers.tweaks = checked
         dpg.configure_item(self.theme_row, show=self.form.theme_applies)
         dpg.configure_item(self.doh_row, show=self.form.doh_applies)
+
+    def _profile_label(self, value: str) -> str:
+        return next(c.label for c in self.form.profiles if c.value == value)
+
+    def _on_profile(self, label: str) -> None:
+        value = next(c.value for c in self.form.profiles if c.label == label)
+        if value != OTHER:
+            self._set_profile(value)
+            return
+        # Shows the choice before until a folder is picked (tick()).
+        dpg.set_value(self.profile, self._profile_label(self.form.profile_value))
+        if self._picking:
+            return
+        self._picking = True
+
+        def run() -> None:
+            self._picked_profile = (portal.pick_directory(i18n.t("form_profile_pick_title"), str(Path.home())),)
+            self._picking = False
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _set_profile(self, value: str) -> None:
+        self.form.pick_profile(value)
+        dpg.configure_item(self.profile, items=[c.label for c in self.form.profiles])
+        dpg.set_value(self.profile, self._profile_label(value))
+        dpg.set_value(self.sync, next(c.label for c in self.form.syncs if c.value == self.answers.sync))
+        dpg.configure_item(self.sync_row, show=self.form.sync_applies)
 
     def _on_browse(self) -> None:
         if self._picking:
@@ -529,8 +561,17 @@ class _Window:
             dpg.set_value(self.dir_input, self._picked)
             self.answers.install_dir = self._picked
             self._picked = None
+        if self._picked_profile is not None:
+            folder, self._picked_profile = self._picked_profile[0], None
+            if folder:
+                try:
+                    self._set_profile(self.form.add_import(folder))
+                except sources.ProfileLookupError as exc:
+                    self._show_error(str(exc))
         if self._worker is None and not self.form.error:
             dpg.configure_item(self.browse, enabled=not self._picking)
+            if self.profile is not None:
+                dpg.configure_item(self.profile, enabled=not self._picking)
 
         if self._worker is not None:
             if self._progress is not None and not self._cancel.requested:

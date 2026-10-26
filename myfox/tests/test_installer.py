@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest import mock
 
 import myfox
-from myfox import i18n, installer
+from myfox import i18n, importer, installer
 from myfox.install_form import Answers, Cancelled
 from myfox.state import State
 
@@ -73,6 +73,55 @@ class InstallTests(IsolatedStateCase):
             off.assert_not_called()
             self._install(Answers(install_dir=str(self.install_dir), doh=False))
             off.assert_called_once_with(self.profile_dir)
+
+    def _source(self) -> Path:
+        source = self.tmp_path / "other" / "a.default"
+        source.mkdir(parents=True)
+        (source / "prefs.js").write_text('user_pref("services.sync.username", "me");\n', encoding="utf-8")
+        (source / "places.sqlite").write_text("x" * 5000, encoding="utf-8")
+        (source / "signedInUser.json").write_text("{}", encoding="utf-8")
+        return source
+
+    def test_an_import_copies_into_the_new_profile_before_the_tweaks(self):
+        source = self._source()
+        seen = []
+        with mock.patch("myfox.importer.copy_profile", wraps=importer.copy_profile) as copy:
+            self._install(Answers(install_dir=str(self.install_dir), import_from=str(source)),
+                          progress=lambda m, f: seen.append(m))
+            copy.assert_called_once()
+        self.assertTrue((self.profile_dir / "places.sqlite").is_file())
+        self.assertFalse((self.profile_dir / "signedInUser.json").exists())  # sync: none
+        self.assertTrue((source / "signedInUser.json").is_file())
+        self.assertIn(i18n.t("progress_import_start"), seen)
+        state = State()
+        self.assertEqual((state.get("import_source"), state.get("import_sync"), state.get("import_backups")),
+                         (str(source), "none", None))
+
+    def test_moving_sync_signs_the_source_out_with_a_backup(self):
+        source = self._source()
+        self._install(Answers(install_dir=str(self.install_dir), import_from=str(source), sync=importer.SYNC_MOVE))
+        self.assertTrue((self.profile_dir / "signedInUser.json").is_file())
+        self.assertFalse((source / "signedInUser.json").exists())
+        self.assertEqual(sorted(Path(p).name for p in State().get("import_backups")),
+                         ["prefs.js.myfox-backup", "signedInUser.json.myfox-backup"])
+
+    def test_a_failed_import_install_gives_the_source_its_account_back(self):
+        source = self._source()
+        with mock.patch("myfox.state.State.save", side_effect=OSError("disk full")), self.assertRaises(OSError):
+            self._install(Answers(install_dir=str(self.install_dir), import_from=str(source),
+                                  sync=importer.SYNC_MOVE))
+        self.assertTrue((source / "signedInUser.json").is_file())
+        self.assertIn("services.sync.username", (source / "prefs.js").read_text(encoding="utf-8"))
+        self.assertFalse(self.profile_dir.exists())
+
+    def test_a_newer_profile_is_opened_once_with_allow_downgrade(self):
+        source = self._source()
+        with mock.patch("myfox.importer.accept_downgrade") as accept:
+            self._install(Answers(install_dir=str(self.install_dir), import_from=str(source)))
+            accept.assert_not_called()
+        with mock.patch("myfox.importer.accept_downgrade") as accept:
+            self._install(Answers(install_dir=str(self.install_dir), import_from=str(source), allow_downgrade=True))
+            accept.assert_called_once_with(self.install_dir, self.profile_dir)
 
     def test_firefox_command_when_asked(self):
         with mock.patch("myfox.command.enable") as enable, \

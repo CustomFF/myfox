@@ -18,7 +18,8 @@ from pathlib import Path
 from typing import Callable
 
 from .. import i18n
-from ..install_form import Answers, Cancel, Cancelled, Choice, InstallForm, Installer, Lang, Progress, signals_to
+from .. import sources
+from ..install_form import OTHER, Answers, Cancel, Cancelled, Choice, InstallForm, Installer, Lang, Progress, signals_to
 from .picotui_base import BOX_BG, FIELD_BG, FOCUS_BG, SGR_GRAY_ON_CYAN, SGR_WHITE_ON_GRAY, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus, abandon_screen, end_screen
 
 from picotui.defs import (  # noqa: E402 (picotui_base put it on sys.path)
@@ -126,12 +127,17 @@ class _Entry(WTextEntry):
 
 
 class _Dropdown(WDropDown):
-    def __init__(self, choices: list[Choice], value: str):
-        super().__init__(_COMBO_W, [choice.label for choice in choices], dropdown_h=len(choices) + 2)
-        self.choices = choices
-        self.choice = next(i for i, choice in enumerate(choices) if choice.value == value)
+    def __init__(self, choices: list[Choice], value: str, w: int = _COMBO_W):
+        super().__init__(w, [], dropdown_h=1)
+        self.set_choices(choices, value)
         self.disabled = False
         self.hidden = False
+
+    def set_choices(self, choices: list[Choice], value: str) -> None:
+        self.choices = choices
+        self.items = [choice.label for choice in choices]
+        self.dropdown_h = min(len(choices), 10) + 2  # longer lists scroll
+        self.choice = next(i for i, choice in enumerate(choices) if choice.value == value)
 
     @property
     def value(self) -> str:
@@ -454,8 +460,8 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     _clear()
     d = _FormDialog(x, y, w, h, title=i18n.t("form_title"))
 
-    labels = [i18n.t(k) for k in ("form_dir", "form_channel", "form_profile", "form_tweaks", "form_theme",
-                                      "form_doh", "form_command")]
+    labels = [i18n.t(k) for k in ("form_dir", "form_channel", "form_profile", "form_sync", "form_tweaks",
+                                      "form_theme", "form_doh", "form_command")]
     ctrl_x = 2 + max(len(label) for label in labels) + 2
     ctrl_w = w - ctrl_x - 2
     row = 1
@@ -478,8 +484,11 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     add_row("form_channel", channel, gap=1)
     profile = None
     if form.profiles:
-        profile = _Dropdown(form.profiles, a.profile_dir or "")
-        add_row("form_profile", profile, gap=1)
+        profile = _Dropdown(form.profiles, form.profile_value, w=ctrl_w)
+        add_row("form_profile", profile)
+    sync = _Dropdown(form.syncs, a.sync, w=min(ctrl_w, max(len(c.label) for c in form.syncs) + 2))
+    sync_label = add_row("form_sync", sync, gap=1)
+    sync.hidden = sync_label.hidden = not form.sync_applies
     tweaks = _Checkbox("", choice=a.tweaks)
     add_row("form_tweaks", tweaks)
     theme = _Dropdown(form.themes, a.theme)
@@ -541,6 +550,31 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
         _clear()
         d.redraw()
 
+    picked_profile = [form.profile_value]
+
+    def on_profile(widget) -> None:
+        value = widget.value
+        if value == OTHER:
+            folder = pick_dir(str(Path.home()), i18n.t("form_profile_pick_title"))
+            _clear()
+            d.redraw()
+            value = picked_profile[0]
+            if folder:
+                try:
+                    value = form.add_import(folder)
+                except sources.ProfileLookupError as exc:
+                    show_error(str(exc))
+            widget.set_choices(form.profiles, value)
+            widget.redraw()
+        form.pick_profile(value)
+        picked_profile[0] = value
+        sync.set_choices(form.syncs, a.sync)
+        sync.hidden = sync_label.hidden = not form.sync_applies
+        sync.redraw()
+        sync_label.redraw()
+
+    if profile:
+        profile.on("changed", on_profile)
     tweaks.on("changed", on_tweaks)
     browse_btn.on("click", on_browse)
     search.on("changed", lambda widget: langs.show(form.filter_langs(widget.get())))
@@ -552,7 +586,7 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
             continue
         a.install_dir = dir_entry.get()
         a.channel = channel.value
-        a.profile_dir = (profile.value or None) if profile else None
+        a.sync = sync.value  # the profile's choice set the rest
         a.theme = theme.value
         a.doh = doh.choice
         a.firefox_command = firefox_command.choice

@@ -4,11 +4,14 @@ import io
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
 from unittest import mock
 
-from myfox import i18n, wizard
-from myfox.install_form import INSTALL_COMMAND, Answers, InstallForm, Lang, summary
+from myfox import i18n, importer, wizard
+from myfox.install_form import INSTALL_COMMAND, OTHER, Answers, Choice, InstallForm, Lang, summary
 from myfox.ui import form_plain
+
+from ._helpers import IsolatedStateCase
 
 # Sorted by English name, as InstallForm.load() returns them.
 LANGS = [Lang("be", "Belarusian", "Беларуская"), Lang("en-US", "English (US)", "English (US)"),
@@ -113,6 +116,46 @@ class DispatchTests(unittest.TestCase):
         with mock.patch("myfox.ui.form_plain.run") as run:
             wizard.run(gui=True, noninteractive=True)
         self.assertTrue(run.call_args.kwargs["noninteractive"])
+
+
+class ImportFlagTests(IsolatedStateCase):
+    def setUp(self):
+        super().setUp()
+        self.form = InstallForm(langs=LANGS, profiles=[Choice("", "New"), Choice(OTHER, "Other…")])
+        patcher = mock.patch("myfox.wizard.InstallForm.load", return_value=self.form)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.source = Path.home() / ".mozilla" / "firefox" / "a.default"
+        self.source.mkdir(parents=True)
+        (self.source / "prefs.js").touch()
+        (self.source.parent / "profiles.ini").write_text("[Profile0]\nName=work\nIsRelative=1\nPath=a.default\n",
+                                                         encoding="utf-8")
+
+    def test_an_id_or_a_name_picks_the_import(self):
+        for arg in ("a.default", "work", str(self.source)):
+            with mock.patch("myfox.ui.form_plain.run") as run:
+                wizard.run(noninteractive=True, import_from=arg, sync=importer.SYNC_MOVE)
+            answers = run.call_args[0][0].answers
+            self.assertEqual((answers.import_from, answers.sync), (str(self.source), importer.SYNC_MOVE), arg)
+
+    def test_an_unknown_one_is_refused_before_the_form(self):
+        with mock.patch("myfox.ui.form_plain.run") as run, redirect_stderr(io.StringIO()) as err:
+            self.assertIsNone(wizard.run(noninteractive=True, import_from="nope"))
+        run.assert_not_called()
+        self.assertEqual(err.getvalue().strip(), i18n.t("err_profile_not_found", "nope"))
+
+    def test_yes_with_a_newer_profile_needs_allow_downgrade(self):
+        (self.source / "compatibility.ini").write_text("[Compatibility]\nLastVersion=160.0_1/1\n", encoding="utf-8")
+        self.form.versions = {"stable": "158.0.1"}
+        self.form.answers.install_dir = str(self.tmp_path / "firefox")
+        installed = []
+        with redirect_stderr(io.StringIO()) as err:
+            self.assertIsNone(wizard.run(noninteractive=True, import_from="work", install=lambda a, p: installed.append(a)))
+        self.assertEqual((installed, err.getvalue().strip()), ([], i18n.t("warn_import_downgrade_cli", "160.0", "158.0.1")))
+        with redirect_stdout(io.StringIO()):
+            wizard.run(noninteractive=True, import_from="work", allow_downgrade=True,
+                       install=lambda a, p: installed.append(a))
+        self.assertTrue(installed[0].allow_downgrade)
 
 
 if __name__ == "__main__":

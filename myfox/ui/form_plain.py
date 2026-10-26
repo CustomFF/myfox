@@ -21,7 +21,9 @@ def _summary(form: InstallForm) -> None:
     a = form.answers
     rows = [(i18n.t("form_dir"), a.install_dir), (i18n.t("form_channel"), _label(form.channels, a.channel))]
     if form.profiles:
-        rows.append((i18n.t("form_profile"), _label(form.profiles, a.profile_dir or "")))
+        rows.append((i18n.t("form_profile"), _label(form.profiles, form.profile_value)))
+    if a.import_from:
+        rows.append((i18n.t("form_sync"), _label(form.syncs, a.sync)))
     rows.append((i18n.t("form_tweaks"), i18n.t("summary_yes" if a.tweaks else "summary_no")))
     if form.theme_applies:
         rows.append((i18n.t("form_theme"), _label(form.themes, a.theme)))
@@ -80,7 +82,7 @@ def run(form: InstallForm, install: Installer, noninteractive: bool = False) -> 
     if form.error:
         print(form.error, file=sys.stderr)
         return None
-    error = form.validate()
+    error = form.validate(asks=False)
     if error:
         print(error, file=sys.stderr)
         return None

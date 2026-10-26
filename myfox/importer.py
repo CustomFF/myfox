@@ -9,10 +9,12 @@ from __future__ import annotations
 import os
 import shutil
 import stat
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Callable
 
-from . import i18n
+from . import i18n, profiles
 
 SYNC_NONE, SYNC_MOVE, SYNC_COPY = "none", "move", "copy"
 SYNC_MODES = (SYNC_NONE, SYNC_MOVE, SYNC_COPY)
@@ -143,3 +145,17 @@ def restore_sync(src: Path) -> None:
         prefs_backup.unlink()
     if account_backup.is_file():
         os.replace(account_backup, src / ACCOUNT)
+
+
+def accept_downgrade(install_dir: Path, profile: Path) -> None:
+    """Opens the profile once, headless, with --allow-downgrade: afterwards
+    it's this Firefox's and starts without the "newer version" refusal."""
+    with tempfile.NamedTemporaryFile(suffix=".myfox-shot.png") as shot:
+        try:
+            subprocess.run(
+                [str(install_dir / "firefox"), "--headless", "--allow-downgrade", "--no-remote", "--profile",
+                 str(profile), "--screenshot", shot.name, "about:blank"],
+                timeout=180, env=profiles._headless_env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except (subprocess.SubprocessError, OSError):
+            pass

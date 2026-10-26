@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from . import addons, apply, command, desktop, firefox, gui_deps, i18n, launcher, net, profiles, tweaks
+from . import addons, apply, command, desktop, firefox, gui_deps, i18n, importer, launcher, net, profiles, tweaks
 from . import __version__
 from .install_form import Answers, Progress, settled
 from .state import State
@@ -110,6 +110,8 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
     install_dir = Path(answers.install_dir)
     reuse = firefox.dir_claim_state(install_dir) == "ours"
     weights = [("download", 0 if reuse else 60), ("extract", 0 if reuse else 15), ("profile", 10)]
+    if answers.import_from:
+        weights += [("import", 20)]
     plasma = answers.tweaks and addons.is_plasma_session()
     if answers.tweaks:
         weights += [("tweaks", 3), ("styles", 2), ("themes", 5), ("bookmarklets", 3)]
@@ -142,6 +144,17 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
     else:
         profile_dir = profiles.create_new()
         undo.add(lambda: (profiles.remove_myfox_section(profile_dir), _remove(profile_dir)))
+    source = Path(answers.import_from) if answers.import_from else None
+    if source is not None:
+        def on_copy(done: int, total: int) -> None:
+            mb = 1024 * 1024
+            stages.report("import", i18n.t("progress_import", done // mb, total // mb), done / total if total else 1.0)
+
+        stages.report("import", i18n.t("progress_import_start"))
+        importer.copy_profile(source, profile_dir, answers.sync, on_copy=on_copy)
+        if answers.allow_downgrade:
+            # Firefox refuses a profile from a newer version without it, once.
+            importer.accept_downgrade(install_dir, profile_dir)
     install_hash = tweaks_version = themes_version = ddblm_version = None
     if answers.tweaks:
         stages.report("tweaks", i18n.t("progress_tweaks_download"))
@@ -197,6 +210,12 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
         undo.add(lambda: command.disable(install_dir))
         command.enable(install_dir)
 
+    backups: list[Path] = []
+    if source is not None and answers.sync == importer.SYNC_MOVE and importer.has_account(source):
+        # Last: the only change to the other Firefox's profile.
+        undo.add(lambda: importer.restore_sync(source))
+        backups = importer.move_sync_out(source)
+
     state = State()
     for key, value in (
         ("install_dir", str(install_dir)), ("profile_dir", str(profile_dir)), ("firefox_version", version),
@@ -204,7 +223,8 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
         ("lang", answers.lang), ("channel", answers.channel), ("theme", answers.theme),
         ("tweaks", answers.tweaks), ("opt_bl", answers.tweaks), ("opt_plasma", plasma),
         ("core_version", __version__), ("tweaks_version", tweaks_version), ("themes_version", themes_version),
-        ("ddblm_version", ddblm_version),
+        ("ddblm_version", ddblm_version), ("import_source", str(source) if source else None),
+        ("import_sync", answers.sync if source else None), ("import_backups", [str(b) for b in backups] or None),
     ):
         state.set(key, value)
     state.save()

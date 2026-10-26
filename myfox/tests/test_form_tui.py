@@ -14,8 +14,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from myfox import i18n
-from myfox.install_form import Cancelled, InstallForm, Lang
+from myfox import i18n, importer
+from myfox.install_form import IMPORT, OTHER, Cancelled, Choice, InstallForm, Lang
 from myfox.ui import form_tui
 from myfox.ui.picotui_base import Dialog, Screen, ThemedButton
 from picotui.defs import KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_ESC, KEY_LEFT, KEY_QUIT, KEY_SHIFT_TAB, KEY_TAB
@@ -250,6 +250,60 @@ class PickDirTests(unittest.TestCase):
         with _drive(keys):
             answers = form_tui.run(form, lambda a, progress: installed.append(a))
         self.assertEqual(answers.install_dir, os.path.join(self.root, "alpha"))
+
+
+class ImportTuiTests(unittest.TestCase):
+    """The profile field: an import from the list, or from a folder picked."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.listed, self.loose = root / "a.default", root / "loose"
+        for path in (self.listed, self.loose):
+            path.mkdir()
+            (path / "prefs.js").touch()
+        profiles = [Choice("", "New"), Choice(IMPORT + str(self.listed), "Import: default"), Choice(OTHER, "Other…")]
+        self.form = InstallForm(langs=LANGS, profiles=profiles)
+        self.form.answers.install_dir = str(root / "firefox")
+        self.form.answers.lang = "en-US"
+        patcher = mock.patch("myfox.sources.listing", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _run(self, keys):
+        installed = []
+        with _drive(keys):
+            form_tui.run(self.form, lambda a, progress: installed.append(a))
+        return installed
+
+    # dir -> Browse -> channel -> profile; back: profile -> channel -> Browse -> dir -> Cancel -> Install.
+    TO_PROFILE = [KEY_TAB] * 3
+    BACK_TO_INSTALL = [KEY_SHIFT_TAB] * 5
+
+    def test_an_import_from_the_list(self):
+        installed = self._run(self.TO_PROFILE + [KEY_ENTER, KEY_DOWN, KEY_ENTER] + self.BACK_TO_INSTALL + [KEY_ENTER])
+        self.assertEqual((installed[0].import_from, installed[0].profile_dir), (str(self.listed), None))
+
+    def test_an_import_from_a_picked_folder(self):
+        with mock.patch("myfox.ui.form_tui.pick_dir", return_value=str(self.loose)):
+            installed = self._run(self.TO_PROFILE + [KEY_ENTER, KEY_DOWN, KEY_DOWN, KEY_ENTER]
+                                  + self.BACK_TO_INSTALL + [KEY_ENTER])
+        self.assertEqual(installed[0].import_from, str(self.loose))
+        self.assertIn(IMPORT + str(self.loose), [c.value for c in self.form.profiles])
+
+    def test_a_cancelled_pick_keeps_the_choice_before(self):
+        with mock.patch("myfox.ui.form_tui.pick_dir", return_value=None):
+            installed = self._run(self.TO_PROFILE + [KEY_ENTER, KEY_DOWN, KEY_DOWN, KEY_ENTER]
+                                  + self.BACK_TO_INSTALL + [KEY_ENTER])
+        self.assertIsNone(installed[0].import_from)
+
+    def test_sync_is_asked_for_a_signed_in_profile(self):
+        (self.listed / "signedInUser.json").write_text("{}", encoding="utf-8")
+        # Profile -> the import, Tab to Sync, pick "move" (the second).
+        keys = self.TO_PROFILE + [KEY_ENTER, KEY_DOWN, KEY_ENTER, KEY_TAB, KEY_ENTER, KEY_DOWN, KEY_ENTER]
+        installed = self._run(keys + [KEY_SHIFT_TAB] * 6 + [KEY_ENTER])
+        self.assertEqual((installed[0].import_from, installed[0].sync), (str(self.listed), importer.SYNC_MOVE))
 
 
 if __name__ == "__main__":

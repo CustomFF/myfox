@@ -8,6 +8,9 @@ only picks how it looks:
   -y              no questions, defaults
   --firefox-command  `firefox` on the command line runs this Firefox
   --no-doh        the tweaks don't turn on DNS over HTTPS
+  --import X      copy another Firefox's profile (an ID, a name or a folder) into the new one
+  --sync MODE     with --import: none (default), move or copy its sync account
+  --allow-downgrade  with --import: go on with a profile from a newer Firefox
 
 Runs from bootstrap.py's "not installed yet" branch — there's no `install`
 subcommand. For development:
@@ -20,17 +23,26 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import gui_deps, i18n
+from . import gui_deps, i18n, importer, sources
 from .install_form import Answers, InstallForm, Installer, simulate_install, summary
 from .installer import install as real_install
 from .ui import _has_tty
 
 
 def run(gui: bool = False, noninteractive: bool = False, install: Installer = real_install,
-        firefox_command: bool = False, doh: bool = True) -> Answers | None:
+        firefox_command: bool = False, doh: bool = True, import_from: str | None = None,
+        sync: str = importer.SYNC_NONE, allow_downgrade: bool = False) -> Answers | None:
     form = InstallForm.load()
     form.answers.firefox_command = firefox_command
     form.answers.doh = doh
+    if import_from:
+        try:
+            value = form.add_import(sources.resolve(import_from, sources.listing()).path.as_posix())
+        except sources.ProfileLookupError as exc:
+            print(exc, file=sys.stderr)
+            return None
+        form.pick_profile(value)
+        form.answers.sync, form.answers.allow_downgrade = sync, allow_downgrade
     if noninteractive:
         from .ui import form_plain
 
@@ -62,11 +74,18 @@ def main(argv: list[str] | None = None) -> int:
                         help="make `firefox` on the command line run this Firefox")
     parser.add_argument("--no-doh", action="store_false", dest="doh",
                         help="the tweaks don't turn on DNS over HTTPS")
+    parser.add_argument("--import", dest="import_from", metavar="PROFILE",
+                        help="copy another Firefox's profile (an ID, a name or a folder) into the new one")
+    parser.add_argument("--sync", choices=importer.SYNC_MODES, default=importer.SYNC_NONE,
+                        help="with --import: leave its sync account (none), move it or copy it")
+    parser.add_argument("--allow-downgrade", action="store_true",
+                        help="with --import: go on with a profile last run by a newer Firefox")
     args = parser.parse_args(argv)
     i18n.load()
     install = simulate_install if args.dry_run else real_install
     answers = run(gui=args.gui, noninteractive=args.noninteractive, install=install,
-                  firefox_command=args.firefox_command, doh=args.doh)
+                  firefox_command=args.firefox_command, doh=args.doh, import_from=args.import_from,
+                  sync=args.sync, allow_downgrade=args.allow_downgrade)
     if answers:
         if "myfox.ui.picotui_base" in sys.modules:
             sys.modules["myfox.ui.picotui_base"].end_screen()
