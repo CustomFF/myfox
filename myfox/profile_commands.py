@@ -38,23 +38,32 @@ def quoted(arg: str) -> str:
     return shlex.quote(arg)
 
 
-def _status(p: sources.Profile, used: Path | None, found: list[sources.Profile]) -> list[str]:
-    parts = []
-    if used is not None and p.path == used:
-        parts.append(i18n.t("profile_status_used"))
+def _registered() -> set[Path]:
+    ini = profiles.find_ini()
+    return {profiles.resolve_dir(ini.parent, e) for e in profiles.parse_profiles(ini)} if ini else set()
+
+
+def _status(p: sources.Profile, used: Path | None, found: list[sources.Profile], registered: set[Path]) -> list[str]:
     if p.owner == sources.MYFOX:
+        parts = [i18n.t("profile_status_myfox")]
+        if used is not None and p.path == used:
+            parts.append(i18n.t("profile_status_used"))
         origin = importer.read_origin(p.path)
         if origin is not None:
             source = Path(origin["source"])
             shown = next((q.id for q in found if q.path == source), paths.shown(source))
             parts.append(i18n.t("profile_status_imported", shown))
+        if not p.store and p.path not in registered:
+            parts.append(i18n.t("profile_status_unregistered"))
     elif p.owner == sources.OURS:
-        parts.append(i18n.t("profile_status_ours"))
+        parts = [i18n.t("profile_status_ours")]
     elif p.owner == sources.UNUSED:
-        parts.append(i18n.t("profile_status_unused"))
+        parts = [i18n.t("profile_status_unused")]
     else:
-        parts.append(i18n.t({sources.SNAP: "profile_status_snap", sources.FLATPAK: "profile_status_flatpak"}
-                            .get(p.store, "profile_status_foreign")))
+        parts = [i18n.t({sources.SNAP: "profile_status_snap", sources.FLATPAK: "profile_status_flatpak"}
+                        .get(p.store, "profile_status_foreign"))]
+    if p.owner != sources.MYFOX and used is not None and p.path == used:
+        parts.append(i18n.t("profile_status_used"))
     if sources.in_use(p):
         parts.append(i18n.t("profile_status_open"))
     return parts
@@ -79,10 +88,11 @@ def list_profiles(state: State, show_all: bool = False, as_json: bool = False) -
     if not shown:
         print(i18n.t("profile_list_none"))
     else:
+        registered = _registered()
         head = [i18n.t("profile_col_id"), i18n.t("profile_col_name"), i18n.t("profile_col_tweaks"),
                 i18n.t("profile_col_status")]
         rows = [[p.id, p.name, i18n.t("summary_yes" if p.owner == sources.MYFOX else "summary_no"),
-                 ", ".join(_status(p, used, found))] for p in shown]
+                 ", ".join(_status(p, used, found, registered))] for p in shown]
         widths = [max(_width(r[i]) for r in [head] + rows) for i in range(3)]
         for r in [head] + rows:
             print("  ".join(_pad(cell, widths[i]) for i, cell in enumerate(r[:3])) + "  " + r[3])

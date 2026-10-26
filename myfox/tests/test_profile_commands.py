@@ -62,6 +62,15 @@ class ProfileListTests(IsolatedStateCase):
         # Columns line up.
         self.assertEqual(len({line.index(i18n.t("summary_yes")) for line in lines[1:3]}), 1)
 
+    def test_one_left_out_of_profiles_ini_says_so(self):
+        orphan = self.store / "myfox-3"
+        orphan.mkdir()
+        for f in ("prefs.js", ".myfox", ".myfox-created"):
+            (orphan / f).touch()
+        row = next(line for line in self._run().splitlines() if line.startswith("myfox-3"))
+        self.assertTrue(row.endswith(", ".join([i18n.t("profile_status_myfox"),
+                                                i18n.t("profile_status_unregistered")])))
+
     def test_never_run_is_related_too(self):
         self.assertIn(i18n.t("profile_status_unused"), self._run())
 
