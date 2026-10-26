@@ -147,5 +147,22 @@
     "command_shadowed": "«firefox» всё равно запустит {0}: в PATH он стоит раньше {1}.",
     "needs_yes_command": "Нужно подтверждение. Запустите: {0}",
     "command_restore": "Вернуть прежний firefox ({0})",
-    "command_backup_taken": "{0} чужой, а {1} уже занят: сначала уберите один из них."
+    "command_backup_taken": "{0} чужой, а {1} уже занят: сначала уберите один из них.",
+    "cmd_profile": "Профили: список, новый, импорт, применить твики, использовать, удалить",
+    "cmd_profile_list": "Профили MyFox и те, что он может взять (--all — профили всех Firefox)",
+    "profile_usage": "Использование: myfox profile list [--all] [--json]",
+    "profile_col_id": "ID",
+    "profile_col_name": "Имя",
+    "profile_col_tweaks": "Твики",
+    "profile_col_status": "Состояние",
+    "profile_status_used": "открывается в MyFox",
+    "profile_status_imported": "импортирован из {0}",
+    "profile_status_ours": "сделан через firefox -p",
+    "profile_status_unused": "не запускался",
+    "profile_status_foreign": "другого Firefox: только импорт",
+    "profile_status_snap": "Firefox из snap: только импорт",
+    "profile_status_flatpak": "Firefox из flatpak: только импорт",
+    "profile_status_open": "сейчас открыт",
+    "profile_list_none": "Профилей MyFox нет.",
+    "profile_list_hidden": "Профили других Firefox не показаны: {0}. Все: {1}"
 }

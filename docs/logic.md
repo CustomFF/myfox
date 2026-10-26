@@ -38,7 +38,8 @@ myfox           ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox (sh: pytho
 
 Подкоманды `myfox` (`__main__.py`): `browser [аргументы Firefox]` (exec обёртки
 `<install>/firefox-myfox`), `refresh [--force]`, `reinstall`, `uninstall [--remove-profile] [--no-restore-sync]`,
-`command [on|off]`, `help`,
+`command [on|off]`, `profile list [--all] [--json]` (`profile_commands.py`: связанные с MyFox
+профили — ID, имя, твики, состояние; `--all` — и чужие, «только импорт»), `help`,
 `--version`. Общие флаги: `-y` (без вопросов), `--gui` (окно). Подкоманды `install` нет:
 первая установка — только из `bootstrap.py`.
 

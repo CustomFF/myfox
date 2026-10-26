@@ -12,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, command, i18n, refresh, reinstall, task, uninstall
+from . import __version__, command, i18n, profile_commands, refresh, reinstall, task, uninstall
 from .state import State
 
 LOGO = Path(__file__).resolve().parent / "ui" / "assets" / "logo.txt"
@@ -53,6 +53,11 @@ def build_parser() -> argparse.ArgumentParser:
                                 help="off: leave the firefox it replaced as firefox.myfox-backup")
     command_parser.add_argument("--json", action="store_true",
                                 help="for programs: no questions, the state as JSON on stdout")
+    profile_parser = sub.add_parser("profile", parents=[common], help=i18n.t("cmd_profile"))
+    profile_sub = profile_parser.add_subparsers(dest="profile_command")
+    list_parser = profile_sub.add_parser("list", help=i18n.t("cmd_profile_list"))
+    list_parser.add_argument("--all", action="store_true", help="also other Firefoxes' profiles (import only)")
+    list_parser.add_argument("--json", action="store_true", help="for programs: the profiles as JSON on stdout")
     sub.add_parser("help", parents=[common], help=i18n.t("cmd_help"))
     return parser
 
@@ -107,6 +112,8 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(f"  myfox uninstall [--remove-profile] [--no-restore-sync] [--gui]\n"
           f"                                    {i18n.t('cmd_uninstall')}")
     print(f"  myfox command [on|off] [--gui]    {i18n.t('cmd_command')}")
+    print(f"  myfox profile list [--all] [--json]\n"
+          f"                                    {i18n.t('cmd_profile_list')}")
     print(f"  myfox help                        {i18n.t('cmd_help')}")
 
 
@@ -166,6 +173,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         return command.run(state, args.action, gui=args.gui, noninteractive=noninteractive, as_json=args.json,
                            keep_backup=args.keep_backup)
+    if args.command == "profile":
+        return profile_commands.run(state, args)
     if args.command == "uninstall":
         return cmd_uninstall(state, noninteractive, gui=args.gui, remove_profile=args.remove_profile,
                              restore_sync=not args.no_restore_sync)

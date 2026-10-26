@@ -147,5 +147,22 @@
     "command_shadowed": "«firefox» will still run {0}: it comes before {1} in PATH.",
     "needs_yes_command": "This needs confirmation. Run: {0}",
     "command_restore": "Put back the firefox it replaced ({0})",
-    "command_backup_taken": "{0} is someone else's, and {1} is already taken: move one of them away first."
+    "command_backup_taken": "{0} is someone else's, and {1} is already taken: move one of them away first.",
+    "cmd_profile": "Profiles: list, new, import, apply the tweaks, use, remove",
+    "cmd_profile_list": "MyFox's profiles and the ones it could use (--all: every Firefox's)",
+    "profile_usage": "Usage: myfox profile list [--all] [--json]",
+    "profile_col_id": "ID",
+    "profile_col_name": "Name",
+    "profile_col_tweaks": "Tweaks",
+    "profile_col_status": "State",
+    "profile_status_used": "opens in MyFox",
+    "profile_status_imported": "imported from {0}",
+    "profile_status_ours": "made with firefox -p",
+    "profile_status_unused": "never run",
+    "profile_status_foreign": "another Firefox's: import only",
+    "profile_status_snap": "snap Firefox's: import only",
+    "profile_status_flatpak": "flatpak Firefox's: import only",
+    "profile_status_open": "open now",
+    "profile_list_none": "No profiles of MyFox.",
+    "profile_list_hidden": "Other Firefoxes' profiles not shown: {0}. All of them: {1}"
 }
