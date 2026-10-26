@@ -213,9 +213,34 @@ class RemoveMyfoxSectionTests(IsolatedHomeCase):
         (store / "myfox-2").mkdir()
 
         profiles.remove_myfox_section(store / "myfox-1")
-        text = ini.read_text(encoding="utf-8")
-        self.assertNotIn("[Profile0]", text)
-        self.assertIn("[Profile1]", text)  # the *other* myfox install survives
+        # The *other* myfox install survives, renumbered: Firefox stops
+        # reading at the first number missing.
+        self.assertEqual([(e.section, e.path) for e in profiles.parse_profiles(ini)], [("Profile0", "myfox-2")])
+
+    def test_the_numbers_after_it_close_up(self):
+        store = self.home / ".mozilla" / "firefox"
+        store.mkdir(parents=True)
+        ini = store / "profiles.ini"
+        ini.write_text(
+            "[General]\nStartWithLastProfile=1\n\n"
+            "[Profile1]\nName=work\nIsRelative=1\nPath=aaaa.work\n\n"
+            "[Profile0]\nName=myfox\nIsRelative=1\nPath=myfox-1\nDefault=1\n\n"
+            "[Profile2]\nName=dev\nIsRelative=1\nPath=bbbb.dev\n\n"
+            "[InstallABC]\nDefault=bbbb.dev\n", encoding="utf-8")
+        profiles.remove_myfox_section(store / "myfox-1")
+        self.assertEqual([(e.section, e.path) for e in profiles.parse_profiles(ini)],
+                         [("Profile0", "aaaa.work"), ("Profile1", "bbbb.dev")])
+        self.assertIn("[InstallABC]\nDefault=bbbb.dev\n", ini.read_text(encoding="utf-8"))
+
+    def test_a_new_one_after_a_gap_left_earlier_closes_it(self):
+        store = self.home / ".mozilla" / "firefox"
+        store.mkdir(parents=True)
+        (store / "profiles.ini").write_text(
+            "[Profile0]\nName=a\nIsRelative=1\nPath=a\n\n[Profile2]\nName=b\nIsRelative=1\nPath=b\n",
+            encoding="utf-8")
+        made = profiles.create_new()
+        self.assertEqual([(e.section, e.path) for e in profiles.parse_profiles(store / "profiles.ini")],
+                         [("Profile0", "a"), ("Profile1", "b"), ("Profile2", made.name)])
 
 
 class PinInstallTests(IsolatedHomeCase):

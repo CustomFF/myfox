@@ -141,7 +141,14 @@ def _next_profile_section(cp: ConfigParser) -> str:
 
 
 def _append_profile_entry(ini: Path, path_value: str, is_relative: str) -> str:
-    """Appends a new [ProfileN] Name=myfox section, returns its name."""
+    """Appends a new [ProfileN] Name=myfox section, returns its name. A gap an older
+    MyFox left in the numbering is closed first, or the new one would be
+    past it, out of Firefox's sight."""
+    if ini.is_file():
+        text = ini.read_text(encoding="utf-8")
+        healed = _renumber_profiles(text)
+        if healed != text:
+            ini.write_text(healed, encoding="utf-8")
     section = _next_profile_section(_read_ini(ini))
     prefix = "\n" if ini.is_file() and ini.stat().st_size > 0 else ""
     with ini.open("a", encoding="utf-8") as f:
@@ -189,9 +196,27 @@ def _remove_section_text(text: str, section_name: str) -> str:
     return "".join(out)
 
 
+def _renumber_profiles(text: str) -> str:
+    """Firefox reads [Profile0], [Profile1], … up to the first number
+    missing: every profile after a gap would vanish for it."""
+    numbers = sorted({int(m.group(1)) for line in text.splitlines()
+                      if (m := re.match(r"^\[Profile(\d+)\]$", line.strip()))})
+    renamed = {n: i for i, n in enumerate(numbers)}
+    if all(n == i for n, i in renamed.items()):
+        return text
+    out = []
+    for line in text.splitlines(keepends=True):
+        m = re.match(r"^\[Profile(\d+)\]$", line.strip())
+        out.append(f"[Profile{renamed[int(m.group(1))]}]" + line[len(line.rstrip("\r\n")):] if m else line)
+    return "".join(out)
+
+
 def remove_ini_section(ini: Path, section_name: str) -> None:
     text = ini.read_text(encoding="utf-8") if ini.is_file() else ""
-    ini.write_text(_remove_section_text(text, section_name), encoding="utf-8")
+    text = _remove_section_text(text, section_name)
+    if ini.name == "profiles.ini":
+        text = _renumber_profiles(text)
+    ini.write_text(text, encoding="utf-8")
 
 
 def write_install_section(ini: Path, section_name: str, profile_path: str) -> None:
