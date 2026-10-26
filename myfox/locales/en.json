@@ -109,6 +109,7 @@
     "err_profile_not_found": "No such profile: {0}",
     "err_profile_ambiguous": "Several profiles are called {0}; give the ID: {1}",
     "err_not_a_profile": "Not a Firefox profile folder: {0}",
+    "err_no_space": "Not enough space in {0}: the profile needs {1} MB.",
     "cmd_command": "Whether the «firefox» shell command runs this Firefox (on, off; alone: show)",
     "form_command": "Shell command:",
     "progress_command": "Setting up the firefox shell command…",
