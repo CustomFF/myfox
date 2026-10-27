@@ -7,7 +7,7 @@ import textwrap
 
 from .. import i18n
 from ..install_form import Cancelled
-from ..task import Task
+from ..task import LINES_LIMIT, Task
 from .form_tui import _Checkbox, _FormDialog, _Label, _list_line, run_live
 from .picotui_base import ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus
 
@@ -76,13 +76,22 @@ def run(task: Task) -> bool:
     label_w = max((len(label) for label, _value in task.rows), default=0) + 2
     row_lines = [textwrap.wrap(value, w - 4 - label_w, break_on_hyphens=False) or [""] for _label, value in task.rows]
     rows_h = sum(len(lines) + 1 for lines in row_lines)
-    limit = max(1, rows - rows_h - len(task.options) - 9)
+    room = max(1, rows - rows_h - len(task.options) - 9)
+
+    def wrapped(lines: list[str]) -> list[str]:
+        out = []
+        for line in lines:
+            out += textwrap.wrap(line, w - 8, initial_indent="- ", subsequent_indent="  ", break_on_hyphens=False) or ["-"]
+        return out
+
+    # Entries wrap: fewer than LINES_LIMIT when their rows don't fit the screen.
+    limit = LINES_LIMIT
+    while limit > 1 and len(wrapped(task.lines_shown(limit))) > room:
+        limit -= 1
     shown = task.lines_shown(limit)
     # "...and N more" is a button that shows them all.
     more = shown.pop() if task.more and task.cut(limit) else None
-    listed = []
-    for line in shown:
-        listed += textwrap.wrap(line, w - 8, initial_indent="- ", subsequent_indent="  ", break_on_hyphens=False) or ["-"]
+    listed = wrapped(shown)
     list_h = len(listed) + (1 if more else 0) + (1 if task.heading else 0) + 1 if listed or more else 0
     options_h = len(task.options) + 1 if task.options else 0
     h = min(rows - 1, rows_h + list_h + options_h + 4)

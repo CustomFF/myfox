@@ -14,7 +14,7 @@ import dearpygui.dearpygui as dpg
 
 from .. import i18n
 from ..install_form import Cancel, Cancelled, signals_to
-from ..task import Task
+from ..task import LINES_LIMIT, Task
 from .form_gui import (
     ACCENT, ASSETS, BTN_GAP, BTN_H, BTN_W, ERROR, FOOTER_H, HEADER_H, LABEL_W, LINE, MUTED, PAD, WIN_W,
     _button_theme, _color_theme, _global_theme, _load_fonts, px, symbol_font,
@@ -22,7 +22,6 @@ from .form_gui import (
 
 ROW_H = 32
 LINE_H = 22
-LINES_LIMIT = 10
 _CHAR_W = 7.5  # rough logical px per character, only to size wrapped values
 
 

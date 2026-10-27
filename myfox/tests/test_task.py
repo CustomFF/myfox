@@ -119,6 +119,16 @@ class TuiTests(IsolatedStateCase):
         self.assertTrue(self._run(t, [KEY_LEFT, KEY_ENTER, KEY_RIGHT, KEY_ENTER, KEY_ENTER]))
         self.assertEqual((shown, ran), ([True], [True]))
 
+    def test_a_tall_terminal_still_cuts_the_list(self):
+        from picotui.screen import Screen
+        ran, shown = [], []
+        t = _task(ran, lines=[str(i) for i in range(task.LINES_LIMIT + 6)], more=lambda: shown.append(True))
+        with _drive([KEY_LEFT, KEY_ENTER, KEY_RIGHT, KEY_ENTER, KEY_ENTER]), \
+             mock.patch.object(Screen, "screen_size", return_value=(100, 200)), \
+             mock.patch("myfox.ui.task_tui._ensure_screen"):
+            self.assertTrue(task_tui.run(t))
+        self.assertEqual((shown, ran), ([True], [True]))
+
     def test_blocked_never_runs(self):
         ran = []
         self.assertFalse(self._run(_task(ran, blocked="busy"), [KEY_LEFT, KEY_ENTER]))

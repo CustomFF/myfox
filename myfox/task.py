@@ -14,6 +14,10 @@ from . import gui_deps, i18n
 from .install_form import Progress
 
 
+# "What's new" entries shown before "...and N more", in every view: the
+# full list is one click away, a long one only buries the dialog.
+LINES_LIMIT = 10
+
 @dataclass
 class Option:
     """A checkbox under the rows; the task's run reads `value`."""
