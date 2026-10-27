@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1 — 2026-10-27
+
+- The MyFox profiles can be seen and handled from about:myfox: `myfox profile list --json` tells when a profile was last opened and whether MyFox created it, `myfox profile apply --json` answers in JSON
+- The applications menu entry is described as Mozilla's own: «Fast and private browser», found by «browser», «internet» and «myfox»; a beta install is «Firefox Beta»
+- The entry's texts come from MyFox's translations, every language at once, and a Russian translation shows in every Russian locale
+
 ## 1.2.0 — 2026-10-26
 
 - Import a profile from another Firefox (the system one, snap, flatpak, or any folder): the install form's «Profile» field or `--import`; a copy becomes the MyFox profile, the original stays. The Firefox account can stay behind, be copied or move into the copy (`--sync`); a profile from a newer Firefox needs a confirmation (`--allow-downgrade`)
