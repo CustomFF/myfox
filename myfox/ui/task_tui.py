@@ -84,10 +84,7 @@ def run(task: Task) -> bool:
             out += textwrap.wrap(line, w - 8, initial_indent="- ", subsequent_indent="  ", break_on_hyphens=False) or ["-"]
         return out
 
-    # Entries wrap: fewer than LINES_LIMIT when their rows don't fit the screen.
-    limit = LINES_LIMIT
-    while limit > 1 and len(wrapped(task.lines_shown(limit))) > room:
-        limit -= 1
+    limit = task.fit(min(LINES_LIMIT, room), lambda line: len(wrapped([line])))
     shown = task.lines_shown(limit)
     # "...and N more" is a button that shows them all.
     more = shown.pop() if task.more and task.cut(limit) else None

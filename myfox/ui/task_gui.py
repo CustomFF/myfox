@@ -55,7 +55,8 @@ class _Window:
         self._measured = False
         self.ok = False
         self.link: int | None = None
-        self.lines = task.lines_shown(LINES_LIMIT)
+        self.limit = task.fit(LINES_LIMIT, lambda line: _value_lines(line, 12))
+        self.lines = task.lines_shown(self.limit)
         # Body blocks top to bottom: (items sharing a line, gap before). Only
         # an estimate sizes the first frame; relayout() measures the real one.
         self._blocks: list[tuple[list[int], int]] = []
@@ -112,7 +113,7 @@ class _Window:
                         self._blocks.append(([dpg.add_text(self.task.heading, pos=(px(PAD), y))], gap))
                         gap = 0
                     for i, line in enumerate(self.lines):
-                        if self.task.more and self.task.cut(LINES_LIMIT) and i == len(self.lines) - 1:
+                        if self.task.more and self.task.cut(self.limit) and i == len(self.lines) - 1:
                             # "...and N more" opens the full list.
                             item = self.link = dpg.add_button(label=line, pos=(px(PAD + 12 - 4), y),
                                                               callback=lambda: self.task.more())

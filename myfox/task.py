@@ -14,9 +14,9 @@ from . import gui_deps, i18n
 from .install_form import Progress
 
 
-# "What's new" entries shown before "...and N more", in every view: the
-# full list is one click away, a long one only buries the dialog.
-LINES_LIMIT = 10
+# Screen lines of "What's new", "...and N more" included, in every view:
+# the full list is one click away, a long one only buries the dialog.
+LINES_LIMIT = 12
 
 @dataclass
 class Option:
@@ -66,6 +66,21 @@ class Task:
         if not self.cut(limit):
             return list(self.lines)
         return self.lines[:limit - 1] + [i18n.t("refresh_more", len(self.lines) - limit + 1)]
+
+    def fit(self, rows: int, height: Callable[[str], int]) -> int:
+        """The limit for lines_shown() and cut() that keeps the list within
+        `rows` screen lines, `height` saying how many one entry wraps into:
+        whole entries, at least one, plus the "...and N more" line. A last
+        entry that doesn't quite fit is shown rather than counted as "1 more"."""
+        if sum(height(line) for line in self.lines) <= rows:
+            return len(self.lines)
+        used, count = 1, 0
+        for line in self.lines:
+            if count and used + height(line) > rows:
+                break
+            used += height(line)
+            count += 1
+        return count + 1
 
     def cut(self, limit: int) -> bool:
         return len(self.lines) > limit

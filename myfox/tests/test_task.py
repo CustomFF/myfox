@@ -34,6 +34,24 @@ class LinesShownTests(unittest.TestCase):
         lines = [str(i) for i in range(12)]
         self.assertEqual(_task([], lines=lines).lines_shown(5), ["0", "1", "2", "3", i18n.t("refresh_more", 8)])
 
+    def test_fit_counts_wrapped_lines_not_entries(self):
+        # Entries of 3 screen lines each: 3 of them and "...and N more" in 10.
+        t = _task([], lines=["x" * 3] * 8)
+        limit = t.fit(10, len)
+        self.assertEqual(t.lines_shown(limit), ["xxx"] * 3 + [i18n.t("refresh_more", 5)])
+
+    def test_fit_keeps_a_list_that_fits(self):
+        t = _task([], lines=["xx"] * 5)
+        self.assertEqual(t.lines_shown(t.fit(10, len)), ["xx"] * 5)
+
+    def test_fit_shows_one_entry_even_if_it_is_taller(self):
+        t = _task([], lines=["x" * 20, "y", "z"])
+        self.assertEqual(t.lines_shown(t.fit(10, len)), ["x" * 20, i18n.t("refresh_more", 2)])
+
+    def test_fit_shows_a_last_entry_rather_than_one_more(self):
+        t = _task([], lines=["x" * 20, "y"])
+        self.assertEqual(t.lines_shown(t.fit(10, len)), ["x" * 20, "y"])
+
 
 class ShowTests(IsolatedStateCase):
     def test_yes_runs_without_asking(self):
