@@ -89,6 +89,30 @@ class DesktopTests(unittest.TestCase):
         self.assertIn(f'exec "{self.install_dir / "firefox"}" "$@"',
                       (self.install_dir / "firefox-myfox").read_text(encoding="utf-8"))
 
+    def test_entry_texts_come_from_every_locale_catalog(self):
+        # A translation is only a catalog: de.json here, with no template change.
+        installed = self.root / "data" / "myfox" / "myfox"
+        (installed / "templates").mkdir(parents=True)
+        (installed / "templates" / desktop.DESKTOP_NAME).write_text(
+            "[Desktop Entry]\nComment=@T:desktop_comment@\nName=@T:desktop_action_restart@\n", encoding="utf-8")
+        (installed / "templates" / desktop.WRAPPER_NAME).write_text("#!/bin/sh\n", encoding="utf-8")
+        (installed / "locales").mkdir()
+        for lang, comment, restart in (("en", "Fast", "Restart"), ("de", "Schnell", "Restart"), ("ru", "Быстрый", "")):
+            (installed / "locales" / f"{lang}.json").write_text(
+                json.dumps({"desktop_comment": comment, "desktop_action_restart": restart}), encoding="utf-8")
+        with mock.patch("myfox.desktop._refresh_menu_cache"):
+            text = desktop.write_entry(self.install_dir, Path("/x/bin/myfox")).read_text(encoding="utf-8")
+        # Untranslated (empty or the same as en) messages get no localized line.
+        self.assertEqual(text, "[Desktop Entry]\nComment=Fast\nComment[de]=Schnell\nComment[ru]=Быстрый\n"
+                               "Name=Restart\n")
+
+    def test_shipped_entry_has_the_russian_texts(self):
+        with mock.patch("myfox.desktop._refresh_menu_cache"):
+            text = desktop.write_entry(self.install_dir, Path("/x/bin/myfox")).read_text(encoding="utf-8")
+        self.assertIn("\nGenericName=Web Browser\nGenericName[ru]=Веб-браузер\n", text)
+        self.assertIn("\nName=Restart\nName[ru]=Перезапустить\n", text)
+        self.assertNotIn("@T:", text)
+
     def test_an_unchanged_entry_is_not_rewritten(self):
         with mock.patch("myfox.desktop._refresh_menu_cache") as refresh_cache:
             path = desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))

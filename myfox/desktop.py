@@ -28,23 +28,44 @@ def desktop_file() -> Path:
     return applications_dir() / DESKTOP_NAME
 
 
-def _template(name: str) -> str:
-    """templates/<name> of the installed MyFox when there is one: `myfox
-    refresh` lays down a new core while the old code is still running, and
-    the files it then writes should already be the new core's."""
+def _package(name: str) -> Path:
+    """The installed MyFox when it has templates/<name>: `myfox refresh`
+    lays down a new core while the old code is still running, and the files
+    it then writes should already be the new core's (its locales too)."""
     for base in (paths.share_dir() / "myfox", Path(__file__).resolve().parent):
-        path = base / "templates" / name
-        if path.is_file():
-            return path.read_text(encoding="utf-8")
+        if (base / "templates" / name).is_file():
+            return base
     raise FileNotFoundError(name)
 
 
 def _render(name: str, **values: object) -> str:
     """@NAME@ placeholders: `$` is the shell's own in the wrapper."""
-    text = _template(name)
+    base = _package(name)
+    text = (base / "templates" / name).read_text(encoding="utf-8")
     for key, value in values.items():
         text = text.replace(f"@{key.upper()}@", str(value))
-    return text
+    return _localize(text, base / "locales")
+
+
+def _localize(text: str, locales: Path) -> str:
+    """A `Key=@T:message@` line becomes Key= with the en text and a
+    Key[<lang>]= for every other locales/<lang>.json that has the message,
+    so translating the entry is only adding a catalog."""
+    catalogs = {}
+    for path in sorted(locales.glob("*.json")):
+        catalogs[path.stem] = json.loads(path.read_text(encoding="utf-8"))
+    base = catalogs.pop("en", {})
+    out = []
+    for line in text.split("\n"):
+        key, sep, value = line.partition("=@T:")
+        if not sep or not value.endswith("@"):
+            out.append(line)
+            continue
+        message = value[:-1]
+        out.append(f"{key}={base.get(message, message)}")
+        out += [f"{key}[{lang}]={catalog[message]}" for lang, catalog in catalogs.items()
+                if catalog.get(message) and catalog[message] != base.get(message)]
+    return "\n".join(out)
 
 
 def _write(path: Path, text: str, mode: int = 0o755) -> bool:

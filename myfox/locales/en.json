@@ -207,5 +207,14 @@
     "profile_import_done": "{0} imported as {1}.",
     "profile_pick_subtitle": "Which profile?",
     "profile_pick_action": "Next",
-    "profile_pick_none": "There's no profile for this."
+    "profile_pick_none": "There's no profile for this.",
+    "desktop_comment": "Fast and private browser",
+    "desktop_generic_name": "Web Browser",
+    "desktop_keywords": "Internet;WWW;Browser;Web;Explorer;MyFox;",
+    "desktop_action_new_window": "New Window",
+    "desktop_action_new_tab": "New Tab",
+    "desktop_action_new_private_window": "New Private Window",
+    "desktop_action_preferences": "Preferences",
+    "desktop_action_restart": "Restart",
+    "desktop_action_refresh": "Update MyFox"
 }

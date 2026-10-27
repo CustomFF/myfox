@@ -1,14 +1,11 @@
 [Desktop Entry]
 Actions=new-window;new-tab;new-private-window;preferences;restart;myfox-refresh;
 Categories=Network;WebBrowser;
-Comment=Fast and private browser
-Comment[ru]=Быстрый и приватный браузер
+Comment=@T:desktop_comment@
 Exec=@WRAPPER@ %u
-GenericName=Web Browser
-GenericName[ru]=Веб-браузер
+GenericName=@T:desktop_generic_name@
 Icon=@ICON@
-Keywords=Internet;WWW;Browser;Web;Explorer;MyFox;
-Keywords[ru]=Сеть;Интернет;Браузер;Доступ в Интернет;MyFox;
+Keywords=@T:desktop_keywords@
 MimeType=video/webm;text/html;image/png;image/jpeg;image/gif;application/xml;application/xhtml+xml;application/x-xpinstall;application/rss+xml;application/rdf+xml;application/pdf;application/xhtml_xml;image/webp;text/xml;x-scheme-handler/http;x-scheme-handler/https;
 Name=@APP_NAME@
 NoDisplay=false
@@ -23,35 +20,29 @@ X-MultipleArgs=false
 [Desktop Action new-window]
 Exec=@WRAPPER@ --new-window
 Icon=window-new-symbolic
-Name=New Window
-Name[ru]=Новое окно
+Name=@T:desktop_action_new_window@
 
 [Desktop Action new-tab]
 Exec=@WRAPPER@ --new-tab about:newtab
 Icon=tab-new-symbolic
-Name=New Tab
-Name[ru]=Новая вкладка
+Name=@T:desktop_action_new_tab@
 
 [Desktop Action new-private-window]
 Exec=@WRAPPER@ --private-window
 Icon=view-private-symbolic
-Name=New Private Window
-Name[ru]=Новое приватное окно
+Name=@T:desktop_action_new_private_window@
 
 [Desktop Action preferences]
 Exec=@WRAPPER@ about:preferences
 Icon=settings-configure-symbolic
-Name=Preferences
-Name[ru]=Настройки
+Name=@T:desktop_action_preferences@
 
 [Desktop Action restart]
 Exec=@WRAPPER@ --myfox-restart
 Icon=view-refresh-symbolic
-Name=Restart
-Name[ru]=Перезапустить
+Name=@T:desktop_action_restart@
 
 [Desktop Action myfox-refresh]
 Exec=@LAUNCHER@ refresh --gui
 Icon=system-software-update
-Name=Update MyFox
-Name[ru]=Обновить MyFox
+Name=@T:desktop_action_refresh@
