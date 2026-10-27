@@ -61,7 +61,7 @@ class SummaryTests(unittest.TestCase):
         self.assertTrue(any("/opt/ff" in line for line in lines))
         self.assertTrue(any("/p/myfox-1" in line for line in lines))
         self.assertTrue(any(i18n.t("wizard_theme_dark") in line for line in lines))
-        self.assertEqual(lines[-1], i18n.t("install_done_run"))
+        self.assertEqual(lines[-1], i18n.t("install_done_run", "Firefox"))
 
     def test_without_tweaks_no_theme(self):
         lines = summary(Answers(install_dir="/opt/ff", tweaks=False))

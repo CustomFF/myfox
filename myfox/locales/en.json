@@ -50,7 +50,7 @@
     "progress_done": "Done: Firefox is installed.",
     "install_done": "MyFox is installed.",
     "summary_firefox": "Firefox:",
-    "install_done_run": "Launch: «Firefox» in the applications menu («Firefox with the MyFox tweaks»), or myfox browser",
+    "install_done_run": "Launch: «{0}» in the applications menu, or myfox browser",
     "err_mozilla_unreachable": "Could not reach Mozilla's servers: {0}",
     "form_profile": "Profile:",
     "form_profile_import": "Import: {0}",

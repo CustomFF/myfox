@@ -96,6 +96,16 @@ def _icon(install_dir: Path) -> str:
     return "firefox"
 
 
+def _name(install_dir: Path) -> str:
+    """The menu name Mozilla's own packages give the channel; the install
+    knows its channel, so a reinstall or refresh needs no saved one."""
+    try:
+        prefs = (install_dir / "defaults/pref/channel-prefs.js").read_text(encoding="utf-8")
+    except OSError:
+        prefs = ""
+    return "Firefox Beta" if '"app.update.channel", "beta"' in prefs else "Firefox"
+
+
 def write_entry(install_dir: Path, launcher: Path) -> Path:
     """The wrapper, myfox.json and the entry, from the templates. No --profile in Exec=:
     Firefox opens the Default= of its own [Install<HASH>] section (pinned by
@@ -106,7 +116,8 @@ def write_entry(install_dir: Path, launcher: Path) -> Path:
     wrapper = write_wrapper(install_dir)
     write_manifest(install_dir, launcher)
     path = desktop_file()
-    if _write(path, _render(DESKTOP_NAME, wrapper=wrapper, launcher=launcher, icon=_icon(install_dir))):
+    if _write(path, _render(DESKTOP_NAME, wrapper=wrapper, launcher=launcher, icon=_icon(install_dir),
+                           app_name=_name(install_dir))):
         _refresh_menu_cache()
     return path
 

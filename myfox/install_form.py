@@ -285,7 +285,7 @@ def summary(answers: Answers) -> list[str]:
     rows.append((i18n.t("form_lang"), answers.lang))
     rows.append((i18n.t("form_command"), i18n.t("summary_yes" if answers.firefox_command else "summary_no")))
     width = max(len(label) for label, _value in rows)
-    return [i18n.t("install_done"), *(f"  {label.ljust(width)} {value}" for label, value in rows), i18n.t("install_done_run")]
+    return [i18n.t("install_done"), *(f"  {label.ljust(width)} {value}" for label, value in rows), i18n.t("install_done_run", "Firefox Beta" if answers.channel == "beta" else "Firefox")]
 
 
 def simulate_install(answers: Answers, progress: Progress) -> None:

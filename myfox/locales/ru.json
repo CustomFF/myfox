@@ -50,7 +50,7 @@
     "progress_done": "Готово: Firefox установлен.",
     "install_done": "MyFox установлен.",
     "summary_firefox": "Firefox:",
-    "install_done_run": "Запуск: «Firefox» в меню приложений («Firefox с твиками MyFox») или myfox browser",
+    "install_done_run": "Запуск: «{0}» в меню приложений или myfox browser",
     "err_mozilla_unreachable": "Не удалось связаться с серверами Mozilla: {0}",
     "form_profile": "Профиль:",
     "form_profile_import": "Импорт: {0}",

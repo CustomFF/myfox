@@ -97,6 +97,18 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual(refresh_cache.call_count, 1)
         self.assertEqual(path.stat().st_mtime_ns, mtime)
 
+    def test_entry_is_named_after_the_installs_channel(self):
+        for channel, name in (("release", "Firefox"), ("beta", "Firefox Beta")):
+            prefs = self.install_dir / "defaults/pref/channel-prefs.js"
+            prefs.parent.mkdir(parents=True, exist_ok=True)
+            prefs.write_text(f'pref("app.update.channel", "{channel}");\n', encoding="utf-8")
+            with mock.patch("myfox.desktop._refresh_menu_cache"):
+                text = desktop.write_entry(self.install_dir, Path("/x/bin/myfox")).read_text(encoding="utf-8")
+            self.assertIn(f"\nName={name}\n", text)
+            self.assertIn(f"\nX-GNOME-FullName={name}\n", text)
+        self.assertIn("\nComment[ru]=Быстрый и приватный браузер\n", text)
+        self.assertNotIn("@", text.replace("%u", ""))
+
     def test_remove_entry(self):
         with mock.patch("myfox.desktop._refresh_menu_cache"):
             desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))
