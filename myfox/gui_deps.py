@@ -26,6 +26,8 @@ from pathlib import Path
 
 from . import firefox, net
 
+# A new dearpygui-<VERSION> release is published by hand with --latest=false:
+# releases/latest must stay the newest core-*, whose changelog.json about:myfox reads.
 VERSION = "2.3.1"
 RELEASE_URL = f"https://github.com/CustomFF/myfox/releases/download/dearpygui-{VERSION}"
 

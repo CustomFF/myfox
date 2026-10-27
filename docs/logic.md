@@ -22,6 +22,11 @@ MyFox ставит Firefox (stable или beta) из официального т
 
 Версии сравниваются как числа (`changelog.py`); `core-` в интерфейсе не показывается, теги тем и
 ddblm показываются датой (`2026-10-01 15:46`).
+
+«Последний» релиз этого репозитория (`releases/latest`) всегда `core-*`: `about:myfox` берёт оттуда
+`changelog.json` ядра (`releases/latest/download/changelog.json`). `core.yml` создаёт релиз с `--latest`,
+а релиз `dearpygui-*` выкладывается вручную и только с `--latest=false` (`gh release create … --latest=false`);
+иначе адрес сломается. Так же устроено в CustomFF/myfox-tweaks: релизы `themes-*` — с `--latest=false`.
 `changelog.json` — накопительный, новые версии первыми; «Что нового» — строки новее установленной.
 
 ## Точки входа
