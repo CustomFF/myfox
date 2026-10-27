@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.2 — 2026-10-27
+
+- Updates can be installed from about:myfox: `myfox refresh --json` updates without questions and answers in JSON what it updated and whether Firefox has to restart
+- The update dialog's «What's new» takes at most twelve lines, in the terminal too; the rest is behind «…and N more», which opens the full list in about:myfox
+
 ## 1.2.1 — 2026-10-27
 
 - The MyFox profiles can be seen and handled from about:myfox: `myfox profile list --json` tells when a profile was last opened and whether MyFox created it, `myfox profile apply --json` answers in JSON
