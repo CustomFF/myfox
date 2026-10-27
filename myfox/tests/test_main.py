@@ -502,6 +502,21 @@ class CommandCliTests(IsolatedStateCase):
         self.assertEqual((rc, json.loads(out)), (1, {"error": i18n.t("err_not_installed")}))
 
 
+class RefreshCliTests(IsolatedStateCase):
+    def test_json_when_not_installed_is_still_json(self):
+        rc, out = _run(["refresh", "--json"])
+        self.assertEqual((rc, json.loads(out)), (1, {"error": i18n.t("err_not_installed")}))
+
+    def test_json_goes_to_the_json_run(self):
+        state = State()
+        state.set("install_dir", "/x/firefox")
+        state.save()
+        with mock.patch("myfox.refresh.run_json", return_value=0) as run_json, \
+             mock.patch("myfox.refresh.run", side_effect=AssertionError):
+            self.assertEqual(_run(["refresh", "--json", "--force"])[0], 0)
+        self.assertTrue(run_json.call_args.kwargs["force"])
+
+
 
 class WhyTests(IsolatedStateCase):
     def test_prints_the_logo_without_being_installed(self):

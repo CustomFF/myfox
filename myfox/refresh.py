@@ -15,6 +15,7 @@ by ui/task_{gui,tui,plain}.py.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -262,3 +263,31 @@ def run(state: State, gui: bool = False, noninteractive: bool = False, force: bo
         return 1 if plan.error else 0
     task = to_task(plan, update, restart_offer(plan, state), changelog_opener(state))
     return 0 if task_mod.show(task, gui=gui, noninteractive=noninteractive) else 1
+
+
+# What --json calls each track.
+JSON_NAMES = {"tweaks_version": "tweaks", "themes_version": "themes", "ddblm_version": "bookmarklets",
+              "core_version": "core"}
+
+
+def run_json(state: State, force: bool = False, update: Updater = apply_updates) -> int:
+    """`refresh --json`, for about:myfox: no questions, updates what's new
+    (all with force), then one line on stdout: {"ok": true, "updated":
+    [{"track", "from", "to"}], "restart": …} or {"error": …}. Firefox is
+    left running: "restart" says it has to restart to take the update
+    (everything but the core is read when it starts)."""
+    try:
+        sync_shortcut(state)
+        plan = RefreshPlan.check(state, force)
+        if plan.error:
+            raise RuntimeError(plan.error)
+        if plan.needed:
+            update(plan, lambda message, fraction: None)
+    except Exception as exc:  # a program asked: it gets JSON whatever happens
+        print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+        return 1
+    updated = [{"track": JSON_NAMES[t.track.key], "from": t.track.display(t.current) if t.current else None,
+                "to": t.track.display(t.latest)} for t in plan.todo]
+    restart = any(t.track.key != "core_version" for t in plan.todo)
+    print(json.dumps({"ok": True, "updated": updated, "restart": restart}, ensure_ascii=False))
+    return 0

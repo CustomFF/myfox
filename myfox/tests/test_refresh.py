@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import unittest
 from pathlib import Path
 from contextlib import redirect_stderr, redirect_stdout
@@ -172,6 +173,51 @@ class RunTests(IsolatedStateCase):
              mock.patch("myfox.ui.task_tui.run", return_value=True) as tui:
             self.assertEqual(self._run(_latest())[0], 0)
         tui.assert_called_once()
+
+
+class JsonTests(IsolatedStateCase):
+    """`refresh --json`, what about:myfox runs: no questions, one JSON line."""
+
+    def setUp(self):
+        super().setUp()
+        self.updated = []
+
+    def _run(self, latest, update=None, **kwargs):
+        out = io.StringIO()
+        with _releases(latest), redirect_stdout(out), redirect_stderr(io.StringIO()), \
+             mock.patch("myfox.refresh.sync_shortcut"), mock.patch("myfox.ui.task_tui.run", side_effect=AssertionError):
+            rc = refresh.run_json(_state(), update=update or (lambda plan, progress: self.updated.append(plan)), **kwargs)
+        lines = out.getvalue().splitlines()
+        self.assertEqual(len(lines), 1)
+        return rc, json.loads(lines[0])
+
+    def test_updates_and_says_what_and_that_firefox_must_restart(self):
+        rc, answer = self._run(_latest(core="core-6"))
+        self.assertEqual(rc, 0)
+        self.assertEqual(answer, {"ok": True, "restart": True, "updated": [
+            {"track": "tweaks", "from": "151.2", "to": "151.3"}, {"track": "core", "from": "5", "to": "6"}]})
+        self.assertEqual(len(self.updated), 1)
+
+    def test_nothing_new_updates_nothing(self):
+        rc, answer = self._run(_latest(tweaks="151.2"))
+        self.assertEqual((rc, answer, self.updated), (0, {"ok": True, "updated": [], "restart": False}, []))
+
+    def test_a_core_update_alone_needs_no_restart(self):
+        _rc, answer = self._run(_latest(tweaks="151.2", core="core-6"))
+        self.assertFalse(answer["restart"])
+
+    def test_force_takes_every_track(self):
+        _rc, answer = self._run(_latest(tweaks="151.2"), force=True)
+        self.assertEqual([u["track"] for u in answer["updated"]], ["tweaks", "themes", "bookmarklets", "core"])
+
+    def test_a_failed_check_or_update_is_an_error(self):
+        rc, answer = self._run(OSError("down"))
+        self.assertEqual((rc, answer), (1, {"error": i18n.t("refresh_check_failed", "down")}))
+
+        def fail(plan, progress):
+            raise OSError("disk full")
+        rc, answer = self._run(_latest(), update=fail)
+        self.assertEqual((rc, answer), (1, {"error": "disk full"}))
 
 
 class RestartTests(IsolatedStateCase):

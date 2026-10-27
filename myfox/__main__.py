@@ -37,6 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
     refresh_parser = sub.add_parser("refresh", parents=[common], help=i18n.t("cmd_refresh"))
     refresh_parser.add_argument("--force", action="store_true")
     refresh_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
+    refresh_parser.add_argument("--json", action="store_true",
+                                help="no questions, the result as one JSON line (for about:myfox)")
 
     reinstall_parser = sub.add_parser("reinstall", parents=[common], help=i18n.t("cmd_reinstall"))
     reinstall_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
@@ -189,6 +191,11 @@ def main(argv: list[str] | None = None) -> int:
         print_top_help(parser)
         return 0
     if args.command == "refresh":
+        if args.json:
+            if not state.get("install_dir"):
+                print(json.dumps({"error": i18n.t("err_not_installed")}, ensure_ascii=False))
+                return 1
+            return refresh.run_json(state, force=args.force)
         return cmd_refresh(state, force=args.force, gui=args.gui, noninteractive=noninteractive)
     if args.command == "reinstall":
         return cmd_reinstall(state, noninteractive, gui=args.gui)

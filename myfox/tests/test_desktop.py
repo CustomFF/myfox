@@ -58,7 +58,7 @@ class DesktopTests(unittest.TestCase):
             desktop.write_entry(self.install_dir, Path('/x/my "fox"/bin/myfox'))
         manifest = self.install_dir / "myfox.json"
         self.assertEqual(json.loads(manifest.read_text(encoding="utf-8")),
-                         {"launcher": '/x/my "fox"/bin/myfox', "version": myfox.__version__, "features": ["command", "command-backup", "profiles"]})
+                         {"launcher": '/x/my "fox"/bin/myfox', "version": myfox.__version__, "features": ["command", "command-backup", "profiles", "update"]})
         self.assertEqual(stat.S_IMODE(manifest.stat().st_mode), 0o644)
 
     def test_manifest_has_the_installed_packages_version(self):
