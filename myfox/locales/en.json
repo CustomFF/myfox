@@ -223,5 +223,6 @@
     "profile_move_subtitle": "It becomes a new MyFox profile and is deleted from its old place and Firefox",
     "progress_import_move": "Deleting the profile from its old place…",
     "progress_firefox_quit": "Closing Firefox…",
-    "err_firefox_did_not_quit": "Firefox didn't close (it may be waiting for an answer): nothing was changed"
+    "err_firefox_did_not_quit": "Firefox didn't close (it may be waiting for an answer): nothing was changed",
+    "refresh_check_install": "To install: {0}"
 }

@@ -39,6 +39,8 @@ def build_parser() -> argparse.ArgumentParser:
     refresh_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
     refresh_parser.add_argument("--json", action="store_true",
                                 help="no questions, the result as one JSON line (for about:myfox)")
+    refresh_parser.add_argument("--check", action="store_true",
+                                help="only say what an update would bring; installs nothing")
 
     reinstall_parser = sub.add_parser("reinstall", parents=[common], help=i18n.t("cmd_reinstall"))
     reinstall_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
@@ -139,7 +141,7 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(i18n.t("usage_usage"))
     print(f"  myfox browser [firefox args...]   {i18n.t('cmd_browser')}")
     print(f"  myfox browser --myfox-restart     {i18n.t('cmd_restart')}")
-    print(f"  myfox refresh [--force] [--gui]   {i18n.t('cmd_refresh')}")
+    print(f"  myfox refresh [--force] [--gui] [--check]\n                                    {i18n.t('cmd_refresh')}")
     print(f"  myfox reinstall [--gui]           {i18n.t('cmd_reinstall')}")
     print(f"  myfox uninstall [--remove-profile] [--no-restore-sync] [--gui]\n"
           f"                                    {i18n.t('cmd_uninstall')}")
@@ -200,10 +202,15 @@ def main(argv: list[str] | None = None) -> int:
         print_top_help(parser)
         return 0
     if args.command == "refresh":
-        if args.json:
+        if args.json or args.check:
             if not state.get("install_dir"):
-                print(json.dumps({"error": i18n.t("err_not_installed")}, ensure_ascii=False))
+                if args.json:
+                    print(json.dumps({"error": i18n.t("err_not_installed")}, ensure_ascii=False))
+                else:
+                    _not_installed()
                 return 1
+            if args.check:
+                return refresh.check(state, as_json=args.json)
             return refresh.run_json(state, force=args.force)
         return cmd_refresh(state, force=args.force, gui=args.gui, noninteractive=noninteractive)
     if args.command == "reinstall":

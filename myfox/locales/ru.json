@@ -223,5 +223,6 @@
     "profile_move_subtitle": "Он станет новым профилем MyFox и будет удалён со старого места и из того Firefox",
     "progress_import_move": "Удаление профиля со старого места…",
     "progress_firefox_quit": "Закрытие Firefox…",
-    "err_firefox_did_not_quit": "Firefox не закрылся (возможно, ждёт ответа): ничего не изменено"
+    "err_firefox_did_not_quit": "Firefox не закрылся (возможно, ждёт ответа): ничего не изменено",
+    "refresh_check_install": "Установить: {0}"
 }

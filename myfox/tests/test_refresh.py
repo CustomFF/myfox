@@ -220,6 +220,59 @@ class JsonTests(IsolatedStateCase):
         self.assertEqual((rc, answer), (1, {"error": "disk full"}))
 
 
+class CheckTests(IsolatedStateCase):
+    """`refresh --check`: what an update would bring, saved for about:myfox."""
+
+    def setUp(self):
+        super().setUp()
+        self.install = self.tmp_path / "firefox"
+        self.install.mkdir()
+
+    def _state(self):
+        state = _state()
+        state.set("install_dir", str(self.install))
+        return state
+
+    def _check(self, latest, as_json=True):
+        out = io.StringIO()
+        with _releases(latest), redirect_stdout(out), redirect_stderr(io.StringIO()), \
+             mock.patch("myfox.tweaks.install", side_effect=AssertionError("installed")):
+            rc = refresh.check(self._state(), as_json=as_json)
+        return rc, out.getvalue()
+
+    def test_says_and_saves_what_is_new_installing_nothing(self):
+        rc, out = self._check(_latest(core="core-6"))
+        self.assertEqual(rc, 0)
+        found = json.loads(out)
+        self.assertEqual(found["updates"], [
+            {"track": "tweaks", "from": "151.2", "to": "151.3", "changes": ["Rounded popup menus"]},
+            {"track": "core", "from": "5", "to": "6", "changes": ["Rounded popup menus"]}])
+        self.assertRegex(found["checked"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        self.assertEqual(json.loads((self.install / refresh.UPDATES_FILE).read_text(encoding="utf-8")), found)
+
+    def test_nothing_new_is_saved_too(self):
+        _rc, out = self._check(_latest(tweaks="151.2"))
+        self.assertEqual(json.loads(out)["updates"], [])
+
+    def test_a_failed_check_keeps_the_saved_one(self):
+        (self.install / refresh.UPDATES_FILE).write_text('{"checked": "x", "updates": []}\n', encoding="utf-8")
+        rc, out = self._check(OSError("down"))
+        self.assertEqual((rc, json.loads(out)), (1, {"error": i18n.t("refresh_check_failed", "down")}))
+        self.assertIn('"checked": "x"', (self.install / refresh.UPDATES_FILE).read_text(encoding="utf-8"))
+
+    def test_in_the_terminal_it_names_the_command_to_install(self):
+        rc, out = self._check(_latest(), as_json=False)
+        self.assertEqual(rc, 0)
+        self.assertIn("Rounded popup menus", out)
+        self.assertIn(i18n.t("refresh_check_install", "myfox refresh"), out)
+
+    def test_an_update_takes_what_it_installed_out_of_the_saved_check(self):
+        self._check(_latest(core="core-6"))
+        refresh.forget_updates(self._state(), ["tweaks"])
+        saved = json.loads((self.install / refresh.UPDATES_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([u["track"] for u in saved["updates"]], ["core"])
+
+
 class RestartTests(IsolatedStateCase):
     """New tweaks apply when Firefox starts: a running one is offered a restart."""
 

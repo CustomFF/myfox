@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -192,6 +193,7 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
             state.set("core_version", installed)
             state.save()
             sync_from_new_core(state)
+    forget_updates(state, [JSON_NAMES[t.track.key] for t in todo])
     progress(i18n.t("progress_refresh_done"), 1.0)
 
 
@@ -290,4 +292,70 @@ def run_json(state: State, force: bool = False, update: Updater = apply_updates)
                 "to": t.track.display(t.latest)} for t in plan.todo]
     restart = any(t.track.key != "core_version" for t in plan.todo)
     print(json.dumps({"ok": True, "updated": updated, "restart": restart}, ensure_ascii=False))
+    return 0
+
+
+# <install>/myfox-updates.json: the last check's findings, for about:myfox
+# to show again without asking the network (and MyFox) every time.
+UPDATES_FILE = "myfox-updates.json"
+
+
+def _updates_file(state: State) -> Path | None:
+    install_dir = state.get("install_dir")
+    return Path(install_dir) / UPDATES_FILE if install_dir else None
+
+
+def forget_updates(state: State, tracks: list[str]) -> None:
+    """The tracks just updated leave the saved check: they're installed."""
+    path = _updates_file(state)
+    try:
+        found = json.loads(path.read_text(encoding="utf-8")) if path else None
+    except (OSError, ValueError):
+        return
+    if isinstance(found, dict) and isinstance(found.get("updates"), list):
+        found["updates"] = [u for u in found["updates"] if u.get("track") not in tracks]
+        try:
+            path.write_text(json.dumps(found, ensure_ascii=False) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+
+
+def check(state: State, as_json: bool = False) -> int:
+    """`refresh --check`: what an update would bring, installing nothing.
+    Saved to myfox-updates.json too; --json prints the same one line:
+    {"checked": "<UTC>", "updates": [{"track", "from", "to", "changes"}]}
+    or {"error": …} (the saved check stays then)."""
+    plan = RefreshPlan.check(state)
+    if plan.error:
+        if as_json:
+            print(json.dumps({"error": plan.error}, ensure_ascii=False))
+        else:
+            print(plan.error, file=sys.stderr)
+        return 1
+    found = {
+        "checked": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "updates": [{"track": JSON_NAMES[t.track.key], "from": t.track.display(t.current) if t.current else None,
+                     "to": t.track.display(t.latest), "changes": t.changes} for t in plan.todo],
+    }
+    path = _updates_file(state)
+    if path is not None and path.parent.is_dir():
+        try:
+            path.write_text(json.dumps(found, ensure_ascii=False) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+    if as_json:
+        print(json.dumps(found, ensure_ascii=False))
+    elif not plan.needed:
+        print(i18n.t("refresh_none"))
+    else:
+        width = max(len(t.label) for t in plan.todo)
+        for t in plan.todo:
+            print(f"{t.label.ljust(width)}  {t.describe()}")
+        if plan.changes:
+            print()
+            print(i18n.t("refresh_whats_new"))
+            for line in plan.changes:
+                print(f"  - {line}")
+        print()
+        print(i18n.t("refresh_check_install", "myfox refresh"))
     return 0

@@ -176,6 +176,13 @@ GUI: перед первым окном `gui_deps.prepare()` открывает 
 (`restart` — обновилось что-то кроме ядра, это Firefox читает при запуске; перезапускает страница) или
 `{"error": …}` с кодом 1.
 
+`refresh --check [--json]` (фича `update-check`): только проверка, ничего не ставит. Пишет найденное в
+`<install>/myfox-updates.json` — `{"checked": "<UTC>", "updates": [{"track", "from", "to", "changes"}]}`
+(`changes` — у твиков и ядра, из их `changelog.json`) — и с `--json` печатает ту же строку; без `--json` —
+текстом, с командой установки. `about:myfox` показывает сохранённое без сети, пока его не проверят заново;
+ошибка проверки сохранённое не трогает (`{"error"}`, код 1). Обновление (`apply_updates`) убирает из файла
+поставленные треки (`forget_updates`).
+
 Ярлык и обёртка `firefox-myfox` рендерятся из `myfox/templates/` установленной копии MyFox
 (подстановки `@WRAPPER@`, `@FIREFOX@`, `@LAUNCHER@`, `@ICON@`, `@APP_NAME@` — «Firefox» или «Firefox Beta»
 по `defaults/pref/channel-prefs.js` установки) и пишутся, только если отличаются. Тексты ярлыка —
