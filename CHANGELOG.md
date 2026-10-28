@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.4 — 2026-10-28
+
+- `myfox refresh --check` tells what an update would bring, the tweaks, themes, bookmarklets and MyFox itself, without installing anything; `--json` answers in JSON
+- about:myfox shows the last check again on every visit, without going online: MyFox keeps it next to Firefox and takes out of it what an update has installed
+
 ## 1.2.3 — 2026-10-28
 
 - Another Firefox's profile can be imported from about:myfox, and a MyFox profile made the default there: MyFox closes its Firefox, does the work in a progress window and starts it again with the tabs it had
