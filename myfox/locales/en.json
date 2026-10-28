@@ -58,7 +58,7 @@
     "form_profile_pick_title": "The profile folder to import",
     "form_sync": "Sync:",
     "form_sync_none": "Leave in the old profile",
-    "form_sync_move": "Move here",
+    "form_sync_move": "Move to MyFox",
     "form_sync_copy": "Copy (signed in in both)",
     "summary_imported": "Import from:",
     "err_import_in_use": "First close the Firefox that has the profile «{0}» open.",

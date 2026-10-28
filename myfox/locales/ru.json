@@ -58,7 +58,7 @@
     "form_profile_pick_title": "Папка профиля для импорта",
     "form_sync": "Синхронизация:",
     "form_sync_none": "Оставить в старом профиле",
-    "form_sync_move": "Перенести сюда",
+    "form_sync_move": "Перенести в MyFox",
     "form_sync_copy": "Копировать (вход в обоих)",
     "summary_imported": "Импорт из:",
     "err_import_in_use": "Сначала закройте Firefox, в котором открыт профиль «{0}».",
