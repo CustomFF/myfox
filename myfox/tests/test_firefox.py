@@ -247,5 +247,14 @@ class QuitTests(unittest.TestCase):
             firefox.start(Path("/ff"), Path("/p/x"))
             firefox.start(Path("/ff"))
         self.assertEqual([c.args for c in launch.call_args_list],
-                         [(Path("/ff"), "--no-remote", "--profile", "/p/x"), (Path("/ff"),)])
+                         [(Path("/ff"), "--profile", "/p/x"), (Path("/ff"),)])
+
+    def test_each_open_profile_is_asked_to_quit(self):
+        pids = [[42], []]
+        with mock.patch("myfox.firefox.running_pids", side_effect=lambda d: pids.pop(0) if len(pids) > 1 else pids[0]), \
+             mock.patch("myfox.firefox._launch") as launch, mock.patch("myfox.firefox.time.sleep"):
+            firefox.quit_and_wait(Path("/ff"), [Path("/p/a"), Path("/p/b")])
+        self.assertEqual([c.args for c in launch.call_args_list],
+                         [(Path("/ff"), "--profile", "/p/a", "--myfox-quit"),
+                          (Path("/ff"), "--profile", "/p/b", "--myfox-quit")])
 

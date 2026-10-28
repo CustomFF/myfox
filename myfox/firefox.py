@@ -252,14 +252,18 @@ def open_url(install_dir: Path, url: str) -> None:
 QUIT_TIMEOUT = 60
 
 
-def quit_and_wait(install_dir: Path, on_wait=None, timeout: float = QUIT_TIMEOUT) -> bool:
+def quit_and_wait(install_dir: Path, profile_dirs: list[Path] = (), on_wait=None,
+                  timeout: float = QUIT_TIMEOUT) -> bool:
     """Asks this install's running Firefox to quit (the tweaks' handler
-    keeps the session for the next start) and waits for it to be gone.
-    False if none was running. on_wait() comes about twice a second and
-    may raise to stop waiting. Raises OSError if it is still up."""
+    keeps the session for the next start), one instance per profile in
+    `profile_dirs` (Firefox runs one per profile and hands a command to
+    the one with that profile), and waits for all of it to be gone. False
+    if none was running. on_wait() comes about twice a second and may
+    raise to stop waiting. Raises OSError if it is still up."""
     if not running_pids(install_dir):
         return False
-    _launch(install_dir, "--myfox-quit")
+    for profile_dir in profile_dirs or [None]:
+        _launch(install_dir, *(["--profile", str(profile_dir)] if profile_dir else []), "--myfox-quit")
     deadline = time.monotonic() + timeout
     while running_pids(install_dir):
         if time.monotonic() > deadline:
@@ -271,9 +275,10 @@ def quit_and_wait(install_dir: Path, on_wait=None, timeout: float = QUIT_TIMEOUT
 
 
 def start(install_dir: Path, profile_dir: Path | None = None) -> None:
-    """This install's Firefox with its own profile, or `profile_dir` as a
-    second instance beside it."""
-    _launch(install_dir, *(["--no-remote", "--profile", str(profile_dir)] if profile_dir else []))
+    """This install's Firefox with its own profile, or `profile_dir` as an
+    instance of its own beside it. Not --no-remote: such an instance takes
+    no commands, so --myfox-quit couldn't close it later."""
+    _launch(install_dir, *(["--profile", str(profile_dir)] if profile_dir else []))
 
 
 def install_tarball(install_dir: Path, lang: str, channel: str, on_download=None, on_extract=None,

@@ -352,6 +352,20 @@ class ProfileChangeTests(IsolatedStateCase):
         self.assertEqual([c.args for c in self.start.call_args_list],
                          [(self.install,), (self.install, self.store / "myfox-2")])
 
+    def test_relaunch_closes_and_reopens_every_open_myfox_profile(self):
+        self.running = [42]
+        self.open = {self.used, self.dev}
+        self.assertEqual(self._run("use", "dev", "--relaunch"), 0)
+        self.assertEqual(self.quit_and_wait.call_args.args[1], [self.used, self.dev])
+        # dev is the default now: it opens in the usual way; myfox-1 isn't reopened beside it.
+        self.assertEqual([c.args for c in self.start.call_args_list], [(self.install,)])
+
+    def test_relaunch_reopens_a_second_profile_beside_the_default(self):
+        self.running = [42]
+        self.open = {self.used, self.dev}
+        self.assertEqual(self._run("import", "cccc.default-release", "--relaunch"), 0)
+        self.assertEqual([c.args for c in self.start.call_args_list], [(self.install,), (self.install, self.dev)])
+
     def test_relaunch_starts_firefox_again_after_a_failure(self):
         self.running = [42]
         with mock.patch("myfox.importer.write_origin", side_effect=OSError("disk full")):

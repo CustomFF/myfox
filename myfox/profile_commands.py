@@ -241,12 +241,20 @@ def _relaunching(state: State, task: task_mod.Task, opened: Callable[[], Path | 
     def run(progress: Progress) -> None:
         waiting = i18n.t("progress_firefox_quit")
         progress(waiting, 0.0)
-        was_running = firefox.quit_and_wait(install_dir, lambda: progress(waiting, 0.0))
+        # Every MyFox profile open now, each in an instance of its own:
+        # all of them go, and come back afterwards.
+        open_dirs = [p.path for p in sources.listing(install_dir) if p.related and sources.in_use(p)]
+        default = state.get("profile_dir")
+        was_running = firefox.quit_and_wait(install_dir, open_dirs, lambda: progress(waiting, 0.0))
         try:
             work(progress)
         finally:
             if was_running:
+                # The default one (maybe a new one now) in the usual way.
                 firefox.start(install_dir)
+                for profile_dir in open_dirs:
+                    if str(profile_dir) not in (default, state.get("profile_dir")):
+                        firefox.start(install_dir, profile_dir)
         extra = opened()
         if extra is not None:
             firefox.start(install_dir, extra)
