@@ -307,6 +307,8 @@ class _Window:
                     self._show_block()
                     if self.task.blocked and self._focused == self.action:
                         self._focus(self.cancel)
+            if self.task.autorun and not self._done and not self.task.blocked and self._measured:
+                self._on_action()
             return
         if self._progress is not None and not self._cancel.requested:
             message, fraction = self._progress

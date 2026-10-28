@@ -93,6 +93,28 @@ def _group_profiles(root: Path, store_id: str) -> list[tuple[Path, str]]:
     return [(root / path, name) for path, name in rows if isinstance(path, str) and path]
 
 
+def forget_in_groups(root: Path, profile_dir: Path) -> None:
+    """Takes `profile_dir` out of the store's profile groups; with the
+    owning Firefox closed. Best effort: a group row left behind only lists
+    a profile that is gone."""
+    for db in sorted((root / "Profile Groups").glob("*.sqlite")):
+        try:
+            con = sqlite3.connect(str(db))
+            try:
+                with con:
+                    for path, in con.execute("SELECT path FROM Profiles").fetchall():
+                        if isinstance(path, str) and root / path == profile_dir:
+                            con.execute("DELETE FROM Profiles WHERE path = ?", (path,))
+            finally:
+                con.close()
+        except sqlite3.Error:
+            pass
+
+
+def store_root(p: Profile) -> Path | None:
+    return next((s.root for s in stores() if s.kind == p.store), None)
+
+
 def _registered(root: Path) -> dict[Path, str]:
     """Profile folder -> name, from profiles.ini and its profile groups."""
     cp = profiles._read_ini(root / "profiles.ini")

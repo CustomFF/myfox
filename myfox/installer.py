@@ -171,6 +171,9 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
         apply.apply_autoconfig(install_dir)
         apply.apply_chrome(profile_dir)
         apply.apply_theme_pref(profile_dir, answers.theme)
+        if source is not None:
+            # The copy keeps its own theme: the tweaks switch it once.
+            (profile_dir / importer.THEME_MARKER).touch()
         if not answers.doh:
             apply.apply_doh_off(profile_dir)
 

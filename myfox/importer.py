@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -25,12 +26,16 @@ SYNC_MODES = (SYNC_NONE, SYNC_MOVE, SYNC_COPY)
 SKIP = {
     "lock", ".parentlock", "parent.lock", "startupCache", "cache2", "OfflineCache", "shader-cache",
     "safebrowsing", "crashes", "minidumps", "chrome", ".myfox", ".myfox-created", ".myfox-import",
+    ".myfox-theme",
 }
 ACCOUNT = "signedInUser.json"
 SYNC_STATE = "weave"
 BACKUP_SUFFIX = ".myfox-backup"
 # In the copy: where it came from, so the account can go back later.
 ORIGIN = ".myfox-import"
+# In the copy: the tweaks switch to the MyFox theme over the copied one
+# once, at its first start, then delete it.
+THEME_MARKER = ".myfox-theme"
 _CHUNK = 1024 * 1024
 
 
@@ -97,8 +102,8 @@ def _strip_sync_prefs(prefs: Path) -> None:
         prefs.write_text("".join(kept), encoding="utf-8", errors="surrogateescape")
 
 
-def write_origin(copy: Path, source: Path, sync: str, backups: list[Path]) -> None:
-    (copy / ORIGIN).write_text(json.dumps({"source": str(source), "sync": sync,
+def write_origin(copy: Path, source: Path, sync: str, backups: list[Path], moved: bool = False) -> None:
+    (copy / ORIGIN).write_text(json.dumps({"source": str(source), "sync": sync, "moved": moved,
                                            "backups": [str(b) for b in backups]}, indent=2) + "\n",
                                encoding="utf-8")
 
@@ -195,3 +200,46 @@ def accept_downgrade(install_dir: Path, profile: Path) -> None:
             )
         except (subprocess.SubprocessError, OSError):
             pass
+
+
+def source_theme(profile: Path) -> str | None:
+    """"dark" or "light", as the profile's own theme looks: Firefox records
+    that for any theme (built-in or not) in browser.theme.toolbar-theme,
+    0 dark, 1 light, 2 as the system. None when it follows the system or
+    says nothing."""
+    try:
+        text = (profile / "prefs.js").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    m = re.search(r'^user_pref\("browser\.theme\.toolbar-theme", (\d+)\);', text, re.M)
+    return {"0": "dark", "1": "light"}.get(m.group(1)) if m else None
+
+
+def system_theme() -> str | None:
+    """The desktop's color scheme through the freedesktop portal (GNOME,
+    KDE and others), else GNOME's own setting; None if neither says."""
+    for cmd, parse in (
+        (["gdbus", "call", "--session", "--timeout", "3", "--dest", "org.freedesktop.portal.Desktop",
+          "--object-path", "/org/freedesktop/portal/desktop", "--method", "org.freedesktop.portal.Settings.ReadOne",
+          "org.freedesktop.appearance", "color-scheme"],
+         lambda out: {"1": "dark", "2": "light"}.get((re.search(r"uint32 (\d)", out) or [None, None])[1])),
+        (["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
+         lambda out: "dark" if "prefer-dark" in out else "light" if "prefer-light" in out else None),
+    ):
+        try:
+            out = subprocess.run(cmd, capture_output=True, text=True, timeout=5, check=True).stdout
+        except (OSError, subprocess.SubprocessError):
+            continue
+        theme = parse(out)
+        if theme:
+            return theme
+    return None
+
+
+def mark_theme(copy: Path, source: Path) -> str | None:
+    """The MyFox theme that looks like the source's (or the system's), for
+    the tweaks to switch the copy to at its first start; None if unknown."""
+    theme = source_theme(source) or system_theme()
+    if theme:
+        (copy / THEME_MARKER).touch()
+    return theme

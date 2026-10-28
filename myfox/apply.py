@@ -91,6 +91,16 @@ def apply_theme_pref(profile_dir: Path, theme: str) -> None:
     _user_pref(profile_dir, "myfox.theme", f'"{theme}"')
 
 
+def profile_theme(profile_dir: Path) -> str | None:
+    """The theme this profile was given (an import picks its own), if any."""
+    try:
+        text = (profile_dir / "user.js").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r'^user_pref\("myfox\.theme", "(dark|light)"\);', text, re.M)
+    return m.group(1) if m else None
+
+
 def apply_doh_off(profile_dir: Path) -> None:
     """The tweaks turn on DNS over HTTPS at a profile's first start, unless
     this says not to."""
@@ -204,7 +214,7 @@ def tweak_profile(profile_dir: Path, state) -> None:
     from . import addons
 
     apply_chrome(profile_dir)
-    apply_theme_pref(profile_dir, state.get("theme", "dark"))
+    apply_theme_pref(profile_dir, profile_theme(profile_dir) or state.get("theme", "dark"))
     if state.get("doh") is False:
         apply_doh_off(profile_dir)
     # Downloaded only if there's a newer release or a theme is missing.

@@ -169,6 +169,18 @@ class ApplyThemePrefTests(unittest.TestCase):
             self.assertIn("myfox.theme", text)
 
 
+class ProfileThemeTests(IsolatedStateCase):
+    def test_tweaking_again_keeps_the_theme_the_profile_was_given(self):
+        # An import picks its own theme: a refresh mustn't bring the install's back.
+        profile_dir = self.tmp_path / "p"
+        profile_dir.mkdir()
+        apply.apply_theme_pref(profile_dir, "light")
+        state = mock.Mock(get=lambda key, default=None: {"theme": "dark"}.get(key, default))
+        with mock.patch("myfox.apply.apply_chrome"), mock.patch("myfox.addons.fetch_themes", return_value=(None, [])):
+            apply.tweak_profile(profile_dir, state)
+        self.assertEqual(apply.profile_theme(profile_dir), "light")
+
+
 class ApplyBookmarkletsTests(unittest.TestCase):
     def test_uses_a_local_checkout_when_given(self):
         with tempfile.TemporaryDirectory() as d:

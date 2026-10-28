@@ -99,6 +99,17 @@ class PlainTests(IsolatedStateCase):
         self.assertIn("disk full", err.getvalue())
 
 
+class AutorunTests(IsolatedStateCase):
+    def test_runs_without_asking_even_in_a_terminal(self):
+        ran = []
+        t = _task(ran, autorun=True)
+        with mock.patch("myfox.ui._has_tty", return_value=True), \
+             mock.patch("myfox.ui.task_tui.run", side_effect=AssertionError("asked")), \
+             redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertTrue(task.show(t))
+        self.assertEqual(ran, [True])
+
+
 class TuiTests(IsolatedStateCase):
     def _run(self, t: task.Task, keys) -> bool:
         with _drive(keys), mock.patch("myfox.ui.task_tui._ensure_screen"):

@@ -389,6 +389,24 @@ class PinInstallTests(IsolatedHomeCase):
 
 
 
+class ForgetDirTests(unittest.TestCase):
+    def test_entry_and_the_installs_defaulting_to_it_go_numbering_closed_up(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            ini, installs = root / "profiles.ini", root / "installs.ini"
+            ini.write_text("[Profile0]\nName=a\nIsRelative=1\nPath=a.x\n\n[Profile1]\nName=b\nIsRelative=1\n"
+                           "Path=b.y\n\n[InstallH]\nDefault=a.x\nLocked=1\n\n[InstallK]\nDefault=b.y\n",
+                           encoding="utf-8")
+            installs.write_text("[H]\nDefault=a.x\nLocked=1\n", encoding="utf-8")
+            profiles.forget_dir(ini, root / "a.x")
+            profiles.forget_dir(installs, root / "a.x")
+            text = ini.read_text(encoding="utf-8")
+            self.assertNotIn("a.x", text)
+            self.assertIn("[Profile0]\nName=b", text)
+            self.assertIn("[InstallK]", text)
+            self.assertEqual(installs.read_text(encoding="utf-8").strip(), "")
+
+
 class HeadlessEnvTests(unittest.TestCase):
     def test_headless_firefox_runs_without_the_display(self):
         from myfox import profiles as profiles_mod

@@ -244,6 +244,28 @@ def remove_myfox_section(profile_dir: Path) -> None:
             remove_ini_section(ini, entry.section)
 
 
+def forget_dir(ini: Path, profile_dir: Path) -> None:
+    """Another Firefox's profiles.ini or installs.ini without `profile_dir`:
+    its [ProfileN] and any install defaulting to it (that Firefox then picks
+    or makes another default, as when a profile goes missing)."""
+    cp = _read_ini(ini)
+    gone = []
+    for section in cp.sections():
+        if _PROFILE_SECTION_RE.match(section):
+            entry = next(e for e in parse_profiles(ini) if e.section == section)
+            if resolve_dir(ini.parent, entry) == profile_dir:
+                gone.append(section)
+        elif cp.has_option(section, "Default") and cp.get(section, "Default"):
+            default = Path(cp.get(section, "Default"))
+            if (default if default.is_absolute() else ini.parent / default) == profile_dir:
+                gone.append(section)
+    if gone:
+        text = ini.read_text(encoding="utf-8")
+        for section in gone:
+            text = _remove_section_text(text, section)
+        ini.write_text(_renumber_profiles(text) if ini.name == "profiles.ini" else text, encoding="utf-8")
+
+
 # ─── Headless pinning ────────────────────────────────────────────────────
 
 def _matching_sections(ini: Path | None, pattern: re.Pattern) -> set[str]:

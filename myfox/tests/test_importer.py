@@ -115,3 +115,49 @@ class ImporterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ThemeTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.profile = Path(self._tmp.name)
+
+    def _prefs(self, line: str) -> None:
+        (self.profile / "prefs.js").write_text(PREFS + line, encoding="utf-8")
+
+    def test_the_toolbar_theme_says_dark_or_light(self):
+        for value, theme in (("0", "dark"), ("1", "light"), ("2", None)):
+            self._prefs(f'user_pref("browser.theme.toolbar-theme", {value});\n')
+            self.assertEqual(importer.source_theme(self.profile), theme)
+        self._prefs("")
+        self.assertIsNone(importer.source_theme(self.profile))
+
+    def test_the_system_scheme_from_the_portal_then_gnome(self):
+        def run(answers):
+            def fake(cmd, **kwargs):
+                out = answers.get(cmd[0])
+                if out is None:
+                    raise FileNotFoundError(cmd[0])
+                return mock.Mock(stdout=out)
+            return mock.patch("myfox.importer.subprocess.run", side_effect=fake)
+
+        with run({"gdbus": "(<<uint32 1>>,)\n"}):
+            self.assertEqual(importer.system_theme(), "dark")
+        with run({"gdbus": "(<<uint32 0>>,)\n", "gsettings": "'prefer-light'\n"}):
+            self.assertEqual(importer.system_theme(), "light")
+        with run({}):
+            self.assertIsNone(importer.system_theme())
+
+    def test_a_known_theme_marks_the_copy(self):
+        copy = self.profile / "copy"
+        copy.mkdir()
+        self._prefs('user_pref("browser.theme.toolbar-theme", 0);\n')
+        self.assertEqual(importer.mark_theme(copy, self.profile), "dark")
+        self.assertTrue((copy / importer.THEME_MARKER).is_file())
+        (copy / importer.THEME_MARKER).unlink()
+        self._prefs("")
+        with mock.patch("myfox.importer.system_theme", return_value=None):
+            self.assertIsNone(importer.mark_theme(copy, self.profile))
+        self.assertFalse((copy / importer.THEME_MARKER).exists())
+

@@ -61,6 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument("--all", action="store_true", help="also other Firefoxes' profiles (import only)")
     list_parser.add_argument("--json", action="store_true", help="for programs: the profiles as JSON on stdout")
     gui = {"action": "store_true", "help": "graphical window instead of the terminal"}
+    relaunch_help = "for programs: no questions; MyFox's Firefox is closed first and started again afterwards"
     new_parser = profile_sub.add_parser("new", parents=[common], help=i18n.t("cmd_profile_new"))
     new_parser.add_argument("--use", action="store_true", help="our Firefox opens it from now on")
     new_parser.add_argument("--gui", **gui)
@@ -71,6 +72,11 @@ def build_parser() -> argparse.ArgumentParser:
     import_parser.add_argument("--allow-downgrade", action="store_true",
                                help="import a profile a newer Firefox last opened, at your own risk")
     import_parser.add_argument("--use", action="store_true", help="our Firefox opens it from now on")
+    import_parser.add_argument("--move", action="store_true",
+                               help="move it, account and all: deleted from its old place and Firefox afterwards")
+    import_parser.add_argument("--name", help="the new profile's name (default: \"<name> (MyFox)\")")
+    import_parser.add_argument("--open", action="store_true", help="open it once imported")
+    import_parser.add_argument("--relaunch", action="store_true", help=relaunch_help)
     import_parser.add_argument("--gui", **gui)
     for name, help_key in (("apply", "cmd_profile_apply"), ("use", "cmd_profile_use"),
                            ("remove", "cmd_profile_remove")):
@@ -79,6 +85,8 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--gui", **gui)
         if name == "apply":
             p.add_argument("--json", action="store_true", help="for programs: no questions, the result as JSON")
+        if name == "use":
+            p.add_argument("--relaunch", action="store_true", help=relaunch_help)
         if name == "remove":
             p.add_argument("--no-restore-sync", action="store_true",
                            help="leave the Firefox account an import moved into it where it is")
@@ -139,7 +147,8 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(f"  myfox profile list [--all] [--json]\n"
           f"                                    {i18n.t('cmd_profile_list')}")
     print(f"  myfox profile new [--use]         {i18n.t('cmd_profile_new')}")
-    print(f"  myfox profile import <ID|folder> [--sync none|copy|move] [--allow-downgrade] [--use]\n"
+    print(f"  myfox profile import <ID|folder> [--move] [--sync none|copy|move] [--name NAME] [--allow-downgrade]\n"
+          f"                                    [--use] [--open]\n"
           f"                                    {i18n.t('cmd_profile_import')}")
     print(f"  myfox profile apply <ID>          {i18n.t('cmd_profile_apply')}")
     print(f"  myfox profile use <ID>            {i18n.t('cmd_profile_use')}")

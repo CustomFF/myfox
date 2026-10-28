@@ -97,6 +97,20 @@ class SourcesTests(IsolatedStateCase):
         self.assertEqual({p.id: p.name for p in sources.listing()},
                          {"aaaa.default-release": "Base", "ffff.second": "Second"})
 
+    def test_a_profile_leaves_its_groups(self):
+        groups = self.store / "Profile Groups"
+        groups.mkdir(parents=True)
+        con = sqlite3.connect(groups / "15475d1e.sqlite")
+        con.execute("CREATE TABLE Profiles (id INTEGER PRIMARY KEY, path TEXT, name TEXT)")
+        con.executemany("INSERT INTO Profiles (path, name) VALUES (?, ?)",
+                        [("aaaa.default-release", "Base"), ("ffff.second", "Second")])
+        con.commit()
+        con.close()
+        sources.forget_in_groups(self.store, self.store / "ffff.second")
+        con = sqlite3.connect(groups / "15475d1e.sqlite")
+        self.assertEqual(con.execute("SELECT path FROM Profiles").fetchall(), [("aaaa.default-release",)])
+        con.close()
+
     def test_a_folder_listed_twice_and_a_missing_one(self):
         self._profile(self.store, "myfox-1")
         self._ini(self.store, ("myfox", "myfox-1"), ("myfox", "myfox-1"), ("gone", "zzzz.gone"))

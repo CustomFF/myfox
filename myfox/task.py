@@ -42,6 +42,7 @@ class Task:
     recheck: Callable[[], str | None] | None = None  # recomputes `blocked` while the dialog waits
     more: Callable[[], None] | None = None  # shows all of `lines` when they don't fit
     closes: Callable[[], bool] | None = None  # the GUI closes itself once run, if this says so
+    autorun: bool = False  # chosen elsewhere (about:myfox): runs at once, only shows the progress
     # A picker instead of an action: one of these (value, label) is chosen,
     # the action only confirms it into `choice` (run is not called).
     choices: list[tuple[str, str]] = field(default_factory=list)
@@ -95,7 +96,7 @@ def _notify_or_print(title: str, text: str) -> None:
 
 def show(task: Task, gui: bool = False, noninteractive: bool = False) -> bool:
     """True once the action ran through; False if cancelled, blocked or failed."""
-    if noninteractive:
+    if noninteractive or (task.autorun and not gui):
         if task.blocked:
             print(task.blocked, file=sys.stderr)
             return False
@@ -111,6 +112,10 @@ def show(task: Task, gui: bool = False, noninteractive: bool = False) -> bool:
             from .ui import task_gui
         except (ImportError, OSError, RuntimeError) as exc:
             text = i18n.t("err_gui_unavailable", exc)
+            if task.autorun:
+                from .ui import task_plain
+
+                return task_plain.run(task, confirmed=True)
             if not _has_tty():
                 # Started from the menu: a printed line would go nowhere.
                 _notify_or_print(task.title, text)

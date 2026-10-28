@@ -92,6 +92,12 @@ class ProfileListTests(IsolatedStateCase):
         self.assertEqual(records["cccc.default-release"]["owner"], "foreign")
         self.assertEqual([records[i]["created"] for i in ("myfox-1", "aaaa.dev")], [False, False])
         self.assertIsNone(records["myfox-1"]["last_used"])
+        self.assertEqual([records["myfox-2"][k] for k in ("moved", "account")], [False, False])
+
+    def test_json_says_which_are_signed_in(self):
+        (self.store / "cccc.default-release" / "signedInUser.json").write_text("{}", encoding="utf-8")
+        records = {r["id"]: r for r in json.loads(self._run("--all", "--json"))}
+        self.assertTrue(records["cccc.default-release"]["account"])
 
     def test_json_created_and_last_used(self):
         (self.store / "myfox-2" / ".myfox-created").touch()
@@ -143,7 +149,10 @@ class ProfileChangeTests(IsolatedStateCase):
         for target, kwargs in (("myfox.firefox.running_pids", {"side_effect": lambda d: self.running}),
                                ("myfox.sources.in_use", {"side_effect": lambda p: p.path in self.open}),
                                ("myfox.apply.tweak_profile", {"side_effect": self._tweak}),
-                               ("myfox.profiles.pin_install", {"return_value": "HASH"})):
+                               ("myfox.profiles.pin_install", {"return_value": "HASH"}),
+                               ("myfox.importer.system_theme", {"return_value": None}),
+                               ("myfox.firefox.start", {}),
+                               ("myfox.firefox.quit_and_wait", {"return_value": True})):
             patcher = mock.patch(target, **kwargs)
             setattr(self, target.rsplit(".", 1)[1], patcher.start())
             self.addCleanup(patcher.stop)
@@ -291,6 +300,76 @@ class ProfileChangeTests(IsolatedStateCase):
             self.assertEqual(self._run("import", "cccc.default-release", "--sync", "move", "-y"), 1)
         self.assertFalse((self.store / "myfox-2").exists())
         self.assertTrue((self.other / "signedInUser.json").is_file())
+
+    def test_import_names_the_copy(self):
+        self.assertEqual(self._run("import", "cccc.default-release", "--name", "  Work  stuff ", "-y"), 0)
+        self.assertIn("Name=Work stuff\n", (self.store / "profiles.ini").read_text(encoding="utf-8"))
+
+    def test_import_switches_the_copy_to_the_myfox_theme_like_its_own(self):
+        with (self.other / "prefs.js").open("a", encoding="utf-8") as f:
+            f.write('user_pref("browser.theme.toolbar-theme", 1);\n')
+        self.assertEqual(self._run("import", "cccc.default-release", "-y"), 0)
+        copy = self.store / "myfox-2"
+        self.assertTrue((copy / importer.THEME_MARKER).is_file())
+        self.assertIn('user_pref("myfox.theme", "light");', (copy / "user.js").read_text(encoding="utf-8"))
+
+    def test_import_move_takes_the_source_out_of_its_firefox(self):
+        (self.other / "signedInUser.json").write_text("{}", encoding="utf-8")
+        ini = self.store / "profiles.ini"
+        ini.write_text(ini.read_text(encoding="utf-8") + "[InstallABC]\nDefault=cccc.default-release\nLocked=1\n\n",
+                       encoding="utf-8")
+        self.assertEqual(self._run("import", "cccc.default-release", "--move", "-y"), 0)
+        copy = self.store / "myfox-2"
+        self.assertTrue((copy / "signedInUser.json").is_file())  # the account goes along
+        self.assertFalse(self.other.exists())
+        self.assertEqual(list(self.store.glob(".*myfox-moving")), [])
+        text = ini.read_text(encoding="utf-8")
+        self.assertNotIn("cccc.default-release", text)
+        self.assertNotIn("[Profile3]", text)  # no gap left behind
+        self.assertTrue(importer.read_origin(copy)["moved"])
+
+    def test_a_failed_move_leaves_the_source_as_it_was(self):
+        ini = self.store / "profiles.ini"
+        before = ini.read_text(encoding="utf-8")
+        with mock.patch("myfox.profile_commands._use", side_effect=OSError("pin failed")):
+            self.assertEqual(self._run("import", "cccc.default-release", "--move", "--use", "-y"), 1)
+        self.assertTrue((self.other / "prefs.js").is_file())
+        self.assertFalse((self.store / "myfox-2").exists())
+        self.assertEqual(ini.read_text(encoding="utf-8").rstrip(), before.rstrip())
+
+    def test_import_open_starts_the_copy_beside_our_firefox(self):
+        self.assertEqual(self._run("import", "cccc.default-release", "--open", "-y"), 0)
+        self.start.assert_called_once_with(self.install, self.store / "myfox-2")
+
+    def test_import_open_with_use_starts_our_firefox_in_it(self):
+        self.assertEqual(self._run("import", "cccc.default-release", "--open", "--use", "-y"), 0)
+        self.start.assert_called_once_with(self.install, None)
+
+    def test_relaunch_closes_our_firefox_imports_and_starts_it_again(self):
+        self.running = [42]  # closed by the run, not a reason to refuse
+        self.assertEqual(self._run("import", "cccc.default-release", "--open", "--relaunch"), 0)
+        self.quit_and_wait.assert_called_once()
+        self.assertEqual([c.args for c in self.start.call_args_list],
+                         [(self.install,), (self.install, self.store / "myfox-2")])
+
+    def test_relaunch_starts_firefox_again_after_a_failure(self):
+        self.running = [42]
+        with mock.patch("myfox.importer.write_origin", side_effect=OSError("disk full")):
+            self.assertEqual(self._run("import", "cccc.default-release", "--open", "--relaunch"), 1)
+        self.assertEqual([c.args for c in self.start.call_args_list], [(self.install,)])
+        self.assertFalse((self.store / "myfox-2").exists())
+
+    def test_relaunch_that_cannot_close_firefox_changes_nothing(self):
+        self.quit_and_wait.side_effect = OSError(i18n.t("err_firefox_did_not_quit"))
+        self.assertEqual(self._run("use", "dev", "--relaunch"), 1)
+        self.assertEqual(State().get("profile_dir"), str(self.used))
+        self.start.assert_not_called()
+
+    def test_use_relaunch_switches_and_starts_firefox_again(self):
+        self.running = [42]
+        self.assertEqual(self._run("use", "dev", "--relaunch"), 0)
+        self.assertEqual(State().get("profile_dir"), str(self.dev))
+        self.start.assert_called_once_with(self.install)
 
     def test_without_an_id_the_choice_is_listed(self):
         self.assertEqual(self._run("use"), 1)

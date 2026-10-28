@@ -54,8 +54,8 @@ myfox           ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox (sh: pytho
   сейчас открыт); `--all` — и чужие, «только импорт»; `--json` — одна строка для about:myfox
   (возможность `profiles` в `myfox.json`; ещё `created` и `last_used` — время `.parentlock`, который
   Firefox трогает при каждом запуске). `apply <ID> --json` — без вопросов, `{"ok"…}` или `{"error"…}`.
-- `new [--use]`, `import <ID|папка> [--sync none|copy|move] [--allow-downgrade] [--use]`,
-  `apply <ID>`, `use <ID>`, `remove <ID> [--no-restore-sync]` — диалоги `task.Task` (как reinstall:
+- `new [--use]`, `import <ID|папка> [--move] [--sync none|copy|move] [--name ИМЯ] [--allow-downgrade] [--use]
+  [--open] [--relaunch]`, `apply <ID>`, `use <ID> [--relaunch]`, `remove <ID> [--no-restore-sync]` — диалоги `task.Task` (как reinstall:
   `-y`, `--gui`, без терминала — подсказка с командой). ID — из `list`; имя годится, если оно одно.
   Без ID — выбор из подходящих (`candidates`: для `apply` связанные, для `use` — кроме открываемого,
   для `remove` — созданные MyFox, для `import` — все не-MyFox), это `Task` с `choices`; с `-y` или
@@ -68,6 +68,23 @@ myfox           ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox (sh: pytho
   `.myfox-import`; отмена или ошибка откатывает. `remove` у импортированного с «Перенести» —
   галочка возврата аккаунта, как в uninstall. `use` — пиннинг (`profiles.pin_install` с сохранённым
   хэшем), `profile_dir` в state.
+- Импорт: имя — `--name` (по умолчанию «<имя исходного> (MyFox)»). `--move` — перенос: аккаунт идёт с
+  профилем (выбора синхронизации нет), в конце исходная папка откладывается (`.<папка>.myfox-moving`), из
+  `profiles.ini`/`installs.ini` того Firefox уходят её запись и установки, у которых она по умолчанию
+  (`profiles.forget_dir`), и только потом папка удаляется, а профиль — из его групп (`sources.forget_in_groups`);
+  до этого всё откатывается. В `.myfox-import` — `moved`. `--open` — после импорта открыть копию рядом с нашим
+  Firefox (`--no-remote --profile`); с `--use` наш Firefox откроет её сам.
+- Тема копии: у неё своя тема, твики её не трогают. MyFox пишет `myfox.theme` по `browser.theme.toolbar-theme`
+  исходного (`importer.source_theme`: 0 — тёмная, 1 — светлая; 2 или нет — схема системы через
+  freedesktop portal, потом gsettings) и кладёт `<копия>/.myfox-theme`: твики при первом запуске включают
+  тему MyFox поверх любой и удаляют метку. Свою тему профиль сохраняет и при `refresh` (`apply.profile_theme`).
+  При установке с импортом — тема из формы, метка та же.
+- `--relaunch` (для about:myfox, возможность `profiles-import` в `myfox.json`): выбор сделан на странице, окно
+  ничего не спрашивает (`Task.autorun`), только показывает ход и закрывается само. Наш Firefox закрывается
+  (`firefox-myfox --myfox-quit`, обработчик твиков, сессия сохраняется; ждём до 60 с — Firefox может спросить
+  про формы и загрузки, тогда ошибка и ничего не меняется), потом импорт или `use`, потом Firefox запускается
+  снова — и после ошибки или отмены (тогда всё как было). Открытый исходный профиль — блок, окно ждёт.
+- В `list --json`: `account` (в профиле вход в аккаунт Firefox), `moved`; `imported_from` — путь исходного.
 
 ## Как показывается интерфейс
 

@@ -221,3 +221,31 @@ class ResolveDownloadTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class QuitTests(unittest.TestCase):
+    def test_asks_firefox_to_quit_and_waits_for_it(self):
+        pids = [[42], [42], []]
+        with mock.patch("myfox.firefox.running_pids", side_effect=lambda d: pids.pop(0) if len(pids) > 1 else pids[0]), \
+             mock.patch("myfox.firefox._launch") as launch, mock.patch("myfox.firefox.time.sleep"):
+            self.assertTrue(firefox.quit_and_wait(Path("/ff")))
+        launch.assert_called_once_with(Path("/ff"), "--myfox-quit")
+
+    def test_nothing_to_quit(self):
+        with mock.patch("myfox.firefox.running_pids", return_value=[]), mock.patch("myfox.firefox._launch") as launch:
+            self.assertFalse(firefox.quit_and_wait(Path("/ff")))
+        launch.assert_not_called()
+
+    def test_one_that_stays_up_is_an_error(self):
+        with mock.patch("myfox.firefox.running_pids", return_value=[42]), mock.patch("myfox.firefox._launch"), \
+             mock.patch("myfox.firefox.time.sleep"):
+            with self.assertRaises(OSError):
+                firefox.quit_and_wait(Path("/ff"), timeout=-1)
+
+    def test_a_second_instance_gets_its_own_profile(self):
+        with mock.patch("myfox.firefox._launch") as launch:
+            firefox.start(Path("/ff"), Path("/p/x"))
+            firefox.start(Path("/ff"))
+        self.assertEqual([c.args for c in launch.call_args_list],
+                         [(Path("/ff"), "--no-remote", "--profile", "/p/x"), (Path("/ff"),)])
+

@@ -11,12 +11,13 @@ import re
 import subprocess
 import tarfile
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from configparser import ConfigParser
 from pathlib import Path
 
-from . import archive, net
+from . import archive, i18n, net
 
 LANGUAGES_URL = "https://product-details.mozilla.org/1.0/languages.json"
 VERSIONS_URL = "https://product-details.mozilla.org/1.0/firefox_versions.json"
@@ -244,6 +245,35 @@ def request_restart(install_dir: Path) -> None:
 def open_url(install_dir: Path, url: str) -> None:
     """Opens `url` in this install's Firefox, starting it if needed."""
     _launch(install_dir, url)
+
+
+# How long a quit may take: Firefox may first ask about unsaved forms or
+# running downloads, and the user may say no.
+QUIT_TIMEOUT = 60
+
+
+def quit_and_wait(install_dir: Path, on_wait=None, timeout: float = QUIT_TIMEOUT) -> bool:
+    """Asks this install's running Firefox to quit (the tweaks' handler
+    keeps the session for the next start) and waits for it to be gone.
+    False if none was running. on_wait() comes about twice a second and
+    may raise to stop waiting. Raises OSError if it is still up."""
+    if not running_pids(install_dir):
+        return False
+    _launch(install_dir, "--myfox-quit")
+    deadline = time.monotonic() + timeout
+    while running_pids(install_dir):
+        if time.monotonic() > deadline:
+            raise OSError(i18n.t("err_firefox_did_not_quit"))
+        if on_wait:
+            on_wait()
+        time.sleep(0.5)
+    return True
+
+
+def start(install_dir: Path, profile_dir: Path | None = None) -> None:
+    """This install's Firefox with its own profile, or `profile_dir` as a
+    second instance beside it."""
+    _launch(install_dir, *(["--no-remote", "--profile", str(profile_dir)] if profile_dir else []))
 
 
 def install_tarball(install_dir: Path, lang: str, channel: str, on_download=None, on_extract=None,

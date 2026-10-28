@@ -93,7 +93,7 @@ class InstallTests(IsolatedStateCase):
         self.assertFalse((self.profile_dir / "signedInUser.json").exists())  # sync: none
         self.assertTrue((source / "signedInUser.json").is_file())
         self.assertIn(i18n.t("progress_import_start"), seen)
-        self.assertEqual(importer.read_origin(self.profile_dir), {"source": str(source), "sync": "none", "backups": []})
+        self.assertEqual(importer.read_origin(self.profile_dir), {"source": str(source), "sync": "none", "moved": False, "backups": []})
 
     def test_moving_sync_signs_the_source_out_with_a_backup(self):
         source = self._source()
