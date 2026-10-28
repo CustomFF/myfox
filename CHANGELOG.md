@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.3 — 2026-10-28
+
+- Another Firefox's profile can be imported from about:myfox, and a MyFox profile made the default there: MyFox closes its Firefox, does the work in a progress window and starts it again with the tabs it had
+- `myfox profile import` can move a profile (`--move`: the account goes along, the original leaves its old place and that Firefox's profile list), name the new one (`--name`) and open it once imported (`--open`)
+- An imported profile gets the MyFox theme that looks like its own, light or dark, switched on at its first start; the theme the original had would hide most of the tweaks
+- The sync choices on import say plainly what they do: «Leave in the original profile», «Move to the copy», «Copy (signed in in both)»
+
 ## 1.2.2 — 2026-10-27
 
 - Updates can be installed from about:myfox: `myfox refresh --json` updates without questions and answers in JSON what it updated and whether Firefox has to restart
