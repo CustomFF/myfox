@@ -257,6 +257,12 @@ class ProfileChangeTests(IsolatedStateCase):
         self.assertFalse(made.exists())
         self.assertNotIn("myfox-2", (self.store / "profiles.ini").read_text(encoding="utf-8"))
 
+    def test_remove_with_our_firefox_open_on_another_profile(self):
+        made = self._profile("myfox-2", "myfox", created=True, tweaked=True)
+        self.running = [42]
+        self.assertEqual(self._run("remove", "myfox-2", "-y"), 0)
+        self.assertFalse(made.exists())
+
     def test_remove_gives_a_moved_account_back(self):
         made = self._profile("myfox-2", "myfox", created=True, tweaked=True)
         (self.other / "signedInUser.json").write_text("{}", encoding="utf-8")

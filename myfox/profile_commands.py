@@ -369,7 +369,7 @@ def remove_task(state: State, arg: str, restore_sync: bool = True) -> task_mod.T
         unconfirmed=[i18n.t("needs_yes_profile", _command("remove", quoted(p.id)) + keep)]
         + ([i18n.t("needs_yes_uninstall_keep_sync", _command("remove", quoted(p.id)) + " --no-restore-sync")]
            if restore is not None and restore_sync else []),
-        run=run, destructive=True, recheck=_first(_ours_closed(state), _closed(p), source_closed),
+        run=run, destructive=True, recheck=_first(_closed(p), source_closed),
     )
 
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1 — 2026-10-29
+
+- `myfox profile remove` no longer waits for MyFox's Firefox to close: only the profile being removed must not be open. So about:myfox can delete a profile right from the page
+
 ## 1.3.0 — 2026-10-29
 
 - Tab completion for `myfox` in bash, zsh and fish: commands with their descriptions, flags and their values, profile IDs for `myfox profile …`
