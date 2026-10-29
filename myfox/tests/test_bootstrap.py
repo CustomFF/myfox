@@ -140,6 +140,25 @@ class FreshTests(_Env):
         self.assertTrue(run.call_args.kwargs["env"]["PYTHONPATH"].startswith("/work/myfox"))
 
 
+class CoreUrlTests(unittest.TestCase):
+    def test_the_newest_core_tag_whose_release_has_the_archive(self):
+        from ._helpers import git_refs
+        refs = git_refs("refs/heads/master", "refs/tags/core-1.9.0", "refs/tags/core-1.10.0",
+                        "refs/tags/core-1.11.0", "refs/tags/dearpygui-2.3.1")
+        base = "https://github.com/CustomFF/myfox/releases/download/"
+
+        def fake_urlopen(req, timeout):
+            if req.full_url.endswith("/info/refs?service=git-upload-pack"):
+                return mock.MagicMock(**{"__enter__.return_value.read.return_value": refs})
+            if "core-1.11.0" in req.full_url:  # tagged, its release not out yet
+                raise bootstrap.urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+            return mock.MagicMock()
+
+        with mock.patch.dict("os.environ", {}, clear=False), mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            os.environ.pop("MYFOX_CORE_URL", None)
+            self.assertEqual(bootstrap._core_url(), (base + "core-1.10.0/myfox-core.tar.gz", "core-1.10.0"))
+
+
 class LanguageTests(unittest.TestCase):
     def test_environment_wins_over_the_c_locale(self):
         env = {"LANGUAGE": "", "LC_ALL": "", "LC_MESSAGES": "", "LANG": "ru_RU.UTF-8"}

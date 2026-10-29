@@ -29,14 +29,6 @@ _THEME_FILES = {
 }
 
 
-def _release_assets(repo: str, tag: str) -> dict[str, str]:
-    """name -> browser_download_url for every asset of a tagged release."""
-    url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
-    with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    return {a["name"]: a["browser_download_url"] for a in data.get("assets", [])}
-
-
 @dataclass(frozen=True)
 class ThemesRelease:
     tag: str
@@ -45,7 +37,7 @@ class ThemesRelease:
 def latest_themes_release() -> ThemesRelease | None:
     """The newest `themes-*` release of CustomFF/myfox-tweaks; None if there is
     none. Raises OSError when GitHub can't be asked."""
-    tag = version.find_latest_tag(THEMES_TAG_RE, TWEAKS_REPO)
+    tag = version.find_latest_tag(THEMES_TAG_RE, TWEAKS_REPO, asset=_THEME_FILES[MYFOX_THEME_DARK_ID])
     return ThemesRelease(tag) if tag else None
 
 
@@ -80,22 +72,15 @@ def fetch_themes(profile_dir: Path, local_dir: str | None = None, current: str |
             shutil.copy2(src, dests[addon_id])
         return None, missing
 
-    tag = tag or version.latest_tag(THEMES_TAG_RE, repo=TWEAKS_REPO)
+    tag = tag or version.latest_tag(THEMES_TAG_RE, repo=TWEAKS_REPO, asset=_THEME_FILES[MYFOX_THEME_DARK_ID])
     if not tag:
         return current, list(_THEME_FILES)
     if tag == current and all(dest.is_file() for dest in dests.values()):
         return current, []
-    try:
-        assets = _release_assets(TWEAKS_REPO, tag)
-    except (urllib.error.URLError, OSError, json.JSONDecodeError):
-        assets = {}
     for addon_id, filename in _THEME_FILES.items():
-        url = assets.get(filename)
-        if not url:
-            missing.append(addon_id)
-            continue
         try:
-            with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
+            with urllib.request.urlopen(net.request(version.asset_url(TWEAKS_REPO, tag, filename)),
+                                        timeout=net.TIMEOUT) as resp:
                 dests[addon_id].write_bytes(resp.read())
         except (urllib.error.URLError, OSError):
             missing.append(addon_id)

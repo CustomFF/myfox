@@ -7,16 +7,9 @@ from unittest import mock
 
 from myfox import paths, tweaks
 
-from ._helpers import IsolatedStateCase, make_tweaks
+from ._helpers import IsolatedStateCase, git_refs, make_tweaks
 
-_RELEASES = [
-    {"tag_name": "themes-20261001", "assets": [{"name": "myfox-dark.xpi", "browser_download_url": "x"}]},
-    {"tag_name": "158.1", "assets": [{"name": "myfox-tweaks.tar.gz", "browser_download_url": "https://t/158.1.tgz"}]},
-    {"tag_name": "158.0", "assets": [
-        {"name": "myfox-tweaks.tar.gz", "browser_download_url": "https://t/158.0.tgz"},
-        {"name": "changelog.json", "browser_download_url": "https://t/158.0.json"},
-    ]},
-]
+_TAGS = ("refs/tags/themes-20261001", "refs/tags/158.1", "refs/tags/158.0", "refs/heads/master")
 
 
 def _archive(root: Path, extra=None) -> bytes:
@@ -32,15 +25,19 @@ def _archive(root: Path, extra=None) -> bytes:
 
 
 class LatestReleaseTests(IsolatedStateCase):
-    def test_newest_tweaks_tag_with_both_assets(self):
-        with mock.patch("myfox.version._fetch_releases", return_value=_RELEASES):
-            release = tweaks.latest_release()
-        # 158.1 lacks changelog.json, themes-* doesn't match the tag pattern.
-        self.assertEqual(release, tweaks.Release("158.0", "https://t/158.0.tgz", "https://t/158.0.json"))
+    def _latest(self, tags, missing=()):
+        with mock.patch("myfox.version._fetch_refs", return_value=git_refs(*tags)), \
+             mock.patch("myfox.version._has_asset", side_effect=lambda repo, tag, name: tag not in missing):
+            return tweaks.latest_release()
+
+    def test_newest_tweaks_tag_with_the_archive(self):
+        # 158.1's release has no archive yet, themes-* doesn't match the tag pattern.
+        url = "https://github.com/CustomFF/myfox-tweaks/releases/download/158.0/"
+        self.assertEqual(self._latest(_TAGS, missing={"158.1"}),
+                         tweaks.Release("158.0", url + "myfox-tweaks.tar.gz", url + "changelog.json"))
 
     def test_none_without_any(self):
-        with mock.patch("myfox.version._fetch_releases", return_value=_RELEASES[:1]):
-            self.assertIsNone(tweaks.latest_release())
+        self.assertIsNone(self._latest(_TAGS[:1]))
 
 
 class InstallTests(IsolatedStateCase):

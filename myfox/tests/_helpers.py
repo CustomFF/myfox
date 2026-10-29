@@ -8,6 +8,20 @@ from pathlib import Path
 from unittest import mock
 
 
+def git_refs(*refs: str) -> bytes:
+    """What GitHub answers on <repo>.git/info/refs: a pkt-line per ref,
+    a peeled line for each tag, flushes in between."""
+    def pkt(text: str) -> bytes:
+        return b"%04x" % (len(text) + 4) + text.encode()
+    lines = [pkt("# service=git-upload-pack\n"), b"0000"]
+    for i, ref in enumerate(refs):
+        sha = f"{i + 1:040x}"
+        lines.append(pkt(f"{sha} {ref}" + ("\0multi_ack side-band-64k\n" if i == 0 else "\n")))
+        if ref.startswith("refs/tags/"):
+            lines.append(pkt(f"{i + 101:040x} {ref}^{{}}\n"))
+    return b"".join(lines) + b"0000"
+
+
 def make_tweaks(root: Path) -> Path:
     """A minimal tweaks tree (autoconfig/ + chrome/) under root — what a
     release archive or paths.tweaks_dir() holds."""

@@ -36,24 +36,17 @@ class Release:
 
 
 def latest_release() -> Release | None:
-    """The newest core-* release with the archive and the changelog; None if
-    there is none.
+    """The newest core-* release with its archive; None if there is none.
     Raises OSError when GitHub can't be asked."""
     override = os.environ.get("MYFOX_CORE_URL")
     if override:
         url = override if "://" in override else Path(override).resolve().as_uri()
         return Release("dev", url)
-    try:
-        releases = version._fetch_releases(version.GITHUB_REPO)
-    except ValueError as exc:
-        raise OSError(f"bad response from GitHub: {exc}") from exc
-    for rel in releases:
-        if not version.CORE_TAG_RE.match(rel.get("tag_name", "")):
-            continue
-        assets = {a.get("name"): a.get("browser_download_url") for a in rel.get("assets", [])}
-        if assets.get(ARCHIVE) and assets.get(CHANGELOG):
-            return Release(rel["tag_name"], assets[ARCHIVE], assets[CHANGELOG])
-    return None
+    repo = version.GITHUB_REPO
+    tag = version.find_latest_tag(version.CORE_TAG_RE, repo, asset=ARCHIVE)
+    if tag is None:
+        return None
+    return Release(tag, version.asset_url(repo, tag, ARCHIVE), version.asset_url(repo, tag, CHANGELOG))
 
 
 def package_version(package_dir: Path) -> str | None:

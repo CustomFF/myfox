@@ -18,10 +18,12 @@ Development:
 import json
 import locale
 import os
+import re
 import subprocess
 import sys
 import tarfile
 import tempfile
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -85,19 +87,30 @@ def _request(url: str) -> urllib.request.Request:
     return urllib.request.Request(url, headers={"User-Agent": "myfox-bootstrap"})
 
 
+def _core_tags():
+    """core-* tags, newest first, from the repo's git refs: GitHub's API
+    allows only 60 requests an hour per address."""
+    url = f"https://github.com/{REPO}.git/info/refs?service=git-upload-pack"
+    with urllib.request.urlopen(_request(url), timeout=TIMEOUT) as resp:
+        data = resp.read().decode("utf-8", "replace")
+    tags = set(re.findall(r"[0-9a-f]{40} refs/tags/(core-[^\s^]+)", data))
+    return sorted(tags, key=lambda tag: [int(n) for n in re.findall(r"\d+", tag)], reverse=True)
+
+
 def _core_url():
     """(archive URL or path, version tag)."""
     override = os.environ.get("MYFOX_CORE_URL")
     if override:
         return override, "dev"
-    api = f"https://api.github.com/repos/{REPO}/releases?per_page=100"
-    with urllib.request.urlopen(_request(api), timeout=TIMEOUT) as resp:
-        releases = json.loads(resp.read().decode("utf-8"))
-    for rel in releases:
-        if rel.get("tag_name", "").startswith("core-"):
-            for asset in rel.get("assets", []):
-                if asset.get("name") == CORE_ASSET:
-                    return asset["browser_download_url"], rel["tag_name"]
+    for tag in _core_tags():
+        url = f"https://github.com/{REPO}/releases/download/{tag}/{CORE_ASSET}"
+        try:
+            # A tag is pushed a minute before its release has the archive.
+            with urllib.request.urlopen(_request(url), timeout=TIMEOUT):
+                return url, tag
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                raise
     raise OSError(t("no_core_release", CORE_ASSET))
 
 

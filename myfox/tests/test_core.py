@@ -6,7 +6,7 @@ from unittest import mock
 
 from myfox import core, paths
 
-from ._helpers import IsolatedStateCase
+from ._helpers import IsolatedStateCase, git_refs
 
 
 def _archive(files) -> bytes:
@@ -26,28 +26,25 @@ def _response(data: bytes):
 
 
 class LatestReleaseTests(IsolatedStateCase):
+    def _latest(self, *tags, missing=()):
+        with mock.patch("myfox.version._fetch_refs", return_value=git_refs(*tags)), \
+             mock.patch("myfox.version._has_asset", side_effect=lambda repo, tag, name: tag not in missing):
+            return core.latest_release()
+
     def test_newest_core_tag_with_the_archive(self):
-        releases = [
-            {"tag_name": "dearpygui-2.3.1", "assets": [{"name": "x.whl", "browser_download_url": "w"}]},
-            {"tag_name": "core-3", "assets": []},
-            {"tag_name": "core-2.1.0", "assets": [{"name": "myfox-core.tar.gz", "browser_download_url": "x"}]},
-            {"tag_name": "core-2.0.0", "assets": [
-                {"name": "myfox-core.tar.gz", "browser_download_url": "https://c/2"},
-                {"name": "changelog.json", "browser_download_url": "https://c/2.json"},
-            ]},
-        ]
-        # core-3 has no assets, core-2.1.0 no changelog.
-        with mock.patch("myfox.version._fetch_releases", return_value=releases):
-            self.assertEqual(core.latest_release(), core.Release("core-2.0.0", "https://c/2", "https://c/2.json"))
+        # core-3's release has no archive yet; dearpygui-* isn't core.
+        release = self._latest("refs/tags/dearpygui-2.3.1", "refs/tags/core-3", "refs/tags/core-2.10.0",
+                               "refs/tags/core-2.9.0", missing={"core-3"})
+        url = "https://github.com/CustomFF/myfox/releases/download/core-2.10.0/"
+        self.assertEqual(release, core.Release("core-2.10.0", url + "myfox-core.tar.gz", url + "changelog.json"))
 
     def test_local_archive_instead_of_a_release(self):
         with mock.patch.dict("os.environ", {"MYFOX_CORE_URL": "/tmp/myfox-core.tar.gz"}), \
-             mock.patch("myfox.version._fetch_releases", side_effect=AssertionError("network")):
+             mock.patch("myfox.version._fetch_refs", side_effect=AssertionError("network")):
             self.assertEqual(core.latest_release(), core.Release("dev", "file:///tmp/myfox-core.tar.gz"))
 
     def test_none_without_any(self):
-        with mock.patch("myfox.version._fetch_releases", return_value=[]):
-            self.assertIsNone(core.latest_release())
+        self.assertIsNone(self._latest("refs/heads/master", "refs/tags/dearpygui-2.3.1"))
 
 
 class InstallTests(IsolatedStateCase):

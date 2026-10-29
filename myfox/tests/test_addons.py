@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
@@ -36,18 +36,9 @@ class FetchThemesTests(unittest.TestCase):
         self.assertCountEqual(missing, [addons.MYFOX_THEME_DARK_ID, addons.MYFOX_THEME_LIGHT_ID])
 
     def test_fetches_both_xpis_from_the_latest_themes_release(self):
-        release_json = {
-            "assets": [
-                {"name": "myfox-dark.xpi", "browser_download_url": "https://example/dark"},
-                {"name": "myfox-light.xpi", "browser_download_url": "https://example/light"},
-            ]
-        }
         responses = {
-            "https://api.github.com/repos/CustomFF/myfox-tweaks/releases/tags/themes-20261001": self._fake_response(
-                json.dumps(release_json).encode("utf-8")
-            ),
-            "https://example/dark": self._fake_response(b"dark"),
-            "https://example/light": self._fake_response(b"light"),
+            "https://github.com/CustomFF/myfox-tweaks/releases/download/themes-20261001/myfox-dark.xpi": self._fake_response(b"dark"),
+            "https://github.com/CustomFF/myfox-tweaks/releases/download/themes-20261001/myfox-light.xpi": self._fake_response(b"light"),
         }
 
         def fake_urlopen(req, timeout=None):
@@ -72,16 +63,10 @@ class FetchThemesTests(unittest.TestCase):
         self.assertCountEqual(missing, [addons.MYFOX_THEME_DARK_ID, addons.MYFOX_THEME_LIGHT_ID])
 
     def test_release_missing_one_asset_reports_only_that_one(self):
-        release_json = {"assets": [{"name": "myfox-dark.xpi", "browser_download_url": "https://example/dark"}]}
-        responses = {
-            "https://api.github.com/repos/CustomFF/myfox-tweaks/releases/tags/themes-20261001": self._fake_response(
-                json.dumps(release_json).encode("utf-8")
-            ),
-            "https://example/dark": self._fake_response(b"dark"),
-        }
-
         def fake_urlopen(req, timeout=None):
-            return responses[req.full_url]
+            if req.full_url == "https://github.com/CustomFF/myfox-tweaks/releases/download/themes-20261001/myfox-dark.xpi":
+                return self._fake_response(b"dark")
+            raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
 
         with mock.patch("myfox.version.latest_tag", return_value="themes-20261001"), \
              mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):

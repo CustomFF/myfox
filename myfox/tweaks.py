@@ -36,19 +36,12 @@ class Release:
 
 
 def latest_release() -> Release | None:
-    """The newest tweaks release with both assets; None if there is none.
+    """The newest tweaks release with its archive; None if there is none.
     Raises OSError when GitHub can't be asked."""
-    try:
-        releases = version._fetch_releases(TWEAKS_REPO)
-    except ValueError as exc:
-        raise OSError(f"bad response from GitHub: {exc}") from exc
-    for rel in releases:
-        if not version.TWEAKS_TAG_RE.match(rel.get("tag_name", "")):
-            continue
-        assets = {a.get("name"): a.get("browser_download_url") for a in rel.get("assets", [])}
-        if assets.get(ARCHIVE) and assets.get(CHANGELOG):
-            return Release(rel["tag_name"], assets[ARCHIVE], assets[CHANGELOG])
-    return None
+    tag = version.find_latest_tag(version.TWEAKS_TAG_RE, TWEAKS_REPO, asset=ARCHIVE)
+    if tag is None:
+        return None
+    return Release(tag, version.asset_url(TWEAKS_REPO, tag, ARCHIVE), version.asset_url(TWEAKS_REPO, tag, CHANGELOG))
 
 
 def _download(url: str) -> bytes:

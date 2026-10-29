@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.3 — 2026-10-29
+
+- Checking for updates and installing no longer use GitHub's API, which allows only 60 requests an hour per address: a few checks were enough for «rate limit exceeded». MyFox reads the release tags the way git does and downloads the files directly
+- The bookmarklet styling is versioned by when it was last built with changes; installs updated to this version get it once more with the new version
+
 ## 1.3.2 — 2026-10-29
 
 - about:myfox offers to give a Firefox account back on deleting a profile only when the import moved it there: `myfox profile list --json` tells it (`restore_sync`)
