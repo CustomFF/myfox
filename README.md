@@ -19,9 +19,9 @@ curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh
 
 Install modes:
 
-- in the terminal (the default) — a text-based form;
-- in a window — `sh -s -- --gui`;
-- automatic — `sh -s -- -y`: the defaults, no questions.
+- interactive, TUI dialog (the default);
+- interactive, GUI dialog — `sh -s -- --gui`;
+- non-interactive, default settings — `sh -s -- -y`.
 
 The install is controlled by flags passed after `sh -s --`. All flags are described in the
 [documentation](https://github.com/CustomFF/myfox/wiki).
@@ -59,4 +59,4 @@ Removes Firefox, the shortcut, the `myfox` command and ~/.local/share/myfox. The
 (bookmarks, history, passwords) is kept; to delete it too, tick "Also delete the profile" in the
 dialog.
 
-License: [MIT](LICENSE).
+License: [MPL-2.0](LICENSE).
