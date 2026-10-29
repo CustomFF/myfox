@@ -30,7 +30,7 @@ class InstallTests(IsolatedStateCase):
         return "152.0"
 
     def _install(self, answers, plasma=False, pkg=True, addon_fails=False, gui_error=None, desktop_error=None,
-                 progress=None):
+                 progress=None, completions=(), zsh_by_hand=False):
         record = lambda name: (lambda *a, **k: self.calls.append(name))  # noqa: E731
         amo = lambda *a, **k: self.calls.append("plasma") or (["plasma-integration"] if addon_fails else [])  # noqa: E731
         with mock.patch("myfox.addons.is_plasma_session", return_value=plasma), \
@@ -48,7 +48,9 @@ class InstallTests(IsolatedStateCase):
              mock.patch("myfox.apply.apply_bookmarklets", side_effect=record("bookmarklets")), \
              mock.patch("myfox.launcher.install_self", return_value=Path("/x/bin/myfox")), \
              mock.patch("myfox.gui_deps.install_into", side_effect=gui_error or record("gui")), \
-             mock.patch("myfox.desktop.write_entry", side_effect=desktop_error or record("desktop")):
+             mock.patch("myfox.desktop.write_entry", side_effect=desktop_error or record("desktop")), \
+             mock.patch("myfox.completion.install", return_value=list(completions)), \
+             mock.patch("myfox.completion.zsh_by_hand", return_value=zsh_by_hand):
             installer.install(answers, progress or (lambda message, fraction: self.reports.append((message, fraction))))
 
     def test_full_install_runs_every_step_and_saves_state(self):
@@ -162,6 +164,13 @@ class InstallTests(IsolatedStateCase):
     def test_no_plasma_without_tweaks(self):
         self._install(Answers(install_dir=str(self.install_dir), tweaks=False), plasma=True)
         self.assertNotIn("plasma", self.calls)
+
+    def test_completions_are_recorded_and_zsh_without_a_folder_is_a_note(self):
+        answers = Answers(install_dir=str(self.install_dir))
+        bash = self.tmp_path / "completions" / "myfox"
+        self._install(answers, completions=[bash], zsh_by_hand=True)
+        self.assertEqual(State().get("completions"), [str(bash)])
+        self.assertEqual(answers.notes, [i18n.t("note_zsh_completion")])
 
     def test_gui_failure_is_a_note_not_a_failed_install(self):
         answers = Answers(install_dir=str(self.install_dir))

@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 from myfox import __main__, completion, i18n
 
@@ -79,6 +80,75 @@ class CompleteTests(IsolatedStateCase):
         with redirect_stdout(out):
             self.assertEqual(__main__.main(["completion", "fish"]), 0)
         self.assertEqual(out.getvalue(), completion.SCRIPTS["fish"])
+
+
+class InstallTests(IsolatedStateCase):
+    def setUp(self):
+        super().setUp()
+        self.home = self.tmp_path / "home"
+        self.zfunc = self.home / ".zsh" / "completions"
+        self.zfunc.mkdir(parents=True)
+        patcher = mock.patch.dict("os.environ")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        os.environ.pop("BASH_COMPLETION_USER_DIR", None)
+        self.bash = self.tmp_path / "data" / "bash-completion" / "completions" / "myfox"
+        self.fish = self.tmp_path / "data" / "fish" / "vendor_completions.d" / "myfox.fish"
+
+    def _install(self, fpath, shells=completion.SHELLS) -> list[Path]:
+        with mock.patch("shutil.which", side_effect=lambda name: name if name in shells else None):
+            return completion.install(fpath=lambda: fpath)
+
+    def test_each_shell_where_it_looks_by_itself(self):
+        written = self._install([Path("/usr/share/zsh/functions"), self.zfunc])
+        self.assertEqual(written, [self.bash, self.fish, self.zfunc / "_myfox"])
+        self.assertEqual(self.bash.read_text(encoding="utf-8"), completion.SCRIPTS["bash"])
+        self.assertEqual(self.fish.read_text(encoding="utf-8"), completion.SCRIPTS["fish"])
+        self.assertEqual((self.zfunc / "_myfox").read_text(encoding="utf-8"), completion.SCRIPTS["zsh"])
+
+    def test_only_the_shells_the_system_has(self):
+        self.assertEqual(self._install([self.zfunc], shells=("bash",)), [self.bash])
+        self.assertFalse(self.fish.exists())
+
+    def test_zsh_skips_a_plugin_managers_checkout(self):
+        plugin = self.home / ".oh-my-zsh" / "plugins" / "git"
+        plugin.mkdir(parents=True)
+        (self.home / ".oh-my-zsh" / ".git").mkdir()
+        self.assertEqual(completion.zsh_file(lambda: [plugin, self.zfunc]), self.zfunc / "_myfox")
+        self.assertIsNone(completion.zsh_file(lambda: [plugin]))
+
+    def test_zsh_keeps_the_folder_it_has_already_used(self):
+        later = self.home / ".zfunc"
+        later.mkdir()
+        (later / "_myfox").write_text(completion.SCRIPTS["zsh"], encoding="utf-8")
+        self.assertEqual(completion.zsh_file(lambda: [self.zfunc, later]), later / "_myfox")
+
+    def test_zsh_goes_where_it_went_before_without_asking_zsh(self):
+        first = self._install([self.zfunc])
+
+        def ask():
+            raise AssertionError("asked zsh")
+
+        with mock.patch("shutil.which", side_effect=lambda name: name):
+            self.assertEqual(completion.install(fpath=ask, recorded=[str(p) for p in first]), first)
+
+    def test_zsh_without_a_folder_of_ones_own_is_set_up_by_hand(self):
+        written = self._install([Path("/usr/share/zsh/functions")])
+        self.assertEqual(written, [self.bash, self.fish])
+        with mock.patch("shutil.which", return_value="zsh"):
+            self.assertTrue(completion.zsh_by_hand(written))
+
+    def test_a_file_that_isnt_ours_stays(self):
+        self.bash.parent.mkdir(parents=True)
+        self.bash.write_text("# someone else's\n", encoding="utf-8")
+        self.assertNotIn(self.bash, self._install([self.zfunc]))
+        completion.remove([str(self.bash)])
+        self.assertEqual(self.bash.read_text(encoding="utf-8"), "# someone else's\n")
+
+    def test_remove_takes_what_was_recorded_and_the_usual_places(self):
+        written = self._install([self.zfunc])
+        completion.remove([str(self.zfunc / "_myfox")])
+        self.assertEqual([p for p in written if p.exists()], [])
 
 
 class ScriptTests(unittest.TestCase):

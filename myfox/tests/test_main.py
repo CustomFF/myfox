@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from myfox import __main__ as cli
-from myfox import i18n, importer, paths, reinstall, uninstall
+from myfox import completion, i18n, importer, paths, reinstall, uninstall
 from myfox.install_form import Cancelled
 from myfox.state import State, state_file
 from ._helpers import IsolatedStateCase
@@ -52,6 +52,17 @@ class UninstallTests(IsolatedStateCase):
             self.assertFalse(install_dir.exists())
             self.assertFalse(state_file().exists())
             self.assertFalse(state_file().parent.exists())
+
+    def test_takes_its_completion_scripts_along(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            zsh = Path(d) / "zfunc" / "_myfox"
+            zsh.parent.mkdir()
+            zsh.write_text(completion.SCRIPTS["zsh"], encoding="utf-8")
+            foreign = Path(d) / "zfunc" / "_other"
+            foreign.write_text("#compdef other\n", encoding="utf-8")
+            state, _install_dir = self._installed(d, completions=[str(zsh), str(foreign)])
+            cli.cmd_uninstall(state, noninteractive=True)
+            self.assertEqual((zsh.exists(), foreign.exists()), (False, True))
 
     def test_without_a_terminal_and_yes_removes_nothing(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \

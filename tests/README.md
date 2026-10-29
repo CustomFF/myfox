@@ -87,7 +87,8 @@ python3 -m myfox.wizard --dry-run [--gui]     # ничего не ставит, 
 
 ## Автодополнение
 
-- [ ] bash, zsh (через `eval` и файлом `_myfox` в `$fpath`), fish — подключить по `myfox completion --help`, в новой оболочке: `myfox <Tab>` — команды с описаниями (zsh, fish), `myfox profile use <Tab>` — ID профилей, `myfox profile import <Tab>` — чужие, в т.ч. `snap:…`, `--sync <Tab>` — `none copy move`, `myfox browser <Tab>` — файлы
+- [ ] после установки (и `refresh` со старой установки): bash и fish — файлы в `$XDG_DATA_HOME`, zsh — `_myfox` в своей папке `$fpath` (`~/.zsh/completions` в `.zshrc`); без такой папки — заметка в итоге; `uninstall` их удаляет, чужие файлы рядом остаются
+- [ ] bash, zsh (и вручную через `eval`), fish — в новой оболочке: `myfox <Tab>` — команды с описаниями (zsh, fish), `myfox profile use <Tab>` — ID профилей, `myfox profile import <Tab>` — чужие, в т.ч. `snap:…`, `--sync <Tab>` — `none copy move`, `myfox browser <Tab>` — файлы
 
 ## 4. `myfox reinstall`
 

@@ -1,11 +1,17 @@
-"""`myfox completion bash|zsh|fish`: the shell's completion script. The
-scripts only pass the command line to `myfox _complete`, which answers
-from the argument parser itself and the profiles on disk, so they never
-go stale after an update."""
+"""Shell completion. The scripts only pass the command line to `myfox
+_complete`, which answers from the argument parser itself and the
+profiles on disk, so they never go stale after an update. MyFox puts them
+where bash and fish look by themselves, and zsh's into a folder of the
+user's own fpath if there is one; `myfox completion <shell>` prints them
+for setting up by hand."""
 
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
+import subprocess
+from pathlib import Path
 from typing import Callable
 
 from . import i18n, profile_commands
@@ -13,6 +19,9 @@ from .state import State
 
 COMMAND = "_complete"
 SHELLS = ("bash", "zsh", "fish")
+# Every script has it: a file there without it isn't ours to replace or delete.
+MARK = "# myfox completion for"
+ZSH_FPATH_TIMEOUT = 10
 
 # Each takes the words after `myfox`, the last one the word being typed
 # (empty after a space), and prints "candidate<TAB>description" lines.
@@ -156,3 +165,108 @@ def run_complete(words: list[str], state: State, parser: argparse.ArgumentParser
     for candidate, description in complete(words, state, parser):
         print(f"{candidate}\t{description}")
     return 0
+
+
+def _data_home() -> Path:
+    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+
+
+def _bash_file() -> Path:
+    # bash-completion reads BASH_COMPLETION_USER_DIR (its first entry), else XDG_DATA_HOME.
+    user_dir = (os.environ.get("BASH_COMPLETION_USER_DIR") or "").split(":")[0]
+    return (Path(user_dir) if user_dir else _data_home() / "bash-completion") / "completions" / "myfox"
+
+
+def _fish_file() -> Path:
+    return _data_home() / "fish" / "vendor_completions.d" / "myfox.fish"
+
+
+def _in_a_repo(folder: Path, home: Path) -> bool:
+    """A plugin manager's checkout (oh-my-zsh, zinit…): not ours to add to."""
+    for parent in (folder, *folder.parents):
+        if (parent / ".git").exists():
+            return True
+        if parent == home:
+            return False
+    return False
+
+
+def _zsh_fpath() -> list[Path]:
+    """The user's fpath as an interactive zsh sets it up (.zshrc)."""
+    try:
+        out = subprocess.run(["zsh", "-i", "-c", "print -rl -- $fpath"], stdin=subprocess.DEVNULL,
+                             capture_output=True, text=True, timeout=ZSH_FPATH_TIMEOUT,
+                             env={**os.environ, "TERM": "dumb"}).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [Path(line) for line in out.splitlines() if line.startswith("/")]
+
+
+def zsh_file(fpath: Callable[[], list[Path]] = _zsh_fpath) -> Path | None:
+    """`_myfox` in the first folder of fpath that is the user's own: in
+    the home, writable, not in a git checkout. One already there wins."""
+    home = Path.home().resolve()
+    folders = []
+    for folder in fpath():
+        try:
+            real = folder.resolve()
+        except OSError:
+            continue
+        if real.is_dir() and home in real.parents and os.access(real, os.W_OK) and not _in_a_repo(real, home):
+            folders.append(folder)
+    for folder in folders:
+        if _ours(folder / "_myfox"):
+            return folder / "_myfox"
+    return folders[0] / "_myfox" if folders else None
+
+
+def _ours(path: Path) -> bool:
+    try:
+        return MARK in path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
+def install(fpath: Callable[[], list[Path]] = _zsh_fpath, recorded: list[str] | None = None) -> list[Path]:
+    """Writes the scripts for the shells this system has; what it wrote
+    (or found up to date). A file of the same name that isn't ours stays.
+    zsh's goes where it was put before (`recorded`), if it's still there:
+    asking zsh for its fpath runs the user's .zshrc, which can take seconds."""
+    targets = []
+    if shutil.which("bash"):
+        targets.append(("bash", _bash_file()))
+    if shutil.which("fish"):
+        targets.append(("fish", _fish_file()))
+    if shutil.which("zsh"):
+        before = [Path(p) for p in recorded or [] if Path(p).name == "_myfox" and _ours(Path(p))]
+        target = before[0] if before else zsh_file(fpath)
+        if target is not None:
+            targets.append(("zsh", target))
+    written = []
+    for shell, path in targets:
+        if path.exists() and not _ours(path):
+            continue
+        try:
+            if not path.is_file() or path.read_text(encoding="utf-8") != SCRIPTS[shell]:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(SCRIPTS[shell], encoding="utf-8")
+        except OSError:
+            continue
+        written.append(path)
+    return written
+
+
+def remove(recorded: list[str] | None = None) -> None:
+    """Deletes the scripts MyFox wrote: the recorded ones and those where
+    bash and fish look, each only if it is ours."""
+    for path in {Path(p) for p in recorded or []} | {_bash_file(), _fish_file()}:
+        if _ours(path):
+            try:
+                path.unlink()
+            except OSError:
+                pass
+
+
+def zsh_by_hand(written: list[Path]) -> bool:
+    """zsh is there but its script went nowhere (no folder of the user's own)."""
+    return bool(shutil.which("zsh")) and not any(p.name == "_myfox" for p in written)

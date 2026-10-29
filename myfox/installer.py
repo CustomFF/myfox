@@ -13,7 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from . import addons, apply, command, desktop, firefox, gui_deps, i18n, importer, launcher, net, profiles, tweaks
+from . import addons, apply, command, completion, desktop, firefox, gui_deps, i18n, importer, launcher, net, profiles
+from . import tweaks
 from . import __version__
 from .install_form import Answers, Progress, settled
 from .state import State
@@ -204,6 +205,10 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
     if not desktop.desktop_file().exists():
         undo.add(desktop.remove_entry)
     desktop.write_entry(install_dir, launcher_path)
+    completions = completion.install()
+    undo.add(lambda: completion.remove([str(p) for p in completions]))
+    if completion.zsh_by_hand(completions):
+        answers.notes.append(i18n.t("note_zsh_completion"))
 
     if answers.firefox_command:
         stages.report("command", i18n.t("progress_command"))
@@ -229,6 +234,7 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
         ("tweaks", answers.tweaks), ("opt_bl", answers.tweaks), ("opt_plasma", plasma),
         ("core_version", __version__), ("tweaks_version", tweaks_version), ("themes_version", themes_version),
         ("ddblm_version", ddblm_version), ("doh", answers.doh),
+        ("completions", [str(p) for p in completions]),
     ):
         state.set(key, value)
     state.save()

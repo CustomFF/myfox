@@ -13,7 +13,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from . import command, desktop, firefox, i18n, importer, launcher, paths, profiles, sources
+from . import command, completion, desktop, firefox, i18n, importer, launcher, paths, profiles, sources
 from . import task as task_mod
 from .install_form import Progress
 from .state import State
@@ -126,6 +126,7 @@ def run(state: State, progress: Progress, remove_profile: bool = False, restore_
     progress(i18n.t("progress_uninstall_myfox"), 0.8)
     desktop.remove_entry()
     command.disable(install_dir)  # puts back a `firefox` it replaced
+    completion.remove(state.get("completions"))
     launcher.remove_self()
     state.clear()
     state.delete_file()
