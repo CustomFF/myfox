@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0 — 2026-10-29
+
+- Tab completion for `myfox` in bash, zsh and fish: commands with their descriptions, flags and their values, profile IDs for `myfox profile …`
+- MyFox sets it up itself: for bash and fish where they look by themselves, for zsh in a folder of your own in `$fpath` (such as `~/.zsh/completions`); without one, `myfox completion zsh` prints the script and `myfox completion --help` says how to add it. Uninstalling takes it away again
+- An install updated to this version gets it with the update
+
 ## 1.2.4 — 2026-10-28
 
 - `myfox refresh --check` tells what an update would bring, the tweaks, themes, bookmarklets and MyFox itself, without installing anything; `--json` answers in JSON
