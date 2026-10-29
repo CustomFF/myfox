@@ -43,9 +43,15 @@ myfox           ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox (sh: pytho
 
 Подкоманды `myfox` (`__main__.py`): `browser [аргументы Firefox]` (exec обёртки
 `<install>/firefox-myfox`), `refresh [--force]`, `reinstall`, `uninstall [--remove-profile] [--no-restore-sync]`,
-`command [on|off]`, `profile …` (ниже), `help`,
+`command [on|off]`, `profile …` (ниже), `completion bash|zsh|fish`, `help`,
 `--version`. Общие флаги: `-y` (без вопросов), `--gui` (окно). Подкоманды `install` нет:
 первая установка — только из `bootstrap.py`.
+
+Автодополнение (`completion.py`): `myfox completion <оболочка>` печатает скрипт, как подключить —
+в `myfox completion --help`; сам MyFox его никуда не ставит. Скрипты только передают слова строки
+скрытой `myfox _complete <слова…>` (последнее — набираемое, пустое после пробела), она отвечает
+строками `вариант<TAB>описание` по парсеру `build_parser()` и `profile_commands.candidates`, так что
+после обновления ядра скрипт не устаревает. После `browser` — файлы (это аргументы Firefox).
 
 ### `myfox profile` (`profile_commands.py`)
 

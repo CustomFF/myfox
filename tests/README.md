@@ -85,6 +85,10 @@ python3 -m myfox.wizard --dry-run [--gui]     # ничего не ставит, 
 - [ ] `PATH` без `~/.local/bin` / с другим `firefox` раньше → соответствующее предупреждение; `myfox command` без аргумента показывает состояние
 - [ ] `myfox command --json` (и `on`/`off --json`) → одна строка JSON, без вопросов; `<install>/myfox.json` есть после установки и `refresh`, `launcher` ведёт на `myfox`, `version` — установленная
 
+## Автодополнение
+
+- [ ] bash, zsh (через `eval` и файлом `_myfox` в `$fpath`), fish — подключить по `myfox completion --help`, в новой оболочке: `myfox <Tab>` — команды с описаниями (zsh, fish), `myfox profile use <Tab>` — ID профилей, `myfox profile import <Tab>` — чужие, в т.ч. `snap:…`, `--sync <Tab>` — `none copy move`, `myfox browser <Tab>` — файлы
+
 ## 4. `myfox reinstall`
 
 - [ ] TUI и `--gui`: строки Firefox/канал/каталог, «Переустановить» → прогресс → «Закрыть»

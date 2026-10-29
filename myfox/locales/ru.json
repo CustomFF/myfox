@@ -7,6 +7,8 @@
     "cmd_reinstall": "Переустановить Firefox и применить твики",
     "cmd_uninstall": "Удалить MyFox",
     "cmd_help": "Показать эту справку",
+    "cmd_completion": "Напечатать скрипт автодополнения для bash, zsh или fish",
+    "completion_setup": "Как подключить (действует в новом окне оболочки):\n  bash  mkdir -p ~/.local/share/bash-completion/completions\n        myfox completion bash > ~/.local/share/bash-completion/completions/myfox\n        (нужен пакет bash-completion; без него добавьте eval \"$(myfox completion bash)\" в ~/.bashrc)\n  zsh   добавьте eval \"$(myfox completion zsh)\" в ~/.zshrc, после compinit\n        (или сохраните как _myfox в папку из $fpath)\n  fish  mkdir -p ~/.config/fish/completions\n        myfox completion fish > ~/.config/fish/completions/myfox.fish",
     "err_not_installed": "MyFox не установлен.",
     "uninstall_done_profile": "MyFox и профиль удалены.",
     "uninstall_done": "MyFox удалён.",

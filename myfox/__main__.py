@@ -1,4 +1,4 @@
-"""python3 -m myfox <browser|refresh|reinstall|uninstall|help> [options]
+"""python3 -m myfox <browser|refresh|reinstall|uninstall|command|profile|completion|help> [options]
 
 The installed `myfox` command. No `install`: the install form only ever
 runs from bootstrap.py's "not installed yet" branch.
@@ -12,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, command, i18n, profile_commands, refresh, reinstall, task, uninstall
+from . import __version__, command, completion, i18n, profile_commands, refresh, reinstall, task, uninstall
 from .state import State
 
 LOGO = Path(__file__).resolve().parent / "ui" / "assets" / "logo.txt"
@@ -92,6 +92,10 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "remove":
             p.add_argument("--no-restore-sync", action="store_true",
                            help="leave the Firefox account an import moved into it where it is")
+    completion_parser = sub.add_parser("completion", help=i18n.t("cmd_completion"),
+                                       description=i18n.t("cmd_completion"), epilog=i18n.t("completion_setup"),
+                                       formatter_class=argparse.RawDescriptionHelpFormatter)
+    completion_parser.add_argument("shell", choices=completion.SHELLS)
     sub.add_parser("help", parents=[common], help=i18n.t("cmd_help"))
     return parser
 
@@ -156,6 +160,7 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(f"  myfox profile use <ID>            {i18n.t('cmd_profile_use')}")
     print(f"  myfox profile remove <ID> [--no-restore-sync]\n"
           f"                                    {i18n.t('cmd_profile_remove')}")
+    print(f"  myfox completion bash|zsh|fish    {i18n.t('cmd_completion')}")
     print(f"  myfox help                        {i18n.t('cmd_help')}")
 
 
@@ -180,6 +185,9 @@ def main(argv: list[str] | None = None) -> int:
     if argv == [refresh.SYNC_COMMAND]:
         refresh.sync_shortcut(state)
         return 0
+    # What the completion scripts ask on every Tab.
+    if argv and argv[0] == completion.COMMAND:
+        return completion.run_complete(argv[1:], state, build_parser())
     # Unlisted on purpose.
     if argv == ["why"]:
         print(LOGO.read_text(encoding="utf-8"), end="")
@@ -228,6 +236,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "profile":
         return profile_commands.run(state, args, gui=getattr(args, "gui", False),
                                     noninteractive=noninteractive)
+    if args.command == "completion":
+        print(completion.SCRIPTS[args.shell], end="")
+        return 0
     if args.command == "uninstall":
         return cmd_uninstall(state, noninteractive, gui=args.gui, remove_profile=args.remove_profile,
                              restore_sync=not args.no_restore_sync)
