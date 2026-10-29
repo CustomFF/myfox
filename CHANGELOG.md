@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.2 — 2026-10-29
+
+- about:myfox offers to give a Firefox account back on deleting a profile only when the import moved it there: `myfox profile list --json` tells it (`restore_sync`)
+
 ## 1.3.1 — 2026-10-29
 
 - `myfox profile remove` no longer waits for MyFox's Firefox to close: only the profile being removed must not be open. So about:myfox can delete a profile right from the page

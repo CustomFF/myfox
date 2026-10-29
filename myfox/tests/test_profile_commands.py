@@ -263,6 +263,18 @@ class ProfileChangeTests(IsolatedStateCase):
         self.assertEqual(self._run("remove", "myfox-2", "-y"), 0)
         self.assertFalse(made.exists())
 
+    def test_json_says_where_a_moved_account_goes_back(self):
+        moved = self._profile("myfox-2", "myfox", created=True, tweaked=True)
+        copied = self._profile("myfox-3", "myfox", created=True, tweaked=True)
+        (self.other / "signedInUser.json").write_text("{}", encoding="utf-8")
+        importer.write_origin(copied, self.other, importer.SYNC_COPY, [])
+        importer.write_origin(moved, self.other, importer.SYNC_MOVE, importer.move_sync_out(self.other))
+        self._run("list", "--json")
+        records = {r["id"]: r for r in json.loads(self.out.getvalue())}
+        self.assertEqual(records["myfox-2"]["restore_sync"], str(self.other))
+        self.assertIsNone(records["myfox-3"]["restore_sync"])
+        self.assertIsNone(records["myfox-1"]["restore_sync"])
+
     def test_remove_gives_a_moved_account_back(self):
         made = self._profile("myfox-2", "myfox", created=True, tweaked=True)
         (self.other / "signedInUser.json").write_text("{}", encoding="utf-8")

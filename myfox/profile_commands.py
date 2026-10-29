@@ -88,7 +88,14 @@ def _record(p: sources.Profile, used: Path | None) -> dict:
         "created": not p.store and (p.path / ".myfox-created").is_file(), "last_used": last_used(p.path),
         "last_version": p.last_version, "imported_from": origin["source"] if origin else None,
         "moved": bool(origin and origin.get("moved")), "account": importer.has_account(p.path),
+        "restore_sync": _restorable(p) if origin else None,
     }
+
+
+def _restorable(p: sources.Profile) -> str | None:
+    # Where `remove` would give a moved account back: its checkbox shows only then.
+    source = importer.restorable_source(p.path)
+    return str(source) if source is not None else None
 
 
 def list_profiles(state: State, show_all: bool = False, as_json: bool = False) -> int:
