@@ -72,7 +72,10 @@ state.json (прежние пути остаются), `uninstall` удаляе�
 
 - `list [--all] [--json]` — связанные с MyFox профили (MyFox, сделанные через `firefox -p` из нашей
   установки, не запускавшиеся): ID, имя, твики, состояние (открывается в MyFox, импортирован из …,
-  сейчас открыт); `--all` — и чужие, «только импорт»; `--json` — одна строка для about:myfox
+  сейчас открыт); `--all` — и чужие, «только импорт», и пустые заготовки (`sources._placeholder`: ни разу
+  не открывались, в папке ничего, кроме `times.json`, — как `xxxx.default`, который первый запуск Firefox
+  оставляет для версий до 67) с пометкой «не профиль», `"placeholder": true` в JSON; без `--all` их нет
+  нигде (ни в списке, ни в выборе, ни по ID); `--json` — одна строка для about:myfox
   (возможность `profiles` в `myfox.json`; ещё `created` и `last_used` — время `.parentlock`, который
   Firefox трогает при каждом запуске). `apply <ID> --json` — без вопросов, `{"ok"…}` или `{"error"…}`.
 - `new [--use]`, `import <ID|папка> [--move] [--sync none|copy|move] [--name ИМЯ] [--allow-downgrade] [--use]

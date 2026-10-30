@@ -7,6 +7,7 @@ in use, and the Firefox version that last opened it.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import re
 import sqlite3
@@ -49,11 +50,12 @@ class Profile:
     store: str
     owner: str
     last_version: str | None  # "157.0", from compatibility.ini
+    placeholder: bool = False  # see _placeholder()
 
     @property
     def related(self) -> bool:
         """MyFox may use it in place (use/apply); the rest only import."""
-        return self.owner != FOREIGN
+        return self.owner != FOREIGN and not self.placeholder
 
 
 def _sandbox_store(home: Path) -> Path:
@@ -175,13 +177,29 @@ def _profile(path: Path, name: str, store: Store | None, install_dir: Path | Non
                    last_version=last_version(path))
 
 
-def listing(install_dir: Path | None = None) -> list[Profile]:
-    """Every profile that's there on disk, in store order."""
+def _placeholder(path: Path) -> bool:
+    """Never opened and holding nothing: like the "default" profile a
+    Firefox's first start leaves for versions before 67, which can't read
+    the per-install default. Shown, it only confuses."""
+    try:
+        return set(os.listdir(path)) <= {"times.json"}
+    except OSError:
+        return False
+
+
+def listing(install_dir: Path | None = None, placeholders: bool = False) -> list[Profile]:
+    """Every profile that's there on disk, in store order; the empty
+    placeholders only if asked for (`profile list --all`)."""
     result = []
     for store in stores():
         for path, name in _registered(store.root).items():
-            if path.is_dir():
-                result.append(_profile(path, name, store, install_dir))
+            if not path.is_dir():
+                continue
+            if _placeholder(path):
+                if placeholders:
+                    result.append(dataclasses.replace(_profile(path, name, store, install_dir), placeholder=True))
+                continue
+            result.append(_profile(path, name, store, install_dir))
     return result
 
 

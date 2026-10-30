@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.4 — 2026-10-30
+
+- The empty «default» profile a Firefox's first start leaves for versions before 67 (never opened, nothing in it) is no longer listed as a profile, in `myfox profile list` or about:myfox. `--all` shows it marked as not a profile
+
 ## 1.3.3 — 2026-10-29
 
 - Checking for updates and installing no longer use GitHub's API, which allows only 60 requests an hour per address: a few checks were enough for «rate limit exceeded». MyFox reads the release tags the way git does and downloads the files directly

@@ -165,6 +165,7 @@
     "profile_status_myfox": "профиль MyFox",
     "profile_status_ours": "создан в Firefox MyFox (firefox -p)",
     "profile_status_unused": "ни разу не открывался",
+    "profile_status_placeholder": "не профиль: пустая заготовка, которую Firefox оставляет для версий до 67",
     "profile_status_foreign": "профиль другого Firefox, можно только импортировать",
     "profile_status_snap": "профиль Firefox из snap, можно только импортировать",
     "profile_status_flatpak": "профиль Firefox из flatpak, можно только импортировать",

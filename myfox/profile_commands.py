@@ -45,6 +45,8 @@ def _registered() -> set[Path]:
 
 
 def _status(p: sources.Profile, used: Path | None, found: list[sources.Profile], registered: set[Path]) -> list[str]:
+    if p.placeholder:
+        return [i18n.t("profile_status_placeholder")]
     if p.owner == sources.MYFOX:
         parts = [i18n.t("profile_status_myfox")]
         if used is not None and p.path == used:
@@ -88,7 +90,7 @@ def _record(p: sources.Profile, used: Path | None) -> dict:
         "created": not p.store and (p.path / ".myfox-created").is_file(), "last_used": last_used(p.path),
         "last_version": p.last_version, "imported_from": origin["source"] if origin else None,
         "moved": bool(origin and origin.get("moved")), "account": importer.has_account(p.path),
-        "restore_sync": _restorable(p) if origin else None,
+        "restore_sync": _restorable(p) if origin else None, "placeholder": p.placeholder,
     }
 
 
@@ -103,14 +105,14 @@ def list_profiles(state: State, show_all: bool = False, as_json: bool = False) -
     if as_json:
         # For about:myfox: one line, whatever happens.
         try:
-            found = sources.listing(_install_dir(state))
+            found = sources.listing(_install_dir(state), placeholders=show_all)
             records = [_record(p, used) for p in found if show_all or p.related]
         except OSError as exc:
             print(json.dumps({"error": str(exc)}, ensure_ascii=False))
             return 1
         print(json.dumps(records, ensure_ascii=False))
         return 0
-    found = sources.listing(_install_dir(state))
+    found = sources.listing(_install_dir(state), placeholders=show_all)
     shown = found if show_all else [p for p in found if p.related]
     if not shown:
         print(i18n.t("profile_list_none"))

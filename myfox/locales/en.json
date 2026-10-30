@@ -165,6 +165,7 @@
     "profile_status_myfox": "MyFox profile",
     "profile_status_ours": "made in MyFox's Firefox (firefox -p)",
     "profile_status_unused": "never opened",
+    "profile_status_placeholder": "not a profile: the empty placeholder a Firefox leaves for versions before 67",
     "profile_status_foreign": "another Firefox's profile, can only be imported",
     "profile_status_snap": "the snap Firefox's profile, can only be imported",
     "profile_status_flatpak": "the flatpak Firefox's profile, can only be imported",

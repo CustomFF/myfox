@@ -57,6 +57,24 @@ class SourcesTests(IsolatedStateCase):
         self.assertEqual([p.related for p in found], [True, True, True, False])
         self.assertEqual(found[0].last_version, "157.0")
 
+    def test_firefoxs_empty_placeholder_is_listed_only_when_asked_and_marked(self):
+        # What a first start leaves for Firefox before 67: never opened, a times.json only.
+        stub = self.store / "dddd.default"
+        stub.mkdir(parents=True)
+        (stub / "times.json").write_text("{}", encoding="utf-8")
+        (self.store / "eeee.empty").mkdir()
+        made = self.store / "myfox-2"
+        made.mkdir()
+        (made / "times.json").write_text("{}", encoding="utf-8")
+        (made / ".myfox-created").touch()
+        self._profile(self.store, "cccc.default-release", Path("/usr/lib/firefox"))
+        self._ini(self.store, ("default", "dddd.default"), ("empty", "eeee.empty"), ("myfox-2", "myfox-2"),
+                  ("default-release", "cccc.default-release"))
+        self.assertEqual(sorted(self._ids(sources.listing(self.install))), ["cccc.default-release", "myfox-2"])
+        everything = {p.id: p for p in sources.listing(self.install, placeholders=True)}
+        self.assertEqual(sorted(i for i, p in everything.items() if p.placeholder), ["dddd.default", "eeee.empty"])
+        self.assertFalse(everything["dddd.default"].related)
+
     def test_without_our_install_a_used_profile_is_foreign(self):
         self._profile(self.store, "aaaa.work", self.install)
         self._ini(self.store, ("work", "aaaa.work"))

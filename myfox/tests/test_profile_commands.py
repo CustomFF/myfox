@@ -94,6 +94,20 @@ class ProfileListTests(IsolatedStateCase):
         self.assertIsNone(records["myfox-1"]["last_used"])
         self.assertEqual([records["myfox-2"][k] for k in ("moved", "account")], [False, False])
 
+    def test_firefoxs_placeholder_only_with_all_and_marked(self):
+        stub = self.store / "dddd.default"
+        stub.mkdir()
+        (stub / "times.json").write_text("{}", encoding="utf-8")
+        ini = self.store / "profiles.ini"
+        ini.write_text(ini.read_text(encoding="utf-8") + "\n[Profile9]\nName=default\nIsRelative=1\nPath=dddd.default\n",
+                       encoding="utf-8")
+        self.assertNotIn("dddd.default", self._run())
+        self.assertNotIn("dddd.default", self._run("--json"))
+        self.assertIn(i18n.t("profile_status_placeholder"), self._run("--all"))
+        records = {r["id"]: r for r in json.loads(self._run("--all", "--json"))}
+        self.assertTrue(records["dddd.default"]["placeholder"])
+        self.assertFalse(records["aaaa.dev"]["placeholder"])
+
     def test_json_says_which_are_signed_in(self):
         (self.store / "cccc.default-release" / "signedInUser.json").write_text("{}", encoding="utf-8")
         records = {r["id"]: r for r in json.loads(self._run("--all", "--json"))}
