@@ -8,6 +8,7 @@ imported. The ID column is what the other subcommands take.
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import shutil
 import sys
@@ -39,12 +40,7 @@ def quoted(arg: str) -> str:
     return shlex.quote(arg)
 
 
-def _registered() -> set[Path]:
-    ini = profiles.find_ini()
-    return {profiles.resolve_dir(ini.parent, e) for e in profiles.parse_profiles(ini)} if ini else set()
-
-
-def _status(p: sources.Profile, used: Path | None, found: list[sources.Profile], registered: set[Path]) -> list[str]:
+def _status(p: sources.Profile, used: Path | None, found: list[sources.Profile]) -> list[str]:
     if p.placeholder:
         return [i18n.t("profile_status_placeholder")]
     if p.owner == sources.MYFOX:
@@ -56,8 +52,6 @@ def _status(p: sources.Profile, used: Path | None, found: list[sources.Profile],
             source = Path(origin["source"])
             shown = next((q.id for q in found if q.path == source), paths.shown(source))
             parts.append(i18n.t("profile_status_moved" if origin.get("moved") else "profile_status_imported", shown))
-        if not p.store and p.path not in registered:
-            parts.append(i18n.t("profile_status_unregistered"))
     elif p.owner == sources.OURS:
         parts = [i18n.t("profile_status_ours")]
     elif p.owner == sources.UNUSED:
@@ -117,11 +111,10 @@ def list_profiles(state: State, show_all: bool = False, as_json: bool = False) -
     if not shown:
         print(i18n.t("profile_list_none"))
     else:
-        registered = _registered()
         head = [i18n.t("profile_col_id"), i18n.t("profile_col_name"), i18n.t("profile_col_tweaks"),
                 i18n.t("profile_col_status")]
         rows = [[p.id, p.name, i18n.t("summary_yes" if p.owner == sources.MYFOX else "summary_no"),
-                 ", ".join(_status(p, used, found, registered))] for p in shown]
+                 ", ".join(_status(p, used, found))] for p in shown]
         widths = [max(_width(r[i]) for r in [head] + rows) for i in range(3)]
         for r in [head] + rows:
             print("  ".join(_pad(cell, widths[i]) for i, cell in enumerate(r[:3])) + "  " + r[3])
@@ -180,14 +173,23 @@ def _closed(p: sources.Profile) -> Callable[[], str | None]:
     return lambda: i18n.t("err_profile_open", p.id) if sources.in_use(p) else None
 
 
+def _created(path: Path) -> bool:
+    return (path / profiles.CREATED_MARKER).is_file()
+
+
 def _use(state: State, profile_dir: Path) -> None:
-    """Our install opens this one from now on."""
+    """Our install opens this one from now on: it goes into profiles.ini,
+    the one it opened before (if MyFox's own) out of it."""
+    before = Path(state.get("profile_dir")) if state.get("profile_dir") else None
     install_hash = profiles.pin_install(_install_dir(state), profile_dir, saved_hash=state.get("install_hash"))
     if install_hash is None:
         raise OSError(i18n.t("err_profile_pin_failed"))
     state.set("install_hash", install_hash)
     state.set("profile_dir", str(profile_dir))
     state.save()
+    if before is not None and before != profile_dir and _created(before):
+        profiles.unregister(before)
+    tidy(state)  # our Firefox is closed now, as a switch needs
 
 
 def _tweak(state: State, profile_dir: Path, progress: Progress, at: float) -> None:
@@ -198,8 +200,8 @@ def _tweak(state: State, profile_dir: Path, progress: Progress, at: float) -> No
 
 
 def _new_profile(undo: list[Callable[[], None]], name: str = "") -> Path:
-    # A name of its own: the profile manager lists them by name.
-    profile_dir = profiles.create_new(" ".join(name.split()))
+    # Outside profiles.ini until it is the one our Firefox opens (_use).
+    profile_dir = profiles.create_new(" ".join(name.split()), register=False)
     undo.append(lambda: (profiles.remove_myfox_section(profile_dir), shutil.rmtree(profile_dir, ignore_errors=True)))
     return profile_dir
 
@@ -278,26 +280,61 @@ def _command(*parts: str) -> str:
     return " ".join(["myfox", "profile", *parts, "-y"])
 
 
-def new_task(state: State, use: bool = False) -> task_mod.Task:
+def _when_used(state: State, use_option: task_mod.Option) -> Callable[[], str | None]:
+    # Only the profile our Firefox opens goes into profiles.ini, which a
+    # running Firefox takes back: switching to it waits for that one.
+    ours_closed = _ours_closed(state)
+    return lambda: ours_closed() if use_option.value else None
+
+
+def _opening(state: State, task: task_mod.Task, opened: Callable[[], Path | None], open_after: bool,
+             relaunch: bool) -> task_mod.Task:
+    """The new profile started beside our Firefox once done, if asked."""
+    if relaunch:
+        return _relaunching(state, task, opened)
+    if open_after:
+        work = task.run
+
+        def run_and_open(progress: Progress) -> None:
+            work(progress)
+            firefox.start(_install_dir(state), opened())
+
+        task.run = run_and_open
+    return task
+
+
+def new_task(state: State, use: bool = False, name: str | None = None, open_after: bool = False,
+             relaunch: bool = False) -> task_mod.Task:
+    """name: the folder's name (myfox-N) if none. open_after, relaunch: as
+    for import_task."""
     use_option = task_mod.Option(i18n.t("profile_opt_use"), use)
+    name = " ".join((name or "").split())
+    created: list[Path] = []
 
     def run(progress: Progress) -> None:
         def work(undo: list) -> None:
             progress(i18n.t("progress_profile"), 0.1)
-            profile_dir = _new_profile(undo)
+            profile_dir = _new_profile(undo, name)
             _tweak(state, profile_dir, progress, 0.3)
             if use_option.value:
                 _use(state, profile_dir)
+            created.append(profile_dir)
             settled(progress)(i18n.t("profile_new_done", profile_dir.name), 1.0)
         _undoing(work)
 
-    return task_mod.Task(
+    flags = (["--name", quoted(name)] if name else []) + (["--use"] if use else []) \
+        + (["--open"] if open_after else [])
+    rows = [(i18n.t("form_name"), name)] if name else []
+    rows.append((i18n.t("profile_col_tweaks") + ":", i18n.t("summary_yes" if state.get("tweaks", True)
+                                                            else "summary_no")))
+    task = task_mod.Task(
         title=i18n.t("profile_new_title"), subtitle=i18n.t("profile_new_subtitle"),
-        rows=[(i18n.t("profile_col_tweaks") + ":", i18n.t("summary_yes" if state.get("tweaks", True) else "summary_no"))],
-        options=[use_option], action=i18n.t("profile_new_action"),
-        unconfirmed=[i18n.t("needs_yes_profile", _command("new", *(["--use"] if use else [])))],
-        run=run, recheck=_ours_closed(state),
+        rows=rows, options=[use_option], action=i18n.t("profile_new_action"),
+        unconfirmed=[i18n.t("needs_yes_profile", _command("new", *flags))],
+        run=run, recheck=None if relaunch else _when_used(state, use_option),
     )
+    return _opening(state, task, lambda: created[0] if open_after and created and not use_option.value else None,
+                    open_after, relaunch)
 
 
 def apply_task(state: State, arg: str) -> task_mod.Task:
@@ -368,6 +405,9 @@ def remove_task(state: State, arg: str, restore_sync: bool = True) -> task_mod.T
             importer.restore_sync(source.path)
         progress(i18n.t("progress_uninstall_profile_files"), 0.3)
         profiles.remove_myfox_section(p.path)
+        root = sources.store_root(p)
+        if root is not None:
+            sources.forget_in_groups(root, p.path)
         shutil.rmtree(p.path, ignore_errors=True)
         progress(i18n.t("profile_remove_done", p.id), 1.0)
 
@@ -378,8 +418,92 @@ def remove_task(state: State, arg: str, restore_sync: bool = True) -> task_mod.T
         unconfirmed=[i18n.t("needs_yes_profile", _command("remove", quoted(p.id)) + keep)]
         + ([i18n.t("needs_yes_uninstall_keep_sync", _command("remove", quoted(p.id)) + " --no-restore-sync")]
            if restore is not None and restore_sync else []),
-        run=run, destructive=True, recheck=_first(_closed(p), source_closed),
+        # One profiles.ini still lists (an older MyFox put them all there)
+        # waits for our Firefox, which would put it back.
+        run=run, destructive=True,
+        recheck=_first(*([_ours_closed(state)] if profiles.is_registered(p.path) else []), _closed(p), source_closed),
     )
+
+
+_MYFOX_FOLDER_RE = re.compile(r"^myfox-\d+$")
+
+
+def tidy(state: State) -> None:
+    """With our Firefox closed (a running one would take it all back):
+    profiles.ini lists, of MyFox's own profiles, the one it opens, once,
+    under its name; entries of myfox-N folders gone go; MyFox's profiles
+    leave other profiles' groups (an import copied the original's). What
+    an older MyFox left; a no-op once done."""
+    install_dir = _install_dir(state)
+    if install_dir is None or firefox.running_pids(install_dir):
+        return
+    used = Path(state.get("profile_dir")) if state.get("profile_dir") else None
+
+    def one_off() -> bool:
+        # One at a time: a removal renumbers the sections after it.
+        for ini in profiles.all_inis():
+            for entry in profiles.parse_profiles(ini):
+                folder = profiles.resolve_dir(ini.parent, entry)
+                if folder == used:
+                    continue
+                if _created(folder):
+                    profiles.unregister(folder)
+                    return True
+                if not folder.exists() and entry.is_relative and _MYFOX_FOLDER_RE.match(entry.path):
+                    profiles.remove_ini_section(ini, entry.section)
+                    return True
+        return False
+
+    while one_off():
+        pass
+    if used is not None:
+        profiles.keep_one_entry(used)
+        name = profiles.read_name(used) if _created(used) else None
+        if name:
+            profiles.set_entry_name(used, name)
+    for store in sources.stores():
+        for members in sources.group_members(store.root):
+            ours = [m for m in members if _created(m)]
+            if ours and len(ours) < len(members):
+                for folder in ours:
+                    importer.leave_group(folder)
+                    sources.forget_in_groups(store.root, folder)
+
+
+def rename(state: State, arg: str, name: str, as_json: bool = False) -> int:
+    """A profile MyFox created gets another name, with Firefox running: it
+    keeps it itself (profiles.NAME_FILE). profiles.ini, which lists only
+    the one our Firefox opens, follows when that Firefox is closed (tidy)."""
+    def answer(error: str | None) -> int:
+        if as_json:
+            print(json.dumps({"error": error} if error else {"ok": True, "id": p.id, "name": name},
+                             ensure_ascii=False))
+        elif error:
+            print(error, file=sys.stderr)
+        else:
+            print(i18n.t("profile_rename_done", p.id, name))
+        return 1 if error else 0
+
+    name = " ".join(name.split())
+    try:
+        p = _find(state, arg)
+    except Refused as exc:
+        if as_json:
+            print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+        else:
+            print(exc, file=sys.stderr)
+        return 1
+    if p.store or not _created(p.path):
+        return answer(i18n.t("err_profile_rename_not_created", p.id))
+    if not name:
+        return answer(i18n.t("err_profile_rename_empty"))
+    try:
+        profiles.write_name(p.path, name)
+        if not firefox.running_pids(_install_dir(state)):
+            profiles.set_entry_name(p.path, name)
+    except OSError as exc:
+        return answer(str(exc))
+    return answer(None)
 
 
 def import_task(state: State, arg: str, sync: str = importer.SYNC_NONE, allow_downgrade: bool = False,
@@ -401,10 +525,9 @@ def import_task(state: State, arg: str, sync: str = importer.SYNC_NONE, allow_do
     name = " ".join((name or "").split()) or f"{source.name} (MyFox)"
     version = state.get("firefox_version")
     in_use = [lambda: i18n.t("err_import_in_use", source.id) if sources.in_use(source) else None]
-    options, checks = [], in_use if relaunch else [_ours_closed(state), *in_use]
     created: list[Path] = []
     use_option = task_mod.Option(i18n.t("profile_opt_use"), use)
-    options.append(use_option)
+    options, checks = [use_option], in_use if relaunch else [_when_used(state, use_option), *in_use]
     downgrade = None
     if sources.is_downgrade(source.last_version, version):
         downgrade = task_mod.Option(i18n.t("profile_opt_downgrade", source.last_version, version), allow_downgrade)
@@ -466,21 +589,9 @@ def import_task(state: State, arg: str, sync: str = importer.SYNC_NONE, allow_do
         run=run, cancellable=True, recheck=_first(*checks),
     )
 
-    def opened() -> Path | None:
-        # With use, our Firefox opens it itself.
-        return created[0] if open_after and created and not use_option.value else None
-
-    if relaunch:
-        return _relaunching(state, task, opened)
-    if open_after:
-        work = task.run
-
-        def run_and_open(progress: Progress) -> None:
-            work(progress)
-            firefox.start(_install_dir(state), opened())
-
-        task.run = run_and_open
-    return task
+    # With use, our Firefox opens it itself.
+    return _opening(state, task, lambda: created[0] if open_after and created and not use_option.value else None,
+                    open_after, relaunch)
 
 
 def apply_json(state: State, arg: str) -> int:
@@ -506,7 +617,9 @@ def candidates(state: State, command: str) -> list[sources.Profile]:
     if command == "import":
         return [p for p in found if p.owner != sources.MYFOX]
     if command == "remove":
-        return [p for p in found if not p.store and p.path != used and (p.path / ".myfox-created").is_file()]
+        return [p for p in found if not p.store and p.path != used and _created(p.path)]
+    if command == "rename":
+        return [p for p in found if not p.store and _created(p.path)]
     if command == "use":
         return [p for p in found if p.related and p.path != used]
     return [p for p in found if p.related]
@@ -533,6 +646,12 @@ def run(state: State, args, gui: bool = False, noninteractive: bool = False) -> 
     if command is None:
         print(i18n.t("profile_usage"), file=sys.stderr)
         return 1
+    if command == "rename":
+        if not state.get("install_dir"):
+            print(json.dumps({"error": i18n.t("err_not_installed")}, ensure_ascii=False) if args.json
+                  else i18n.t("err_not_installed"), file=sys.stdout if args.json else sys.stderr)
+            return 1
+        return rename(state, args.profile, args.name, as_json=args.json)
     if command == "apply" and getattr(args, "json", False):
         if not state.get("install_dir"):
             print(json.dumps({"error": i18n.t("err_not_installed")}, ensure_ascii=False))
@@ -560,7 +679,7 @@ def run(state: State, args, gui: bool = False, noninteractive: bool = False) -> 
             return 1
     try:
         if command == "new":
-            task = new_task(state, use=args.use)
+            task = new_task(state, use=args.use, name=args.name, open_after=args.open, relaunch=args.relaunch)
         elif command == "apply":
             task = apply_task(state, profile)
         elif command == "use":

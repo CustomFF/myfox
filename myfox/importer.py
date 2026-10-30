@@ -26,7 +26,7 @@ SYNC_MODES = (SYNC_NONE, SYNC_MOVE, SYNC_COPY)
 SKIP = {
     "lock", ".parentlock", "parent.lock", "startupCache", "cache2", "OfflineCache", "shader-cache",
     "safebrowsing", "crashes", "minidumps", "chrome", ".myfox", ".myfox-created", ".myfox-import",
-    ".myfox-theme",
+    ".myfox-theme", profiles.NAME_FILE,
 }
 ACCOUNT = "signedInUser.json"
 SYNC_STATE = "weave"
@@ -91,15 +91,27 @@ def copy_profile(src: Path, dest: Path, sync: str = SYNC_NONE,
         shutil.copystat(f, target)
     if sync == SYNC_NONE:
         _strip_sync_prefs(dest / "prefs.js")
+    leave_group(dest)
 
 
-def _strip_sync_prefs(prefs: Path) -> None:
+def _strip_prefs(prefs: Path, matches: Callable[[str], bool]) -> None:
     if not prefs.is_file():
         return
     lines = prefs.read_text(encoding="utf-8", errors="surrogateescape").splitlines(keepends=True)
-    kept = [line for line in lines if not _is_sync_pref(line)]
+    kept = [line for line in lines if not matches(line)]
     if len(kept) != len(lines):
         prefs.write_text("".join(kept), encoding="utf-8", errors="surrogateescape")
+
+
+def _strip_sync_prefs(prefs: Path) -> None:
+    _strip_prefs(prefs, _is_sync_pref)
+
+
+def leave_group(profile: Path) -> None:
+    """Out of the Firefox profile group its prefs name (a copy would join
+    the original's, whose Firefox then lists it in profiles.ini as its
+    own). The group's database is the caller's (sources.forget_in_groups)."""
+    _strip_prefs(profile / "prefs.js", lambda line: line.startswith('user_pref("toolkit.profiles.storeID"'))
 
 
 def write_origin(copy: Path, source: Path, sync: str, backups: list[Path], moved: bool = False) -> None:

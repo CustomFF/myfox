@@ -109,7 +109,8 @@ python3 -m myfox.wizard --dry-run [--gui]     # ничего не ставит, 
 - [ ] `use <ID>` → Firefox открывает его; без твиков — подсказка `apply`; тот же — «уже открывает»
 - [ ] `remove <ID>`: чужой/не созданный MyFox и открываемый — отказ; импортированный с «Перенести» — галочка возврата аккаунта
 - [ ] после `remove` и `uninstall` номера `[ProfileN]` в `profiles.ini` подряд, профили других Firefox видны
-- [ ] `remove <ID> -y` при открытом Firefox MyFox (на другом профиле): удалён; после выхода Firefox записи в `profiles.ini` нет
+- [ ] при открытом Firefox MyFox: `new --name X --open` (отдельное окно), `rename`, `import` без `--use`, `remove` — `profiles.ini` не меняется ни сразу, ни после выхода Firefox
+- [ ] `use`: новый основной в `profiles.ini` под своим именем, прежний — вне списка с `.myfox-name`; `refresh` при закрытом Firefox убирает дубли и записи пропавших `myfox-N`
 - [ ] без ID в терминале и `--gui` — выбор (стрелки, Enter/«Далее», Escape/«Отмена»), затем диалог команды; с `-y` или без терминала — список и подсказка `myfox profile <команда> <ID>`
 
 ## 5. `myfox uninstall`

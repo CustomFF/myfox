@@ -113,6 +113,22 @@ def forget_in_groups(root: Path, profile_dir: Path) -> None:
             pass
 
 
+def group_members(root: Path) -> list[list[Path]]:
+    """The profile folders of each of the store's profile groups."""
+    groups = []
+    for db in sorted((root / "Profile Groups").glob("*.sqlite")):
+        try:
+            con = sqlite3.connect(f"{db.as_uri()}?immutable=1", uri=True)
+            try:
+                rows = con.execute("SELECT path FROM Profiles").fetchall()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            continue
+        groups.append([root / path for path, in rows if isinstance(path, str) and path])
+    return groups
+
+
 def store_root(p: Profile) -> Path | None:
     return next((s.root for s in stores() if s.kind == p.store), None)
 
@@ -137,11 +153,16 @@ def _registered(root: Path) -> dict[Path, str]:
     for store_id in store_ids:
         for path, name in _group_profiles(root, store_id):
             found[path] = name  # the name the profile selector shows
-    # Our own profiles stay ours once uninstall has unregistered them.
+    # MyFox's own profiles but the one it opens aren't in profiles.ini, and
+    # stay ours once uninstall has unregistered them all.
     if root.is_dir():
         for d in sorted(root.glob("myfox-*")):
-            if d not in found and (d / ".myfox-created").is_file():
+            if d not in found and (d / profiles.CREATED_MARKER).is_file():
                 found[d] = ""
+    for d in found:
+        name = profiles.read_name(d) if (d / profiles.CREATED_MARKER).is_file() else None
+        if name:
+            found[d] = name  # renamed by MyFox, wherever Firefox lists it
     return found
 
 

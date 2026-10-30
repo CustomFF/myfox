@@ -40,7 +40,7 @@ class CompleteTests(IsolatedStateCase):
         self.assertEqual(found, {"profile": i18n.t("cmd_profile")})
 
     def test_subcommands_of_profile(self):
-        self.assertEqual(self._words("profile", ""), ["list", "new", "import", "apply", "use", "remove"])
+        self.assertEqual(self._words("profile", ""), ["list", "new", "import", "apply", "use", "remove", "rename"])
 
     def test_options_of_the_command_typed(self):
         found = self._words("refresh", "--")

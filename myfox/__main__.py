@@ -65,7 +65,10 @@ def build_parser() -> argparse.ArgumentParser:
     gui = {"action": "store_true", "help": "graphical window instead of the terminal"}
     relaunch_help = "for programs: no questions; MyFox's Firefox is closed first and started again afterwards"
     new_parser = profile_sub.add_parser("new", parents=[common], help=i18n.t("cmd_profile_new"))
+    new_parser.add_argument("--name", help="its name (default: its folder's, myfox-N)")
     new_parser.add_argument("--use", action="store_true", help="our Firefox opens it from now on")
+    new_parser.add_argument("--open", action="store_true", help="open it once made")
+    new_parser.add_argument("--relaunch", action="store_true", help=relaunch_help)
     new_parser.add_argument("--gui", **gui)
     import_parser = profile_sub.add_parser("import", parents=[common], help=i18n.t("cmd_profile_import"))
     import_parser.add_argument("profile", nargs="?", help="ID, name or folder (myfox profile list --all)")
@@ -92,6 +95,10 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "remove":
             p.add_argument("--no-restore-sync", action="store_true",
                            help="leave the Firefox account an import moved into it where it is")
+    rename_parser = profile_sub.add_parser("rename", help=i18n.t("cmd_profile_rename"))
+    rename_parser.add_argument("profile", help="ID or name (myfox profile list)")
+    rename_parser.add_argument("name", help="the new name")
+    rename_parser.add_argument("--json", action="store_true", help="for programs: the result as JSON")
     completion_parser = sub.add_parser("completion", help=i18n.t("cmd_completion"),
                                        description=i18n.t("cmd_completion"), epilog=i18n.t("completion_setup"),
                                        formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -152,7 +159,8 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(f"  myfox command [on|off] [--gui]    {i18n.t('cmd_command')}")
     print(f"  myfox profile list [--all] [--json]\n"
           f"                                    {i18n.t('cmd_profile_list')}")
-    print(f"  myfox profile new [--use]         {i18n.t('cmd_profile_new')}")
+    print(f"  myfox profile new [--name NAME] [--use] [--open]\n"
+          f"                                    {i18n.t('cmd_profile_new')}")
     print(f"  myfox profile import <ID|folder> [--move] [--sync none|copy|move] [--name NAME] [--allow-downgrade]\n"
           f"                                    [--use] [--open]\n"
           f"                                    {i18n.t('cmd_profile_import')}")
@@ -160,6 +168,7 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(f"  myfox profile use <ID>            {i18n.t('cmd_profile_use')}")
     print(f"  myfox profile remove <ID> [--no-restore-sync]\n"
           f"                                    {i18n.t('cmd_profile_remove')}")
+    print(f"  myfox profile rename <ID> <NAME>  {i18n.t('cmd_profile_rename')}")
     print(f"  myfox completion bash|zsh|fish    {i18n.t('cmd_completion')}")
     print(f"  myfox help                        {i18n.t('cmd_help')}")
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0 — 2026-10-30
+
+- A new profile can be made, imported and deleted with Firefox open, and a new one opened in a window of its own: `myfox profile new --name NAME --open`. Only switching the profile MyFox opens needs Firefox closed
+- `myfox profile rename <ID> <NAME>` renames a profile MyFox created, with Firefox open
+- Firefox lists only the profile MyFox opens in its profile manager (`firefox -p`): it rewrites that list while it runs and took back what MyFox had changed there. MyFox's other profiles live outside it, and `myfox refresh` with Firefox closed tidies what was left: duplicate entries, entries of deleted profiles
+- An imported copy no longer joins the original's Firefox profile group, where Firefox listed it as the original
+
 ## 1.3.4 — 2026-10-30
 
 - The empty «default» profile a Firefox's first start leaves for versions before 67 (never opened, nothing in it) is no longer listed as a profile, in `myfox profile list` or about:myfox. `--all` shows it marked as not a profile

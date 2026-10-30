@@ -3,12 +3,14 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import re
+import sqlite3
 import os
 from pathlib import Path
 from unittest import mock
 
 from myfox import __main__ as cli
-from myfox import i18n, importer, paths, profile_commands
+from myfox import i18n, importer, paths, profile_commands, profiles
 from myfox.state import State
 
 from ._helpers import IsolatedStateCase
@@ -63,14 +65,15 @@ class ProfileListTests(IsolatedStateCase):
         # Columns line up.
         self.assertEqual(len({line.index(i18n.t("summary_yes")) for line in lines[1:3]}), 1)
 
-    def test_one_left_out_of_profiles_ini_says_so(self):
-        orphan = self.store / "myfox-3"
-        orphan.mkdir()
+    def test_one_outside_profiles_ini_is_listed_by_its_own_name(self):
+        outside = self.store / "myfox-3"
+        outside.mkdir()
         for f in ("prefs.js", ".myfox", ".myfox-created"):
-            (orphan / f).touch()
+            (outside / f).touch()
+        (outside / ".myfox-name").write_text("Work\n", encoding="utf-8")
         row = next(line for line in self._run().splitlines() if line.startswith("myfox-3"))
-        self.assertTrue(row.endswith(", ".join([i18n.t("profile_status_myfox"),
-                                                i18n.t("profile_status_unregistered")])))
+        self.assertIn("Work", row)
+        self.assertTrue(row.endswith(i18n.t("profile_status_myfox")))
 
     def test_never_run_is_related_too(self):
         self.assertIn(i18n.t("profile_status_unused"), self._run())
@@ -142,8 +145,8 @@ class ProfileListTests(IsolatedStateCase):
         self.assertEqual(profile_commands.quoted("myfox-1"), "myfox-1")
 
 
-class ProfileChangeTests(IsolatedStateCase):
-    """new, apply, use, remove, import — confirmed with -y."""
+class _ProfileCase(IsolatedStateCase):
+    """A store with our profile, a related one and another Firefox's."""
 
     def setUp(self):
         super().setUp()
@@ -197,21 +200,41 @@ class ProfileChangeTests(IsolatedStateCase):
              contextlib.redirect_stderr(io.StringIO()) as self.err:
             return cli.main(["profile", *argv])
 
-    def test_new_makes_a_tweaked_profile(self):
+    def _ini(self) -> str:
+        return (self.store / "profiles.ini").read_text(encoding="utf-8")
+
+class ProfileChangeTests(_ProfileCase):
+    """new, apply, use, remove, import, rename — confirmed with -y."""
+
+    def test_new_makes_a_tweaked_profile_outside_profiles_ini_with_firefox_open(self):
+        self.running = [42]
         self.assertEqual(self._run("new", "-y"), 0)
         made = self.store / "myfox-2"
         self.assertTrue((made / ".myfox-created").is_file() and (made / ".myfox").is_file())
         self.assertEqual(State().get("profile_dir"), str(self.used))
-        self.assertIn("Name=myfox-2\nIsRelative=1\nPath=myfox-2", (self.store / "profiles.ini").read_text(encoding="utf-8"))
+        self.assertNotIn("myfox-2", self._ini())
+        self.assertEqual(profiles.read_name(made), "myfox-2")
+        self.assertIn("myfox-2", self._run_list())
+
+    def _run_list(self) -> str:
+        self._run("list")
+        return self.out.getvalue()
+
+    def test_new_with_a_name_opened_beside(self):
+        self.running = [42]
+        self.assertEqual(self._run("new", "--name", " Work ", "--open", "-y"), 0)
+        made = self.store / "myfox-2"
+        self.assertEqual(profiles.read_name(made), "Work")
+        self.start.assert_called_once_with(self.install, made)
 
     def test_new_with_use_switches_to_it(self):
         self.assertEqual(self._run("new", "--use", "-y"), 0)
         self.assertEqual(State().get("profile_dir"), str(self.store / "myfox-2"))
         self.assertEqual(self.pin_install.call_args.args[1], self.store / "myfox-2")
 
-    def test_new_waits_for_our_firefox(self):
+    def test_new_to_use_waits_for_our_firefox(self):
         self.running = [42]
-        self.assertEqual(self._run("new", "-y"), 1)
+        self.assertEqual(self._run("new", "--use", "-y"), 1)
         self.assertIn(i18n.t("err_firefox_running"), self.err.getvalue())
         self.assertFalse((self.store / "myfox-2").exists())
 
@@ -272,10 +295,24 @@ class ProfileChangeTests(IsolatedStateCase):
         self.assertNotIn("myfox-2", (self.store / "profiles.ini").read_text(encoding="utf-8"))
 
     def test_remove_with_our_firefox_open_on_another_profile(self):
+        self.running = [42]
+        self.assertEqual(self._run("new", "-y"), 0)
+        self.assertEqual(self._run("remove", "myfox-2", "-y"), 0)
+        self.assertFalse((self.store / "myfox-2").exists())
+
+    def test_remove_of_one_profiles_ini_lists_waits_for_our_firefox(self):
+        # An older MyFox listed them all; a running Firefox would put it back.
         made = self._profile("myfox-2", "myfox", created=True, tweaked=True)
         self.running = [42]
-        self.assertEqual(self._run("remove", "myfox-2", "-y"), 0)
-        self.assertFalse(made.exists())
+        self.assertEqual(self._run("remove", "myfox-2", "-y"), 1)
+        self.assertIn(i18n.t("err_firefox_running"), self.err.getvalue())
+        self.assertTrue(made.exists())
+
+    def test_remove_takes_it_out_of_its_profile_group(self):
+        made = self._profile("myfox-2", "myfox", created=True, tweaked=True)
+        with mock.patch("myfox.sources.forget_in_groups") as forget:
+            self.assertEqual(self._run("remove", "myfox-2", "-y"), 0)
+        forget.assert_called_once_with(self.store, made)
 
     def test_json_says_where_a_moved_account_goes_back(self):
         moved = self._profile("myfox-2", "myfox", created=True, tweaked=True)
@@ -311,7 +348,20 @@ class ProfileChangeTests(IsolatedStateCase):
         self.assertFalse((self.other / "signedInUser.json").exists())
         self.assertEqual(importer.read_origin(copy)["source"], str(self.other))
         self.assertEqual(State().get("profile_dir"), str(copy))
-        self.assertIn("Name=default-release (MyFox)\n", (self.store / "profiles.ini").read_text(encoding="utf-8"))
+        self.assertEqual(profiles.read_name(copy), "default-release (MyFox)")
+        # The one opened before leaves profiles.ini, its name kept.
+        self.assertNotIn("Path=myfox-1\n", self._ini())
+        self.assertEqual(profiles.read_name(self.used), "myfox")
+
+    def test_import_with_firefox_open_and_out_of_the_originals_group(self):
+        (self.other / "prefs.js").write_text('user_pref("toolkit.profiles.storeID", "15475d1e");\n'
+                                             'user_pref("browser.x", 1);\n', encoding="utf-8")
+        self.running = [42]
+        self.assertEqual(self._run("import", "cccc.default-release", "-y"), 0)
+        copy = self.store / "myfox-2"
+        self.assertNotIn("storeID", (copy / "prefs.js").read_text(encoding="utf-8"))
+        self.assertIn("storeID", (self.other / "prefs.js").read_text(encoding="utf-8"))
+        self.assertNotIn("myfox-2", self._ini())
 
     def test_import_of_a_newer_profile_needs_the_flag(self):
         (self.other / "compatibility.ini").write_text("[Compatibility]\nLastVersion=160.0_1/1\n", encoding="utf-8")
@@ -335,7 +385,33 @@ class ProfileChangeTests(IsolatedStateCase):
 
     def test_import_names_the_copy(self):
         self.assertEqual(self._run("import", "cccc.default-release", "--name", "  Work  stuff ", "-y"), 0)
-        self.assertIn("Name=Work stuff\n", (self.store / "profiles.ini").read_text(encoding="utf-8"))
+        self.assertEqual(profiles.read_name(self.store / "myfox-2"), "Work stuff")
+
+    def test_rename_with_firefox_open(self):
+        self.running = [42]
+        self.assertEqual(self._run("new", "-y"), 0)
+        self.assertEqual(self._run("rename", "myfox-2", " Work  stuff "), 0)
+        self.assertEqual(profiles.read_name(self.store / "myfox-2"), "Work stuff")
+        self._run("list", "--json")
+        names = {r["id"]: r["name"] for r in json.loads(self.out.getvalue())}
+        self.assertEqual(names["myfox-2"], "Work stuff")
+
+    def test_rename_of_the_one_profiles_ini_lists_follows_there_once_firefox_is_closed(self):
+        self.running = [42]
+        self.assertEqual(self._run("rename", "myfox-1", "Main"), 0)
+        self.assertIn("Name=myfox\nIsRelative=1\nPath=myfox-1", self._ini())
+        self.running = []
+        self.assertEqual(self._run("rename", "myfox-1", "Main"), 0)
+        self.assertIn("Name=Main\nIsRelative=1\nPath=myfox-1", self._ini())
+
+    def test_rename_only_myfoxs_own_and_not_to_nothing(self):
+        self.assertEqual(self._run("rename", "aaaa.dev", "x", "--json"), 1)
+        self.assertEqual(json.loads(self.out.getvalue()),
+                         {"error": i18n.t("err_profile_rename_not_created", "aaaa.dev")})
+        self.assertEqual(self._run("rename", "myfox-1", "  "), 1)
+        self.assertIn(i18n.t("err_profile_rename_empty"), self.err.getvalue())
+        self.assertEqual(self._run("rename", "myfox-1", "Main", "--json"), 0)
+        self.assertEqual(json.loads(self.out.getvalue()), {"ok": True, "id": "myfox-1", "name": "Main"})
 
     def test_import_switches_the_copy_to_the_myfox_theme_like_its_own(self):
         with (self.other / "prefs.js").open("a", encoding="utf-8") as f:
@@ -469,3 +545,61 @@ class ProfileChangeTests(IsolatedStateCase):
         State().delete_file()
         self.assertEqual(self._run("new", "-y"), 1)
         self.assertIn(i18n.t("err_not_installed"), self.err.getvalue())
+
+
+
+class TidyTests(_ProfileCase):
+    """What an older MyFox and Firefox's profile groups left in profiles.ini."""
+
+    def setUp(self):
+        super().setUp()
+        self.made = self._profile("myfox-2", "Work", created=True, tweaked=True)
+        ini = self.store / "profiles.ini"
+        ini.write_text(ini.read_text(encoding="utf-8")
+                       + "[Profile4]\nName=myfox\nIsRelative=1\nPath=myfox-1\nStoreID=abc\n\n"
+                       + "[Profile5]\nName=myfox\nIsRelative=1\nPath=myfox-7\n\n"
+                       + "[Profile6]\nName=gone\nIsRelative=1\nPath=zzzz.gone\n\n", encoding="utf-8")
+        (self.made / "prefs.js").write_text('user_pref("toolkit.profiles.storeID", "abc");\n', encoding="utf-8")
+        groups = self.store / "Profile Groups"
+        groups.mkdir()
+        con = sqlite3.connect(str(groups / "abc.sqlite"))
+        with con:
+            con.execute("CREATE TABLE Profiles (id INTEGER PRIMARY KEY, path TEXT, name TEXT)")
+            con.executemany("INSERT INTO Profiles (path, name) VALUES (?, ?)",
+                            [("cccc.default-release", "Base"), ("myfox-2", "Work")])
+        con.close()
+
+    def _group(self) -> list[str]:
+        con = sqlite3.connect(str(self.store / "Profile Groups" / "abc.sqlite"))
+        try:
+            return [path for path, in con.execute("SELECT path FROM Profiles")]
+        finally:
+            con.close()
+
+    def test_tidies_with_our_firefox_closed(self):
+        profile_commands.tidy(State())
+        ini = self._ini()
+        # MyFox's other profile leaves profiles.ini, its name kept.
+        self.assertNotIn("Path=myfox-2\n", ini)
+        self.assertEqual(profiles.read_name(self.made), "Work")
+        # The one it opens is listed once.
+        self.assertEqual(ini.count("Path=myfox-1\n"), 1)
+        # A myfox-N folder gone goes, another Firefox's entry stays.
+        self.assertNotIn("myfox-7", ini)
+        self.assertIn("Path=zzzz.gone\n", ini)
+        self.assertEqual(sorted(re.findall(r"\[Profile(\d+)\]", ini)), ["0", "1", "2", "3"])
+        # The copy leaves the original's group.
+        self.assertEqual(self._group(), ["cccc.default-release"])
+        self.assertNotIn("storeID", (self.made / "prefs.js").read_text(encoding="utf-8"))
+
+    def test_nothing_while_our_firefox_runs(self):
+        before = self._ini()
+        self.running = [42]
+        profile_commands.tidy(State())
+        self.assertEqual(self._ini(), before)
+        self.assertEqual(self._group(), ["cccc.default-release", "myfox-2"])
+
+    def test_the_one_opened_takes_its_name_there(self):
+        profiles.write_name(self.used, "Main")
+        profile_commands.tidy(State())
+        self.assertIn("Name=Main\nIsRelative=1\nPath=myfox-1\n", self._ini())

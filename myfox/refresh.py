@@ -16,6 +16,7 @@ by ui/task_{gui,tui,plain}.py.
 from __future__ import annotations
 
 import json
+import sqlite3
 import subprocess
 import sys
 import time
@@ -23,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import addons, apply, changelog, completion, core, desktop, firefox, i18n, launcher, sources, tweaks
+from . import addons, apply, changelog, completion, core, desktop, firefox, i18n, launcher, profile_commands, sources, tweaks
 from . import task as task_mod
 from .install_form import Progress
 from .state import State
@@ -199,8 +200,9 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
 
 def sync_shortcut(state: State) -> None:
     """Rewrites the wrapper, the entry and the completion scripts where they
-    differ from what the installed MyFox would write; a failure is no
-    reason to fail the run."""
+    differ from what the installed MyFox would write, and tidies the
+    profile list while our Firefox is closed; a failure is no reason to
+    fail the run."""
     install_dir = state.get("install_dir")
     if install_dir and Path(install_dir).is_dir():
         try:
@@ -213,6 +215,10 @@ def sync_shortcut(state: State) -> None:
         if known != recorded:
             state.set("completions", known)
             state.save()
+        try:
+            profile_commands.tidy(state)
+        except (OSError, sqlite3.Error):
+            pass
 
 
 def sync_from_new_core(state: State) -> None:

@@ -1,5 +1,5 @@
 {
     "launcher": @LAUNCHER@,
     "version": @VERSION@,
-    "features": ["command", "command-backup", "profiles", "update", "profiles-import", "update-check", "profiles-remove"]
+    "features": ["command", "command-backup", "profiles", "update", "profiles-import", "update-check", "profiles-remove", "profiles-new", "profiles-rename"]
 }

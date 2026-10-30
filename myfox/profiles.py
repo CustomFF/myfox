@@ -8,6 +8,12 @@ else's.
 Firefox computes its own [Install<HASH>] with no public API for it, so the
 only way to learn the hash is to run the install once (headless) and diff
 profiles.ini/installs.ini before and after.
+
+A running Firefox rewrites profiles.ini from the list it read at its start,
+taking back whatever was added or removed meanwhile. So only the profile
+our install opens is listed there (Firefox needs it to be); MyFox's other
+profiles live outside it, opened by their folder, named by NAME_FILE, and
+come and go with Firefox running.
 """
 
 from __future__ import annotations
@@ -22,6 +28,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _PROFILE_SECTION_RE = re.compile(r"^Profile\d+$")
+# In a profile MyFox created: its name, whether profiles.ini lists it or not.
+NAME_FILE = ".myfox-name"
+CREATED_MARKER = ".myfox-created"
 # Both capture just the inner name (no brackets) — callers only ever want
 # the bare "Install<HASH>" or "<HASH>", never the bracket punctuation.
 _INSTALL_SECTION_RE = re.compile(r"^\[(Install[0-9A-F]{1,16})\]$")
@@ -125,9 +134,20 @@ def _append_profile_entry(ini: Path, path_value: str, is_relative: str, name: st
     return section
 
 
-def create_new(name: str | None = None) -> Path:
-    """A new myfox-N, registered as `name` (default "myfox"; "" for its
-    folder name)."""
+def read_name(profile_dir: Path) -> str | None:
+    try:
+        return " ".join((profile_dir / NAME_FILE).read_text(encoding="utf-8").split()) or None
+    except OSError:
+        return None
+
+
+def write_name(profile_dir: Path, name: str) -> None:
+    (profile_dir / NAME_FILE).write_text(" ".join(name.split()) + "\n", encoding="utf-8")
+
+
+def create_new(name: str | None = None, register: bool = True) -> Path:
+    """A new myfox-N named `name` (default "myfox"; "" for its folder name),
+    listed in profiles.ini only if `register`."""
     ini = find_ini()
     if ini:
         ini_dir = ini.parent
@@ -142,9 +162,11 @@ def create_new(name: str | None = None) -> Path:
     ppath = f"myfox-{idx}"
     profile_dir = ini_dir / ppath
     profile_dir.mkdir(parents=True)
-    (profile_dir / ".myfox-created").write_text("", encoding="utf-8")
-
-    _append_profile_entry(ini, ppath, "1", "myfox" if name is None else (name or ppath))
+    (profile_dir / CREATED_MARKER).write_text("", encoding="utf-8")
+    name = "myfox" if name is None else (" ".join(name.split()) or ppath)
+    write_name(profile_dir, name)
+    if register:
+        _append_profile_entry(ini, ppath, "1", name)
     return profile_dir
 
 
@@ -225,8 +247,49 @@ def register_entry(ini: Path, profile_abs: Path) -> str:
         path_value = str(profile_abs)
         is_relative = "0"
 
-    _append_profile_entry(ini, path_value, is_relative)
+    _append_profile_entry(ini, path_value, is_relative, read_name(profile_abs) or "myfox")
     return path_value
+
+
+def set_entry_name(profile_dir: Path, name: str) -> None:
+    """Name= of this folder's [ProfileN], wherever it is listed."""
+    for ini in _all_inis():
+        entry = _find_entry_for_dir(ini, profile_dir)
+        if entry is None or entry.name == name:
+            continue
+        out, inside = [], False
+        for line in ini.read_text(encoding="utf-8").splitlines(keepends=True):
+            stripped = line.strip()
+            if stripped.startswith("["):
+                inside = stripped == f"[{entry.section}]"
+            elif inside and stripped.startswith("Name="):
+                line = f"Name={name}" + line[len(line.rstrip("\r\n")):]
+            out.append(line)
+        ini.write_text("".join(out), encoding="utf-8")
+
+
+def all_inis() -> list[Path]:
+    return _all_inis()
+
+
+def keep_one_entry(profile_dir: Path) -> None:
+    """A folder Firefox came to list more than once: the first stays."""
+    for ini in _all_inis():
+        # One at a time: a removal renumbers the sections after it.
+        while len(entries := [e for e in parse_profiles(ini) if resolve_dir(ini.parent, e) == profile_dir]) > 1:
+            remove_ini_section(ini, entries[-1].section)
+
+
+def is_registered(profile_dir: Path) -> bool:
+    return any(_find_entry_for_dir(ini, profile_dir) for ini in _all_inis())
+
+
+def unregister(profile_dir: Path) -> None:
+    """Off profiles.ini, keeping the name it had there."""
+    if read_name(profile_dir) is None:
+        entries = [e for ini in _all_inis() if (e := _find_entry_for_dir(ini, profile_dir))]
+        write_name(profile_dir, entries[0].name if entries and entries[0].name else profile_dir.name)
+    remove_myfox_section(profile_dir)
 
 
 def _all_inis() -> list[Path]:
@@ -239,8 +302,8 @@ def remove_myfox_section(profile_dir: Path) -> None:
     """Scoped to this exact profile directory — never "any [ProfileN] named
     myfox", which would also rip out unrelated myfox installs elsewhere."""
     for ini in _all_inis():
-        entry = _find_entry_for_dir(ini, profile_dir)
-        if entry:
+        # Every one: a Firefox can list a folder more than once.
+        while (entry := _find_entry_for_dir(ini, profile_dir)) is not None:
             remove_ini_section(ini, entry.section)
 
 
