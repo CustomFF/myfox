@@ -20,7 +20,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import archive as archive_mod, changelog, net, paths, version
+from . import archive as archive_mod, changelog, i18n, net, paths, version
 from .addons import TWEAKS_REPO
 
 ARCHIVE = "myfox-tweaks.tar.gz"
@@ -35,13 +35,62 @@ class Release:
     changelog_url: str
 
 
+# The oldest release `myfox tweaks use` offers.
+OLDEST = (159, 0)
+# The state key of the version `myfox tweaks use` pinned; refresh leaves the tweaks alone then.
+PIN = "tweaks_pin"
+
+
+def release(tag: str) -> Release:
+    return Release(tag, version.asset_url(TWEAKS_REPO, tag, ARCHIVE), version.asset_url(TWEAKS_REPO, tag, CHANGELOG))
+
+
 def latest_release() -> Release | None:
     """The newest tweaks release with its archive; None if there is none.
     Raises OSError when GitHub can't be asked."""
     tag = version.find_latest_tag(version.TWEAKS_TAG_RE, TWEAKS_REPO, asset=ARCHIVE)
-    if tag is None:
-        return None
-    return Release(tag, version.asset_url(TWEAKS_REPO, tag, ARCHIVE), version.asset_url(TWEAKS_REPO, tag, CHANGELOG))
+    return release(tag) if tag is not None else None
+
+
+def tags() -> list[str]:
+    """Every release from OLDEST on, newest first. Unchecked for the archive:
+    only the newest may still lack it (see version.py). Raises OSError
+    when GitHub can't be asked."""
+    found = [r[len("refs/tags/"):] for r in version.refs(TWEAKS_REPO) if r.startswith("refs/tags/")]
+    found = [t for t in found if version.TWEAKS_TAG_RE.match(t) and changelog.parse(t) >= OLDEST]
+    return sorted(found, key=changelog.parse, reverse=True)
+
+
+def major(tag: str | None) -> int | None:
+    """The Firefox major a tag (158.4) or a Firefox version (160.0.2, 161.0b3) is for."""
+    parsed = changelog.parse((tag or "").split("b")[0].split("a")[0])
+    return parsed[0] if parsed else None
+
+
+def resolve(wanted: str, found: list[str]) -> Release | None:
+    """What `myfox tweaks use <wanted>` installs: "latest", a Firefox major
+    (its newest release) or an exact version, one with its archive; None
+    if there is none such. Raises OSError when GitHub can't be asked."""
+    if wanted == "latest":
+        picks = found
+    elif "." in wanted:
+        picks = [t for t in found if changelog.parse(t) == changelog.parse(wanted)]
+    else:
+        picks = [t for t in found if wanted.isdigit() and major(t) == int(wanted)]
+    for tag in picks:
+        if version._has_asset(TWEAKS_REPO, tag, ARCHIVE):
+            return release(tag)
+    return None
+
+
+def pinned(state) -> str | None:
+    return state.get(PIN) or None
+
+
+def pin_note(state) -> str | None:
+    """What refresh says while the tweaks are pinned."""
+    pin = pinned(state)
+    return i18n.t("tweaks_pinned_note", changelog.display(pin), "myfox tweaks use latest") if pin else None
 
 
 def _download(url: str) -> bytes:

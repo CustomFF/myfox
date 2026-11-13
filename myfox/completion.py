@@ -158,6 +158,9 @@ def complete(words: list[str], state: State, parser: argparse.ArgumentParser,
                 found += [(c, "") for c in action.choices]
             elif action.dest == "profile" and path:
                 found += profiles(state, path[-1])
+            elif action.dest == "version" and path == ["tweaks", "use"]:
+                # The rest needs GitHub, too slow for a Tab.
+                found.append(("latest", ""))
     return [(c, d) for c, d in found if c.startswith(cur)]
 
 

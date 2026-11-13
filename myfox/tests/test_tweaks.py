@@ -76,3 +76,35 @@ class InstallTests(IsolatedStateCase):
     def test_no_release_is_an_error(self):
         with mock.patch("myfox.tweaks.latest_release", return_value=None), self.assertRaises(OSError):
             tweaks.install()
+
+
+class VersionsTests(IsolatedStateCase):
+    _ALL = ("refs/tags/160.1", "refs/tags/160.0", "refs/tags/159.10", "refs/tags/159.2", "refs/tags/158.4",
+            "refs/tags/themes-20261001", "refs/heads/master")
+
+    def _tags(self):
+        with mock.patch("myfox.version._fetch_refs", return_value=git_refs(*self._ALL)):
+            return tweaks.tags()
+
+    def test_tags_from_the_oldest_offered_newest_first_by_numbers(self):
+        self.assertEqual(self._tags(), ["160.1", "160.0", "159.10", "159.2"])
+
+    def _resolve(self, wanted, missing=()):
+        with mock.patch("myfox.version._has_asset", side_effect=lambda repo, tag, name: tag not in missing):
+            found = tweaks.resolve(wanted, ["160.1", "160.0", "159.10", "159.2"])
+            return found.tag if found else None
+
+    def test_resolve_latest_a_major_or_an_exact_version(self):
+        self.assertEqual(self._resolve("latest"), "160.1")
+        self.assertEqual(self._resolve("159"), "159.10")
+        self.assertEqual(self._resolve("159.2"), "159.2")
+        self.assertIsNone(self._resolve("159.3"))
+        self.assertIsNone(self._resolve("158"))
+        self.assertIsNone(self._resolve("nonsense"))
+
+    def test_a_release_still_without_its_archive_is_skipped(self):
+        self.assertEqual(self._resolve("latest", missing={"160.1"}), "160.0")
+
+    def test_major_of_a_tag_or_a_firefox_version(self):
+        self.assertEqual([tweaks.major(v) for v in ("159.4", "160.0.2", "161.0b3", "dev", None)],
+                         [159, 160, 161, None, None])

@@ -89,8 +89,10 @@ class RefreshPlan:
             if track.key == "ddblm_version" and not (with_tweaks and state.get("opt_bl", True)):
                 continue
             release = None
+            pin = tweaks.pinned(state) if track.key == "tweaks_version" else None
             try:
-                release = track.latest()
+                # Pinned: that one (again, with --force), never a newer one.
+                release = tweaks.release(pin) if pin else track.latest()
                 latest = release.tag if release else None
             except OSError as exc:
                 return cls(force=force, error=i18n.t("refresh_check_failed", getattr(exc, "reason", exc)))
@@ -267,8 +269,9 @@ def run(state: State, gui: bool = False, noninteractive: bool = False, force: bo
     update done by an older MyFox didn't."""
     sync_shortcut(state)
     plan = RefreshPlan.check(state, force)
+    note = tweaks.pin_note(state)
     if plan.error or not plan.needed:
-        text = plan.error or i18n.t("refresh_none")
+        text = plan.error or "\n".join(filter(None, (i18n.t("refresh_none"), note)))
         if gui:
             from .ui import notify
 
@@ -277,6 +280,8 @@ def run(state: State, gui: bool = False, noninteractive: bool = False, force: bo
         print(text, file=sys.stderr if plan.error else sys.stdout)
         return 1 if plan.error else 0
     task = to_task(plan, update, restart_offer(plan, state), changelog_opener(state))
+    if note and not any(t.track.key == "tweaks_version" for t in plan.todo):
+        task.rows.insert(0, (i18n.t("refresh_track_tweaks"), note))
     return 0 if task_mod.show(task, gui=gui, noninteractive=noninteractive) else 1
 
 
@@ -360,6 +365,8 @@ def check(state: State, as_json: bool = False) -> int:
         print(json.dumps(found, ensure_ascii=False))
     elif not plan.needed:
         print(i18n.t("refresh_none"))
+        if tweaks.pin_note(state):
+            print(tweaks.pin_note(state))
     else:
         width = max(len(t.label) for t in plan.todo)
         for t in plan.todo:
@@ -369,6 +376,8 @@ def check(state: State, as_json: bool = False) -> int:
             print(i18n.t("refresh_whats_new"))
             for line in plan.changes:
                 print(f"  - {line}")
+        if tweaks.pin_note(state):
+            print(tweaks.pin_note(state))
         print()
         print(i18n.t("refresh_check_install", "myfox refresh"))
     return 0

@@ -43,6 +43,16 @@ package manager. The tweaks, the themes and MyFox are updated with `myfox refres
 Updated tweaks take effect after Firefox restarts. `myfox refresh` offers a restart, and the
 shortcut's menu has a "Restart" item; windows and tabs are restored.
 
+The tweaks are made for the current Firefox beta and checked on the stable release before it.
+If your Firefox is older and the newest tweaks misbehave on it, go back to the ones made for it:
+
+```text
+myfox tweaks                     the installed tweaks version and the Firefox version
+myfox tweaks versions            the tweaks versions, one per Firefox version
+myfox tweaks use 159             install the tweaks for Firefox 159 and keep them
+myfox tweaks use latest          back to the newest; refresh updates them again
+```
+
 ## Profiles
 
 ```text

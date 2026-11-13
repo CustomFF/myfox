@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.0 — 2026-11-13
+
+- Choosing the tweaks version: if your Firefox is older than the one the newest tweaks are made for and they misbehave on it, `myfox tweaks use 159` installs the tweaks made for Firefox 159 and keeps them, `myfox refresh` leaves them alone; `myfox tweaks use latest` goes back to the newest. `myfox tweaks` shows what is installed, `myfox tweaks versions` the versions there are and which fit your Firefox
+- Tweaks of an older version no longer leave behind the style folders of a newer one in the profile
+
 ## 1.4.0 — 2026-10-30
 
 - A new profile can be made, imported and deleted with Firefox open, and a new one opened in a window of its own: `myfox profile new --name NAME --open`. Only switching the profile MyFox opens needs Firefox closed

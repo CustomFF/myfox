@@ -121,6 +121,14 @@ class PlanTests(IsolatedStateCase):
             plan = refresh.RefreshPlan.check(state)
         self.assertNotIn("ddblm_version", [t.track.key for t in plan.tracks])
 
+    def test_pinned_tweaks_are_not_updated_but_forced_again(self):
+        state = _state(tweaks="151.1")
+        state.set(tweaks.PIN, "151.1")
+        with _releases(_latest()):
+            self.assertEqual(refresh.RefreshPlan.check(state).todo, [])
+            forced = refresh.RefreshPlan.check(state, force=True)
+        self.assertEqual(next(t for t in forced.todo if t.track.key == "tweaks_version").release.tag, "151.1")
+
     def test_check_failure_is_an_error(self):
         with _releases(OSError("rate limited")):
             plan = refresh.RefreshPlan.check(_state())

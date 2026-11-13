@@ -1,4 +1,4 @@
-"""python3 -m myfox <browser|refresh|reinstall|uninstall|command|profile|completion|help> [options]
+"""python3 -m myfox <browser|refresh|reinstall|uninstall|command|profile|tweaks|completion|help> [options]
 
 The installed `myfox` command. No `install`: the install form only ever
 runs from bootstrap.py's "not installed yet" branch.
@@ -12,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, command, completion, i18n, profile_commands, refresh, reinstall, task, uninstall
+from . import __version__, command, completion, i18n, profile_commands, refresh, reinstall, task, tweaks_commands, uninstall
 from .state import State
 
 LOGO = Path(__file__).resolve().parent / "ui" / "assets" / "logo.txt"
@@ -99,6 +99,13 @@ def build_parser() -> argparse.ArgumentParser:
     rename_parser.add_argument("profile", help="ID or name (myfox profile list)")
     rename_parser.add_argument("name", help="the new name")
     rename_parser.add_argument("--json", action="store_true", help="for programs: the result as JSON")
+    tweaks_parser = sub.add_parser("tweaks", parents=[common], help=i18n.t("cmd_tweaks"))
+    tweaks_sub = tweaks_parser.add_subparsers(dest="tweaks_command")
+    versions_parser = tweaks_sub.add_parser("versions", help=i18n.t("cmd_tweaks_versions"))
+    versions_parser.add_argument("--all", action="store_true", help="every version, not only each Firefox's newest")
+    versions_parser.add_argument("--json", action="store_true", help="for programs: every version as JSON on stdout")
+    use_parser = tweaks_sub.add_parser("use", parents=[common], help=i18n.t("cmd_tweaks_use"))
+    use_parser.add_argument("version", nargs="?", help="latest, a Firefox major (159) or a version (159.10)")
     completion_parser = sub.add_parser("completion", help=i18n.t("cmd_completion"),
                                        description=i18n.t("cmd_completion"), epilog=i18n.t("completion_setup"),
                                        formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -169,6 +176,10 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(f"  myfox profile remove <ID> [--no-restore-sync]\n"
           f"                                    {i18n.t('cmd_profile_remove')}")
     print(f"  myfox profile rename <ID> <NAME>  {i18n.t('cmd_profile_rename')}")
+    print(f"  myfox tweaks                      {i18n.t('cmd_tweaks')}")
+    print(f"  myfox tweaks versions [--all] [--json]\n"
+          f"                                    {i18n.t('cmd_tweaks_versions')}")
+    print(f"  myfox tweaks use <latest|N|N.M>   {i18n.t('cmd_tweaks_use')}")
     print(f"  myfox completion bash|zsh|fish    {i18n.t('cmd_completion')}")
     print(f"  myfox help                        {i18n.t('cmd_help')}")
 
@@ -245,6 +256,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "profile":
         return profile_commands.run(state, args, gui=getattr(args, "gui", False),
                                     noninteractive=noninteractive)
+    if args.command == "tweaks":
+        return tweaks_commands.run(state, args, noninteractive=noninteractive)
     if args.command == "completion":
         print(completion.SCRIPTS[args.shell], end="")
         return 0

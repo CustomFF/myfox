@@ -42,6 +42,21 @@ def _copy_autoconfig(install_dir: Path) -> None:
     (install_dir / "firefox.cfg").unlink(missing_ok=True)
 
 
+# In the profile's chrome/: the directories the tweaks last put there.
+CHROME_DIRS_FILE = ".myfox-dirs"
+# What the tweaks shipped before that list was kept.
+_CHROME_DIRS_BEFORE = ("agent", "user", "author", "themed")
+
+
+def _chrome_dirs_applied(c_dir: Path) -> list[str]:
+    try:
+        text = (c_dir / CHROME_DIRS_FILE).read_text(encoding="utf-8")
+    except OSError:
+        return list(_CHROME_DIRS_BEFORE)
+    # Plain names only: the list is ours, but rmtree goes by it.
+    return [n for n in text.split() if n not in (".", "..") and "/" not in n]
+
+
 def apply_chrome(profile_dir: Path) -> bool:
     """Returns True the one time it backs up a pre-existing userChrome.css
     (the caller decides how to tell the user)."""
@@ -62,9 +77,16 @@ def apply_chrome(profile_dir: Path) -> bool:
     # dropped from a newer version (or the single-file agent_overrides.css
     # of very old installs) shouldn't linger and get registered by myfox.cfg.
     (c_dir / "agent_overrides.css").unlink(missing_ok=True)
-    for sub in sorted(p for p in src.iterdir() if p.is_dir()):
-        shutil.rmtree(c_dir / sub.name, ignore_errors=True)
-        shutil.copytree(sub, c_dir / sub.name)
+    shipped = sorted(p.name for p in src.iterdir() if p.is_dir())
+    # A directory only an earlier (or later: myfox tweaks use) version
+    # shipped goes too, or myfox.cfg would register its sheets. Only ours:
+    # the user may keep folders of their own in chrome/.
+    for name in set(_chrome_dirs_applied(c_dir)) - set(shipped):
+        shutil.rmtree(c_dir / name, ignore_errors=True)
+    for name in shipped:
+        shutil.rmtree(c_dir / name, ignore_errors=True)
+        shutil.copytree(src / name, c_dir / name)
+    (c_dir / CHROME_DIRS_FILE).write_text("".join(f"{name}\n" for name in shipped), encoding="utf-8")
     shutil.copy2(src / "userChrome.css", c_dir / "userChrome.css")
 
     # myfox.cfg checks this marker first and refuses to touch any profile

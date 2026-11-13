@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import tempfile
 import unittest
 import urllib.error
@@ -129,6 +130,31 @@ class ApplyChromeTests(_TweaksCase):
             apply.apply_chrome(profile_dir)
             self.assertTrue((profile_dir / "chrome" / "author" / "10-z.css").is_file())
             self.assertFalse(stray.exists())
+
+    def test_a_directory_the_new_version_lacks_goes_but_the_users_own_stay(self):
+        themed = paths.chrome_dir() / "themed"
+        themed.mkdir()
+        (themed / "10-t.css").write_text("/* themed */\n", encoding="utf-8")
+        with tempfile.TemporaryDirectory() as d:
+            profile_dir = Path(d)
+            apply.apply_chrome(profile_dir)
+            own = profile_dir / "chrome" / "mine"
+            own.mkdir()
+            shutil.rmtree(themed)  # an older version: no themed/
+            apply.apply_chrome(profile_dir)
+            self.assertFalse((profile_dir / "chrome" / "themed").exists())
+            self.assertTrue(own.is_dir())
+            self.assertTrue((profile_dir / "chrome" / "agent").is_dir())
+
+    def test_without_the_list_the_directories_tweaks_used_to_ship_go(self):
+        with tempfile.TemporaryDirectory() as d:
+            profile_dir = Path(d)
+            for name in ("author", "themed", "mine"):
+                (profile_dir / "chrome" / name).mkdir(parents=True)
+            apply.apply_chrome(profile_dir)
+            self.assertFalse((profile_dir / "chrome" / "author").exists())
+            self.assertFalse((profile_dir / "chrome" / "themed").exists())
+            self.assertTrue((profile_dir / "chrome" / "mine").is_dir())
 
 
 class ApplyDohOffTests(unittest.TestCase):

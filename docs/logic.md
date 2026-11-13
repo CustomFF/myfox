@@ -50,7 +50,7 @@ myfox           ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox (sh: pytho
 
 Подкоманды `myfox` (`__main__.py`): `browser [аргументы Firefox]` (exec обёртки
 `<install>/firefox-myfox`), `refresh [--force]`, `reinstall`, `uninstall [--remove-profile] [--no-restore-sync]`,
-`command [on|off]`, `profile …` (ниже), `completion bash|zsh|fish`, `help`,
+`command [on|off]`, `profile …`, `tweaks [versions|use …]` (ниже), `completion bash|zsh|fish`, `help`,
 `--version`. Общие флаги: `-y` (без вопросов), `--gui` (окно). Подкоманды `install` нет:
 первая установка — только из `bootstrap.py`.
 
@@ -238,6 +238,22 @@ GUI: перед первым окном `gui_deps.prepare()` открывает 
 перезапускает его как штатный «Перезапустить» (с вопросами о несохранённом, сессия
 восстанавливается). Окно GUI после такого обновления закрывается само: смотреть в нём больше
 нечего.
+
+## Версия твиков (`tweaks_commands.py`)
+
+`myfox tweaks` — установленная версия, закреплена ли, версия Firefox (`application.ini`) и, если
+GitHub ответил, последняя. `versions` — теги твиков из git refs начиная с `tweaks.OLDEST` (159.0), по
+строке на мажор (`--all` — все, `--json` — все записями); помечена ветка, подходящая Firefox: самая
+новая не выше его мажора + 1 (твики N.x проверяются на бете N и стабильной N−1). `use <latest|N|N.M>`
+ставит версию (N — последняя N.x: исправлений в старые ветки нет), применяет её как `refresh` и
+закрепляет: `tweaks_pin` в state, `refresh` берёт тогда закреплённую (с `--force` — её же заново) и
+пишет, что твики закреплены. `latest` снимает закрепление. Если версия уже стоит, меняется только
+закрепление, без диалога. С `MYFOX_TWEAKS_LOCAL` не работает.
+
+При откате у старой версии может не быть папок новой (`chrome/author/`, `chrome/themed/`), а `myfox.cfg`
+регистрирует всё, что лежит в `chrome/`: `apply.apply_chrome` пишет в `chrome/.myfox-dirs` папки,
+которые поставил, и в следующий раз удаляет из них те, которых нет в новой версии (без списка — из
+известного набора `agent`, `user`, `author`, `themed`). Свои папки пользователя в `chrome/` не трогаются.
 
 ## Переустановка (`reinstall.py`)
 
