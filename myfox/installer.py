@@ -210,7 +210,7 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
     completions: list[Path] = []
     if paths.WINDOWS or not desktop.desktop_file().exists():
         undo.add(desktop.remove_entry)
-    desktop.write_entry(install_dir, launcher_path)
+    desktop.write_entry(install_dir, launcher_path, install_hash)
     if not paths.WINDOWS:
         completions = completion.install()
         undo.add(lambda: completion.remove([str(p) for p in completions]))

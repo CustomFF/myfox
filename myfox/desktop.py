@@ -143,7 +143,7 @@ def _name(install_dir: Path) -> str:
     return "Firefox Beta" if '"app.update.channel", "beta"' in prefs else "Firefox"
 
 
-def write_entry(install_dir: Path, launcher: Path) -> Path:
+def write_entry(install_dir: Path, launcher: Path, install_hash: str | None = None) -> Path:
     """The wrapper, myfox.json and the entry, from the templates. No --profile in Exec=:
     Firefox opens the Default= of its own [Install<HASH>] section (pinned by
     profiles.pin_install); a hard path would break a re-created profile.
@@ -156,7 +156,11 @@ def write_entry(install_dir: Path, launcher: Path) -> Path:
 
         write_manifest(install_dir, launcher)
         version = core.package_version(paths.share_dir() / "myfox") or __version__
-        winshell.write(install_dir, launcher, _name(install_dir), version)
+        if install_hash is None:
+            from .state import State
+
+            install_hash = State().get("install_hash")
+        winshell.write(install_dir, launcher, _name(install_dir), version, install_hash)
         return winshell.start_menu_dir()
     wrapper = write_wrapper(install_dir)
     write_manifest(install_dir, launcher)
