@@ -184,3 +184,114 @@ def clear_app_path(restore: bool = True) -> None:
     if backup is not None and restore and _read_key(APP_PATHS_KEY) is None:
         _write_key(APP_PATHS_KEY, backup)
         _delete_key(BACKUP_KEY)
+
+
+# ─── What Firefox itself leaves ──────────────────────────────────────────
+# Run once, it registers itself for this user: as a browser and a handler of
+# web files and links (keys named after the install's hash), its own
+# settings keyed by its folder, and shortcuts in the Start menu, on the
+# desktop and pinned to the taskbar. Its uninstaller (uninstall\helper.exe)
+# isn't run: made for its own installs, it may want admin rights. So the
+# uninstall takes away what is this install's: the hash's keys, values
+# naming its folder, shortcuts into it; another Firefox's stays.
+
+def _subkeys(root, path: str) -> list[str]:
+    import winreg
+
+    found = []
+    try:
+        with winreg.OpenKey(root, path) as key:
+            while True:
+                try:
+                    found.append(winreg.EnumKey(key, len(found)))
+                except OSError:
+                    return found
+    except OSError:
+        return found
+
+
+def _delete_tree(path: str) -> None:
+    import winreg
+
+    for sub in _subkeys(winreg.HKEY_CURRENT_USER, path):
+        _delete_tree(path + "\\" + sub)
+    try:
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
+    except OSError:
+        pass
+
+
+def _drop_values(path: str, matches) -> None:
+    """Values of path and its subkeys whose name or data matches go; the
+    keys left empty go too."""
+    import winreg
+
+    for sub in _subkeys(winreg.HKEY_CURRENT_USER, path):
+        _drop_values(path + "\\" + sub, matches)
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_READ | winreg.KEY_WRITE) as key:
+            names, i = [], 0
+            while True:
+                try:
+                    name, data, _kind = winreg.EnumValue(key, i)
+                except OSError:
+                    break
+                if matches(name) or (isinstance(data, str) and matches(data)):
+                    names.append(name)
+                i += 1
+            for name in names:
+                winreg.DeleteValue(key, name)
+            empty = not _subkeys(winreg.HKEY_CURRENT_USER, path) and winreg.QueryInfoKey(key)[1] == 0
+    except OSError:
+        return
+    if empty:
+        try:
+            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
+        except OSError:
+            pass
+
+
+def remove_firefox_traces(install_dir: Path, install_hash: str | None) -> None:
+    import winreg
+
+    import re
+
+    # The folder itself or a path in it (…\ff, …\ff\firefox.exe, …\ff|Launcher), not …\ffx.
+    folder = re.compile(re.escape(str(install_dir).rstrip("\\")) + r'(?:$|[\\|"])', re.IGNORECASE)
+
+    def ours(text: str) -> bool:
+        return bool(folder.search(text)) or bool(install_hash and install_hash.lower() in text.lower())
+
+    if install_hash:
+        progids = [f"{name}-{install_hash}" for name in ("FirefoxHTML", "FirefoxURL", "FirefoxPDF")]
+        for progid in progids:
+            _delete_tree(rf"Software\Classes\{progid}")
+        _delete_tree(rf"Software\Clients\StartMenuInternet\Firefox-{install_hash}")
+        # File types and protocols name the ProgIDs among their handlers.
+        for ext in _subkeys(winreg.HKEY_CURRENT_USER, r"Software\Classes"):
+            if ext.startswith("."):
+                _drop_values(rf"Software\Classes\{ext}\OpenWithProgids", lambda name: name in progids)
+        _delete_tree(rf"Software\Mozilla\Firefox\Installer\{install_hash}")
+    _drop_values(r"Software\RegisteredApplications", ours)
+    # Its settings name the install's folder or hash; keys left empty go too.
+    _drop_values(r"Software\Mozilla", ours)
+    _remove_shortcuts_into(install_dir)
+
+
+def _remove_shortcuts_into(install_dir: Path) -> None:
+    appdata = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+    places = [appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs",
+              appdata / "Microsoft" / "Internet Explorer" / "Quick Launch" / "User Pinned" / "TaskBar",
+              Path.home() / "Desktop"]
+    folders = json.dumps([str(p) for p in places if p.is_dir()])
+    _powershell(
+        "$shell = New-Object -ComObject WScript.Shell\n"
+        f"$into = '{_ps(str(install_dir).rstrip(chr(92)) + chr(92))}'\n"
+        f"foreach ($dir in ('{_ps(folders)}' | ConvertFrom-Json)) {{\n"
+        "  Get-ChildItem -LiteralPath $dir -Filter *.lnk -Recurse -ErrorAction SilentlyContinue | ForEach-Object {\n"
+        "    $target = $shell.CreateShortcut($_.FullName).TargetPath\n"
+        "    if ($target -and $target.StartsWith($into, [StringComparison]::OrdinalIgnoreCase)) {\n"
+        "      Remove-Item -LiteralPath $_.FullName -Force\n"
+        "    }\n"
+        "  }\n"
+        "}\n")

@@ -122,6 +122,10 @@ def run(state: State, progress: Progress, remove_profile: bool = False, restore_
         for profile_dir in created:
             shutil.rmtree(profile_dir, ignore_errors=True)
     progress(i18n.t("progress_uninstall_firefox"), 0.4)
+    if paths.WINDOWS:
+        from . import winshell
+
+        winshell.remove_firefox_traces(install_dir, state.get("install_hash"))
     shutil.rmtree(install_dir, ignore_errors=True)
     progress(i18n.t("progress_uninstall_myfox"), 0.8)
     desktop.remove_entry()
