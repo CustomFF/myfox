@@ -16,8 +16,8 @@ from .. import i18n
 from ..install_form import Cancel, Cancelled, signals_to
 from ..task import LINES_LIMIT, Task
 from .form_gui import (
-    ACCENT, ASSETS, BTN_GAP, BTN_H, BTN_W, ERROR, FOOTER_H, HEADER_H, LABEL_W, LINE, MUTED, PAD, WIN_W,
-    _button_theme, _color_theme, _global_theme, _load_fonts, px, symbol_font,
+    ACCENT, BTN_GAP, BTN_H, BTN_W, ERROR, FOOTER_H, HEADER_H, ICONS, LABEL_W, LINE, MUTED, PAD, WIN_W,
+    _button_theme, _color_theme, _global_theme, _load_fonts, fit_viewport, px, symbol_font,
 )
 
 ROW_H = 32
@@ -196,10 +196,7 @@ class _Window:
         dpg.configure_item(self.body, height=body_h)
         dpg.configure_item(self.footer, pos=(0, h - footer_h))
         dpg.configure_item(self.footer_line, p1=(0, h - footer_h - 1), p2=(w, h - footer_h - 1))
-        dpg.set_viewport_max_height(max(h, dpg.get_viewport_height()))
-        dpg.set_viewport_min_height(h)
-        dpg.set_viewport_max_height(h)
-        dpg.set_viewport_height(h)
+        fit_viewport(w, h)
 
     def on_close(self) -> None:
         """Cancel, the window's own close button, Escape, ^C in the terminal:
@@ -345,11 +342,13 @@ def run(task: Task) -> bool:
     w, h = px(WIN_W), window.height
     dpg.create_viewport(
         title="MyFox", width=w, height=h, min_width=w, max_width=w, min_height=h, max_height=h, resizable=False,
-        small_icon=str(ASSETS / "icon-48.png"), large_icon=str(ASSETS / "icon-256.png"), disable_close=True,
+        disable_close=True, **ICONS,
     )
     dpg.set_exit_callback(window.on_close)
     dpg.setup_dearpygui()
     dpg.show_viewport()
+    dpg.render_dearpygui_frame()
+    fit_viewport(w, h)
     try:
         with signals_to(window.on_signal):
             while dpg.is_dearpygui_running():

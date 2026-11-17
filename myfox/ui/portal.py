@@ -9,6 +9,7 @@ https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Fil
 
 from __future__ import annotations
 
+import os
 import secrets
 import urllib.parse
 
@@ -28,7 +29,10 @@ _FILE_CHOOSER = DBusAddress(
 
 def pick_directory(title: str, initial: str | None = None, timeout: float = 3600) -> str | None:
     """Blocks until the user picks or cancels; returns the path, or None on
-    cancel or when no portal is reachable. Run it off the UI thread."""
+    cancel or when no portal is reachable. Run it off the UI thread.
+    Windows: its own folder dialog."""
+    if os.name == "nt":
+        return _windows_pick(title, initial)
     try:
         with open_dbus_connection(bus="SESSION") as conn:
             token = "myfox_" + secrets.token_hex(8)
@@ -59,3 +63,28 @@ def pick_directory(title: str, initial: str | None = None, timeout: float = 3600
     if parsed.scheme != "file":
         return None
     return urllib.parse.unquote(parsed.path) or None
+
+
+def _windows_pick(title: str, initial: str | None) -> str | None:
+    import base64
+    import subprocess
+
+    def quoted(text: str) -> str:
+        return "'" + text.replace("'", "''") + "'"
+
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms\n"
+        "[Console]::OutputEncoding = [Text.Encoding]::UTF8\n"
+        "$d = New-Object System.Windows.Forms.FolderBrowserDialog\n"
+        f"$d.Description = {quoted(title)}\n"
+        f"$d.SelectedPath = {quoted(initial or '')}\n"
+        "if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }\n"
+    )
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-STA", "-EncodedCommand", encoded],
+                             capture_output=True, timeout=3600, creationflags=subprocess.CREATE_NO_WINDOW)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    path = out.stdout.decode("utf-8", "replace").strip()
+    return path or None

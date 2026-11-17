@@ -6,6 +6,7 @@ All decisions live in install_form.InstallForm; this only draws it.
 from __future__ import annotations
 
 import contextlib
+import os
 import subprocess
 import sys
 import threading
@@ -39,8 +40,31 @@ LINE = (205, 207, 208)
 FRAME_BORDER = (214, 216, 218)
 
 
+WINDOWS = os.name == "nt"
+# Windows has no fontconfig: its own UI fonts, and Segoe UI Symbol for
+# what Segoe UI lacks.
+_WINDOWS_FONTS = {"sans-serif": "segoeui.ttf", "sans-serif:bold": "segoeuib.ttf", "symbol": "seguisym.ttf"}
+
+
+def _windows_dpi() -> float:
+    """The display's scale (125% is 120); the process takes it on itself,
+    instead of Windows blurring a 96 dpi window up."""
+    import ctypes
+
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # per monitor
+    except (AttributeError, OSError):
+        pass
+    try:
+        return float(ctypes.windll.user32.GetDpiForSystem()) or 96.0
+    except (AttributeError, OSError):
+        return 96.0
+
+
 def _xft_dpi() -> float:
     # X11 apps on a scaled KDE/GNOME session get the scale only via Xft.dpi.
+    if WINDOWS:
+        return _windows_dpi()
     try:
         out = subprocess.run(["xrdb", "-query"], capture_output=True, text=True, timeout=2).stdout
     except (OSError, subprocess.SubprocessError):
@@ -52,6 +76,10 @@ def _xft_dpi() -> float:
 
 
 def _font_file(pattern: str) -> str | None:
+    if WINDOWS:
+        name = _WINDOWS_FONTS["symbol" if ":charset=" in pattern else pattern]
+        path = Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "Fonts" / name
+        return str(path) if path.is_file() else None
     try:
         path = subprocess.run(
             ["fc-match", "-f", "%{file}", pattern], capture_output=True, text=True, timeout=2,
@@ -61,12 +89,52 @@ def _font_file(pattern: str) -> str | None:
     return path or None
 
 
+if WINDOWS:
+    # Its own taskbar button, with the window's icon, not Python's.
+    import ctypes
+
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("CustomFF.MyFox")
+    except (AttributeError, OSError):
+        pass
+
 DPI = _xft_dpi()
 SCALE = DPI / 96
 
 
 def px(v: float) -> int:
     return round(v * SCALE)
+
+
+def _font_px() -> int:
+    """dearpygui sizes a font by its line height, not its em: Segoe UI's
+    is a third taller, so Windows' 9 pt UI text needs that much more."""
+    if WINDOWS:
+        return round(9 * DPI / 72 * 1.33)
+    return round(FONT_PT * DPI / 72)
+
+
+# dearpygui wants an .ico for the window's icon on Windows.
+ICONS = ({"small_icon": str(ASSETS / "icon.ico"), "large_icon": str(ASSETS / "icon.ico")} if WINDOWS
+         else {"small_icon": str(ASSETS / "icon-48.png"), "large_icon": str(ASSETS / "icon-256.png")})
+
+
+def fit_viewport(w: int, h: int) -> None:
+    """Makes the window's inside w x h, fixed. Windows counts its frame and
+    title bar into the viewport's size, Linux doesn't: the difference is
+    known once the window is shown."""
+    if WINDOWS:
+        w += max(0, dpg.get_viewport_width() - dpg.get_viewport_client_width())
+        h += max(0, dpg.get_viewport_height() - dpg.get_viewport_client_height())
+    # Max before min (a min above the max is refused), then the size.
+    dpg.set_viewport_max_width(max(w, dpg.get_viewport_width()))
+    dpg.set_viewport_max_height(max(h, dpg.get_viewport_height()))
+    dpg.set_viewport_min_width(w)
+    dpg.set_viewport_min_height(h)
+    dpg.set_viewport_max_width(w)
+    dpg.set_viewport_max_height(h)
+    dpg.set_viewport_width(w)
+    dpg.set_viewport_height(h)
 
 
 def _renderable(text: str) -> bool:
@@ -83,12 +151,12 @@ def symbol_font(char: str) -> int | None:
     if not path:
         return None
     with dpg.font_registry():
-        return dpg.add_font(path, round(FONT_PT * DPI / 72))
+        return dpg.add_font(path, _font_px())
 
 
 def _load_fonts() -> tuple[int | None, int | None]:
     regular, bold = _font_file("sans-serif"), _font_file("sans-serif:bold")
-    size = round(FONT_PT * DPI / 72)
+    size = _font_px()
     fonts = []
     with dpg.font_registry():
         for path, extra in ((regular, 0), (bold, 2)):
@@ -364,7 +432,7 @@ class _Window:
                     self.theme = _combo(self.form.themes, a.theme, lambda v: setattr(a, "theme", v))
                 with self._row(i18n.t("form_doh")) as self.doh_row:
                     self.doh = dpg.add_checkbox(default_value=a.doh, callback=lambda s, value: setattr(a, "doh", value))
-                with self._row(i18n.t("form_command")):
+                with self._row(i18n.t("form_command")) as self.command_row:
                     self.firefox_command = dpg.add_checkbox(
                         default_value=a.firefox_command, callback=lambda s, value: setattr(a, "firefox_command", value),
                     )
@@ -397,6 +465,7 @@ class _Window:
         dpg.configure_item(self.theme_row, show=self.form.theme_applies)
         dpg.configure_item(self.doh_row, show=self.form.doh_applies)
         dpg.configure_item(self.sync_row, show=self.form.sync_applies)
+        dpg.configure_item(self.command_row, show=self.form.command_applies)
         if self.form.error:
             self._show_error(self.form.error)
             dpg.configure_item(self.install, enabled=False)
@@ -414,7 +483,7 @@ class _Window:
 
     def _form_items(self) -> list[int]:
         items = [self.dir_input, self.browse, self.channel, self.sync, self.tweaks, self.theme, self.doh,
-                 self.firefox_command, self.search, self.install]
+                 *([self.firefox_command] if self.form.command_applies else []), self.search, self.install]
         return items + ([self.profile] if self.profile else [])
 
     def _show_error(self, text: str) -> None:
@@ -607,12 +676,13 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     w, h = px(WIN_W), px(WIN_H)
     dpg.create_viewport(
         title="MyFox", width=w, height=h, min_width=w, max_width=w, min_height=h, max_height=h, resizable=False,
-        small_icon=str(ASSETS / "icon-48.png"), large_icon=str(ASSETS / "icon-256.png"), disable_close=True,
+        disable_close=True, **ICONS,
     )
     dpg.set_exit_callback(window.on_cancel)
     dpg.setup_dearpygui()
     dpg.show_viewport()
     dpg.render_dearpygui_frame()
+    fit_viewport(w, h)
     window.langs.scroll_to_value()
     try:
         with signals_to(window.on_signal):
