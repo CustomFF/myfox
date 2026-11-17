@@ -13,6 +13,9 @@ from unittest import mock
 from myfox import gui_deps
 
 
+from ._helpers import WINDOWS, only_linux
+
+
 def _wheel_bytes() -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
@@ -23,6 +26,13 @@ def _wheel_bytes() -> bytes:
 
 
 class WheelNameTests(unittest.TestCase):
+    @unittest.skipUnless(WINDOWS, "Windows only")
+    def test_windows_has_only_the_x64_one_for_its_python(self):
+        self.assertEqual(gui_deps.wheel_name((3, 14), "amd64"), "dearpygui-2.3.1-cp314-cp314-win_amd64.whl")
+        self.assertIsNone(gui_deps.wheel_name((3, 14), "arm64"))
+        self.assertIsNone(gui_deps.wheel_name((3, 12), "amd64"))
+
+    @only_linux
     def test_picks_the_wheel_for_python_and_arch(self):
         self.assertEqual(gui_deps.wheel_name((3, 12), "amd64"), "dearpygui-2.3.1-cp312-cp312-manylinux1_x86_64.whl")
         self.assertEqual(gui_deps.wheel_name((3, 8), "arm64"), "dearpygui-2.3.1-cp38-cp38-manylinux2014_aarch64.whl")

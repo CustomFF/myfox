@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import os
+
 from .. import _vendor
 
 _vendor.ensure_on_path()
@@ -24,7 +26,10 @@ _ICON = Path(__file__).resolve().parent / "assets" / "icon-256.png"
 
 def send(summary: str, body: str) -> bool:
     """True if the desktop took the notification; False without a session
-    bus or a notification service (the caller prints instead)."""
+    bus or a notification service (the caller prints instead). Windows:
+    a message box."""
+    if os.name == "nt":
+        return _message_box(summary, body)
     try:
         with open_dbus_connection(bus="SESSION") as conn:
             # Notify(app_name, replaces_id, app_icon, summary, body, actions, hints, expire_timeout)
@@ -34,3 +39,13 @@ def send(summary: str, body: str) -> bool:
     except (OSError, KeyError, TimeoutError, ValueError, DBusErrorResponse):
         return False
     return True
+
+
+def _message_box(summary: str, body: str) -> bool:
+    import ctypes
+
+    try:
+        # MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND
+        return bool(ctypes.windll.user32.MessageBoxW(None, body, summary, 0x40 | 0x10000))
+    except (AttributeError, OSError):
+        return False

@@ -76,10 +76,22 @@ def _install_cmd(launcher: Path) -> Path:
         f"{exe} -m myfox %*\n",
         encoding="utf-8",
     )
+    # For pythonw (no console window): the Start menu's GUI shortcuts.
+    gui_launcher(launcher).write_text(
+        "import os, runpy, sys\n"
+        "sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n"
+        'runpy.run_module("myfox", run_name="__main__", alter_sys=True)\n',
+        encoding="utf-8",
+    )
     from . import winapi
 
     winapi.add_to_user_path(launcher.parent)
     return launcher
+
+
+def gui_launcher(launcher: Path) -> Path:
+    """Windows: the script pythonw runs MyFox from, beside myfox.cmd."""
+    return launcher.parent / "myfoxw.pyw"
 
 
 def remove_self() -> None:

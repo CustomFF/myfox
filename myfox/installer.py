@@ -199,8 +199,8 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
         undo.created(launcher.link_path())
     launcher_path = launcher.install_self()
     stages.report("gui", i18n.t("progress_gui"))
-    # Windows: not until there are dearpygui wheels for it.
-    if not paths.WINDOWS:
+    # Windows on ARM has no dearpygui: the console is all there is.
+    if not paths.WINDOWS or gui_deps.wheel_name():
         try:
             gui_deps.install_into(launcher.share_dir())
         except (OSError, RuntimeError) as exc:

@@ -32,14 +32,26 @@ def _powershell(script: str) -> None:
 
 
 def _shortcuts(install_dir: Path, launcher: Path, app_name: str) -> list[dict]:
+    """With the GUI (dearpygui next to MyFox) its window, without a console;
+    without it (Windows on ARM) the console's."""
+    from . import launcher as launcher_mod
+
     firefox = str(install_dir / "firefox.exe")
     helper = install_dir / "uninstall" / "helper.exe"
+    pythonw = launcher_mod.python_dir() / "pythonw.exe"
+    script = launcher_mod.gui_launcher(launcher)
+    gui = (launcher_mod.share_dir() / "dearpygui").is_dir() and pythonw.is_file() and script.is_file()
+
+    def myfox(command: str) -> dict:
+        if gui:
+            return {"target": str(pythonw), "args": f'"{script}" {command} --gui'}
+        return {"target": str(launcher), "args": command}
+
     return [
         {"name": app_name, "target": firefox, "args": "", "dir": str(install_dir), "icon": firefox},
-        {"name": i18n.t("desktop_action_refresh"), "target": str(launcher), "args": "refresh",
-         "dir": str(launcher.parent), "icon": firefox},
-        {"name": i18n.t("shortcut_uninstall"), "target": str(launcher), "args": "uninstall",
-         "dir": str(launcher.parent), "icon": str(helper) if helper.is_file() else firefox},
+        {"name": i18n.t("desktop_action_refresh"), **myfox("refresh"), "dir": str(launcher.parent), "icon": firefox},
+        {"name": i18n.t("shortcut_uninstall"), **myfox("uninstall"), "dir": str(launcher.parent),
+         "icon": str(helper) if helper.is_file() else firefox},
     ]
 
 
@@ -48,8 +60,8 @@ def write(install_dir: Path, launcher: Path, app_name: str, version: str) -> Non
     # Rewritten whole: a shortcut named in another language before goes.
     shutil.rmtree(folder, ignore_errors=True)
     folder.mkdir(parents=True, exist_ok=True)
-    items = json.dumps([{**s, "path": str(folder / f"{s['name']}.lnk")}
-                        for s in _shortcuts(install_dir, launcher, app_name)])
+    shortcuts = _shortcuts(install_dir, launcher, app_name)
+    items = json.dumps([{**s, "path": str(folder / f"{s['name']}.lnk")} for s in shortcuts])
     _powershell(
         "$shell = New-Object -ComObject WScript.Shell\n"
         f"foreach ($s in ('{_ps(items)}' | ConvertFrom-Json)) {{\n"
@@ -57,7 +69,8 @@ def write(install_dir: Path, launcher: Path, app_name: str, version: str) -> Non
         "  $l.TargetPath = $s.target; $l.Arguments = $s.args; $l.WorkingDirectory = $s.dir\n"
         "  $l.IconLocation = $s.icon + ',0'; $l.Save()\n"
         "}\n")
-    _write_uninstall_entry(install_dir, launcher, version)
+    uninstall = shortcuts[-1]
+    _write_uninstall_entry(install_dir, launcher, version, f'"{uninstall["target"]}" {uninstall["args"]}')
 
 
 def _ps(text: str) -> str:
@@ -65,13 +78,13 @@ def _ps(text: str) -> str:
     return text.replace("'", "''")
 
 
-def _write_uninstall_entry(install_dir: Path, launcher: Path, version: str) -> None:
+def _write_uninstall_entry(install_dir: Path, launcher: Path, version: str, command: str) -> None:
     import winreg
 
     values = {
         "DisplayName": "MyFox", "DisplayVersion": version, "Publisher": "CustomFF",
         "DisplayIcon": str(install_dir / "firefox.exe"), "InstallLocation": str(launcher.parent.parent),
-        "UninstallString": f'"{launcher}" uninstall', "URLInfoAbout": "https://github.com/CustomFF/myfox",
+        "UninstallString": command, "URLInfoAbout": "https://github.com/CustomFF/myfox",
     }
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY) as key:
         for name, value in values.items():

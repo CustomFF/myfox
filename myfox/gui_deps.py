@@ -47,8 +47,11 @@ _SHA256 = {
     "cp312-cp312-manylinux2014_aarch64": "199dffebda245c9f59aa7c10c3b7f62963237c5f744150ad9be409b27a2661d3",
     "cp313-cp313-manylinux2014_aarch64": "0d8b7a5a04cd4a6e25dbf162aa0405cf12143a1c82b33e371c20e5ba8d9349f3",
     "cp314-cp314-manylinux2014_aarch64": "43a561b5dc589944a3a2b469e5e68f1ab35ae38b3dcdf1f813ed9d6e024153f8",
+    # Windows: only the Python get.ps1 installs; PyPI has no arm64 one.
+    "cp314-cp314-win_amd64": "272cc52c66bc5a4a332f13a3af5e603070d47ca7cc4976e6a8c247594e2b3dd0",
 }
-_PLATFORM = {"amd64": "manylinux1_x86_64", "arm64": "manylinux2014_aarch64"}
+_PLATFORM = ({"amd64": "win_amd64"} if os.name == "nt"
+             else {"amd64": "manylinux1_x86_64", "arm64": "manylinux2014_aarch64"})
 MARKER = ".myfox-wheel"
 
 

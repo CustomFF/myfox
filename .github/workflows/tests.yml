@@ -1,0 +1,25 @@
+name: Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Windows: the Python get.ps1 installs.
+      - if: runner.os == 'Windows'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Tests
+        run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} -m unittest discover -t . -s myfox/tests -p "test_*.py"
