@@ -47,8 +47,12 @@ def _shortcuts(install_dir: Path, launcher: Path, app_name: str) -> list[dict]:
             return {"target": str(pythonw), "args": f'"{script}" {command} --gui'}
         return {"target": str(launcher), "args": command}
 
+    private = install_dir / "private_browsing.exe"
     return [
         {"name": app_name, "target": firefox, "args": "", "dir": str(install_dir), "icon": firefox},
+        # Firefox makes one itself when its first-run screen pins it; the tweaks skip that step.
+        *([{"name": i18n.t("shortcut_private", app_name), "target": str(private), "args": "",
+            "dir": str(install_dir), "icon": str(private)}] if private.is_file() else []),
         {"name": i18n.t("desktop_action_refresh"), **myfox("refresh"), "dir": str(launcher.parent), "icon": firefox},
         {"name": i18n.t("shortcut_uninstall"), **myfox("uninstall"), "dir": str(launcher.parent),
          "icon": str(helper) if helper.is_file() else firefox},

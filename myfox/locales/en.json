@@ -226,6 +226,7 @@
     "desktop_action_preferences": "Preferences",
     "desktop_action_restart": "Restart",
     "desktop_action_refresh": "Update MyFox",
+    "shortcut_private": "{0} Private Browsing",
     "shortcut_uninstall": "Uninstall MyFox",
     "press_any_key": "Press any key to close this window…",
     "summary_moved": "Move from:",
