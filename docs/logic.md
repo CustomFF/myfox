@@ -347,6 +347,59 @@ Firefox, действие заблокировано (проверка раз в
   `restore_sync` возвращает аккаунт и sync-строки из бэкапа в текущий `prefs.js` (остальное, что
   поменялось с тех пор, остаётся); если исходный снова вошёл в аккаунт — не предлагается.
 
+## Windows
+
+Та же логика, что на Linux; отличия собраны в `paths.WINDOWS`-ветках, `winapi.py` (процессы, блокировка,
+PATH, корневые сертификаты — через ctypes), `winshell.py` (меню «Пуск», «Приложения», App Paths) и
+`ui/console.py` (консоль для TUI). Всё на пользователя, без прав администратора.
+
+- **Вход**: `get.ps1` (`irm … | iex`; файлом `.ps1` по умолчанию не запустить — политика выполнения)
+  ставит embeddable-Python с python.org (версия и sha256 закреплены, amd64/arm64) в
+  `%LOCALAPPDATA%\myfox\python`, удаляет его `._pth` (иначе он не читает `PYTHONPATH`), один раз
+  стучится PowerShell-ом на `https://github.com` (см. сертификаты ниже) и запускает `bootstrap.py`
+  этим Python. Дальше как на Linux; `bootstrap.py` вместо `os.execv` запускает установленный `myfox`
+  дочерним процессом.
+- **Каталоги**: всё в `%LOCALAPPDATA%\myfox` (состояние — в `state\`, Firefox по умолчанию — в
+  `firefox\`), профили — в `%APPDATA%\Mozilla\Firefox` (общий с обычным Firefox, как на Linux;
+  новые профили Firefox там кладёт в `Profiles\`); snap/flatpak не ищутся.
+- **Firefox**: архива у Mozilla для Windows нет; полный установщик (`os=win64`/`win64-aarch64`)
+  распаковывается сам с `/ExtractDir=<каталог>` (без прав администратора, ничего не ставя), его
+  `core\` и есть Firefox. Запуск — `firefox.exe` напрямую (обёртка не нужна: отдельную иконку на
+  панели задач и remoting Firefox на Windows разводит по пути установки). Самообновление — в каталоге
+  установки, он пользователю доступен на запись.
+- **Команда `myfox`**: `bin\myfox.cmd` (запускает `python\python.exe -m myfox` с `PYTHONPATH` на
+  каталог MyFox), `bin\` добавляется в PATH пользователя (`HKCU\Environment`, с рассылкой
+  `WM_SETTINGCHANGE`). Для окон без консоли — `bin\myfoxw.pyw` под `pythonw.exe`.
+- **Ярлыки** (`desktop.write_entry` → `winshell.write`): папка MyFox в меню «Пуск» (Firefox, «Обновить
+  MyFox», «Удалить MyFox»; последние два — `pythonw … --gui`, без GUI — консоль) и запись в
+  «Параметры → Приложения» (`HKCU\…\Uninstall\MyFox`). Консольное окно, открытое ярлыком (в консоли
+  только `cmd` и Python), перед закрытием ждёт клавишу.
+- **Команда firefox** (`command.py`): `bin\firefox.cmd` (`start`, чтобы не ждать Firefox) для терминала
+  и пользовательская запись App Paths `firefox.exe` для Win+R и «Выполнить». Чужая пользовательская
+  запись App Paths откладывается в `HKCU\Software\CustomFF\MyFox\AppPathsBackup` и возвращается при
+  выключении.
+- **Открыт ли профиль**: Firefox держит `parent.lock` открытым без общего доступа; процессы установки —
+  по снимку процессов (`CreateToolhelp32Snapshot`) вместо `/proc`.
+- **Корневые сертификаты**: Windows держит на диске не все корни и докачивает остальные, когда они
+  впервые нужны её собственной проверке; Python видит только те, что на диске, и на свежей Windows
+  не открывал `github.com`. При `SSLCertVerificationError` `net.py` просит Windows построить цепочку
+  сертификата сервера (`CertGetCertificateChain`) — корень докачивается — и повторяет соединение.
+- **TUI**: консоль в режимах виртуального терминала (escape-последовательности на выход, клавиши как
+  последовательности Unix-терминала на вход); символы берутся из событий клавиатуры
+  (`ReadConsoleInputW`): `os.read` портит не-ASCII, а `msvcrt` теряет их в псевдоконсоли (SSH). picotui
+  направляется туда подменой методов снаружи, сам не правится.
+- **GUI**: колесо dearpygui `cp314-win_amd64` из релиза `dearpygui-2.3.1` (под arm64 колеса нет — там
+  консоль) и рядом с модулем `msvcp140.dll` из того же релиза (её нет ни на чистой Windows, ни в
+  embeddable-Python; файл Microsoft из поставки Firefox, sha256 закреплён). Шрифт — Segoe UI (9 pt),
+  масштаб — `GetDpiForSystem`, значок — `icon.ico`, свой AppUserModelID; Windows считает рамку окна в
+  его размер, поэтому окно после первого кадра подгоняется (`fit_viewport`). Уведомления — окно
+  сообщения, выбор каталога — диалог Windows.
+- **Удаление**: работающий `python.exe` и читаемый `cmd`-ом `myfox.cmd` удалить нельзя — их удаляет
+  отдельный PowerShell, дождавшись выхода обоих процессов.
+- **about:myfox**: в `myfox.json` на Windows `launch` = `[pythonw.exe, myfoxw.pyw]` (без окна консоли)
+  и `launcher` = `pythonw.exe`, а не `myfox.cmd`: аргументы со страницы (имена профилей, пути) через
+  bat-файл прошли бы разбор `cmd.exe`, где кавычка и `&` выполняют команды.
+
 ## Где что лежит
 
 См. [Файлы и каталоги](https://github.com/CustomFF/myfox/wiki/Файлы-и-каталоги) в wiki.
@@ -376,5 +429,5 @@ Firefox, действие заблокировано (проверка раз в
 | `MYFOX_DDBLM_LOCAL` | букмарклеты из локальной копии ddblm |
 | `MYFOX_DEARPYGUI_DIR` | каталог с колёсами dearpygui вместо релиза |
 | `MYFOX_NMH_DIRS` | где искать native host Plasma (пустой каталог — «пакета нет») |
-| `MYFOX_BIN_DIR` | куда класть симлинк `myfox` вместо `~/.local/bin` |
+| `MYFOX_BIN_DIR` | куда класть симлинк `myfox` вместо `~/.local/bin` (Linux) |
 | `MYFOX_SANDBOX_KEEP_DESKTOP` | `scratch/sandbox.sh` не сбрасывает переменные сессии (тест Plasma) |

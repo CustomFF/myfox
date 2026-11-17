@@ -7,14 +7,21 @@ MyFox is a toolkit for installing and maintaining the official Firefox with
 
 ## Requirements
 
-- Linux, x86_64 or aarch64
-- Python 3.8 or newer
-- curl
+- Linux, x86_64 or aarch64: Python 3.8 or newer, curl
+- Windows 10 or 11, x64 or ARM64: nothing (MyFox brings its own Python)
 
 ## Installing
 
+Linux:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/CustomFF/myfox/master/get.sh | sh
+```
+
+Windows, in PowerShell (not as administrator):
+
+```powershell
+irm https://raw.githubusercontent.com/CustomFF/myfox/master/get.ps1 | iex
 ```
 
 Install modes:
@@ -23,8 +30,9 @@ Install modes:
 - interactive, GUI dialog — `sh -s -- --gui`;
 - non-interactive, default settings — `sh -s -- -y`.
 
-The install is controlled by flags passed after `sh -s --`. All flags are described in the
-[documentation](https://github.com/CustomFF/myfox/wiki).
+The install is controlled by flags passed after `sh -s --`; on Windows,
+`& ([scriptblock]::Create((irm https://raw.githubusercontent.com/CustomFF/myfox/master/get.ps1))) --gui`.
+All flags are described in the [documentation](https://github.com/CustomFF/myfox/wiki).
 
 Firefox is installed into your home directory (by default ~/.local/share/myfox/firefox) with its own
 profile: a new one, or a copy of another Firefox's profile (also snap and flatpak), with the Firefox
@@ -34,14 +42,21 @@ system-wide Firefox is not affected, its profiles are only read.
 After the install, the application menu has a Firefox shortcut and ~/.local/bin has the `myfox`
 command (the directory must be in PATH).
 
+On Windows everything goes into %LOCALAPPDATA%\myfox, for your user only, without administrator
+rights: Firefox (from Mozilla's own installer), python.org's embeddable Python that MyFox runs on, and
+MyFox itself. The Start menu gets a MyFox folder (Firefox, Update MyFox, Uninstall MyFox), Settings >
+Apps lists MyFox, and the `myfox` command works in a new terminal. The GUI dialogs need x64; on ARM64
+the dialogs open in the console.
+
 ## Updating
 
 Firefox updates itself through Mozilla's built-in updater, not through the distribution's
 package manager. The tweaks, the themes and MyFox are updated with `myfox refresh` or the
-"Update MyFox" item in the shortcut's context menu.
+"Update MyFox" item in the shortcut's context menu (on Windows, in the Start menu's MyFox folder).
 
 Updated tweaks take effect after Firefox restarts. `myfox refresh` offers a restart, and the
-shortcut's menu has a "Restart" item; windows and tabs are restored.
+shortcut's menu (Linux) and the tweaks' `about:myfox` page have a "Restart" item; windows and tabs
+are restored.
 
 The tweaks are made for the current Firefox beta and checked on the stable release before it.
 If your Firefox is older and the newest tweaks misbehave on it, go back to the ones made for it:
@@ -73,7 +88,7 @@ More in the [documentation](https://github.com/CustomFF/myfox/wiki/Profiles).
 
 ```text
 myfox reinstall     download Firefox again; the profile is kept
-myfox command on    make the firefox shell command start this Firefox
+myfox command on    make the firefox command start this Firefox (on Windows also Win+R)
 myfox completion    the shell completion script (bash and fish get it on install)
 myfox help          the list of all commands
 ```
@@ -84,9 +99,21 @@ myfox help          the list of all commands
 myfox uninstall
 ```
 
-Removes Firefox, the shortcut, the `myfox` command and ~/.local/share/myfox. The profile
+Or, on Windows, Start menu > MyFox > Uninstall MyFox, or Settings > Apps > MyFox.
+
+Removes Firefox, the shortcut, the `myfox` command and MyFox's directory. The profile
 (bookmarks, history, passwords) is kept; to delete it too, tick "Also delete the profile" in the
 dialog (only profiles MyFox created are deleted). If the install moved the Firefox account into the
 copy, it goes back to the original profile.
+
+## about:myfox and security
+
+The tweaks' `about:myfox` page runs the `myfox` command for its buttons (updates, profiles, the
+firefox command). It is a page of the browser itself: websites can't open it, embed it or reach it,
+and its buttons act only on a click. It runs only what MyFox wrote into the install's `myfox.json`,
+with the arguments handed to the program as they are, never through a shell (on Windows `pythonw`,
+not a batch file, whose `cmd.exe` would read a quote and an `&` in a profile name as commands).
+Replacing those files takes write access to your own home directory, which already allows anything
+done as you; that is not something MyFox can or claims to guard against.
 
 License: [MPL-2.0](LICENSE).
