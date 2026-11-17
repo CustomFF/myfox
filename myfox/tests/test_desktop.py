@@ -64,7 +64,10 @@ class DesktopTests(unittest.TestCase):
         manifest = self.install_dir / "myfox.json"
         data = json.loads(manifest.read_text(encoding="utf-8"))
         if WINDOWS:
+            # Never myfox.cmd: arguments through cmd.exe could run commands.
             self.assertEqual([Path(p).name for p in data.pop("launch")], ["pythonw.exe", "myfoxw.pyw"])
+            self.assertEqual(Path(data.pop("launcher")).name, "pythonw.exe")
+            data["launcher"] = str(Path('/x/my "fox"/bin/myfox'))
         self.assertEqual(data,
                          {"launcher": str(Path('/x/my "fox"/bin/myfox')), "version": myfox.__version__, "features": ["command", "command-backup", "profiles", "update", "profiles-import", "update-check", "profiles-remove", "profiles-new", "profiles-rename"]})
         if not WINDOWS:
