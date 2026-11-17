@@ -51,8 +51,10 @@ class InstallIntoTests(unittest.TestCase):
         self.wheels.mkdir()
         self.name = "dearpygui-2.3.1-cp312-cp312-manylinux1_x86_64.whl"
         (self.wheels / self.name).write_bytes(_wheel_bytes())
+        (self.wheels / gui_deps.RUNTIME).write_bytes(b"runtime")
         tag = "cp312-cp312-manylinux1_x86_64"
         patches = [
+            mock.patch.object(gui_deps, "RUNTIME_SHA256", hashlib.sha256(b"runtime").hexdigest()),
             mock.patch("importlib.util.find_spec", return_value=None),
             mock.patch("myfox.gui_deps.wheel_name", return_value=self.name),
             mock.patch.dict("os.environ", {"MYFOX_DEARPYGUI_DIR": str(self.wheels)}),
@@ -68,6 +70,11 @@ class InstallIntoTests(unittest.TestCase):
         marker = self.root / "share" / "dearpygui" / gui_deps.MARKER
         self.assertEqual(marker.read_text().strip(), "cp312-cp312-manylinux1_x86_64")
         self.assertFalse(any((self.root / "share").glob("*.dist-info")))
+
+    def test_windows_gets_the_cpp_runtime_beside_it(self):
+        with mock.patch("myfox.paths.WINDOWS", True):
+            gui_deps.install_into(self.root / "share")
+        self.assertEqual((self.root / "share" / "dearpygui" / gui_deps.RUNTIME).read_bytes(), b"runtime")
 
     def test_checksum_mismatch_refuses(self):
         (self.wheels / self.name).write_bytes(b"tampered")

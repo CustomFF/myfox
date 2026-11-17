@@ -94,6 +94,14 @@ class SourcesTests(IsolatedStateCase):
             "flatpak:dddd.default-release": ("default-release", sources.FOREIGN),
         })
 
+    def test_windows_has_no_snap_or_flatpak(self):
+        for root in (self.home / "snap" / "firefox" / "common" / ".mozilla" / "firefox",
+                     self.home / ".var" / "app" / "org.mozilla.firefox" / ".mozilla" / "firefox"):
+            self._profile(root, "dddd.default-release")
+            self._ini(root, ("default-release", "dddd.default-release"))
+        with mock.patch("os.name", "nt"), mock.patch("myfox.profiles.native_dir", return_value=self.store):
+            self.assertEqual([s.kind for s in sources.stores()], [""])
+
     @only_linux
     def test_the_flatpak_store_on_the_xdg_path(self):
         app = self.home / ".var" / "app" / "org.mozilla.firefox"

@@ -66,6 +66,8 @@ def search_dirs() -> list[Path]:
     """Ours, then the flatpak's and the snap's. Only for cleaning up: our
     Firefox reads ours alone, so nothing of ours is ever made in the others."""
     dirs = [native_dir()]
+    if os.name == "nt":  # snap and flatpak are Linux's
+        return dirs
     flatpak = Path.home() / ".var" / "app" / "org.mozilla.firefox"
     if flatpak.is_dir():
         dirs.append(flatpak / ".mozilla" / "firefox")

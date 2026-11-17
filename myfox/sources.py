@@ -68,6 +68,8 @@ def _sandbox_store(home: Path) -> Path:
 
 def stores() -> list[Store]:
     result = [Store("", profiles.native_dir())]
+    if os.name == "nt":  # snap and flatpak are Linux's
+        return result
     snap = Path.home() / "snap" / "firefox"
     if snap.is_dir():
         result.append(Store(SNAP, _sandbox_store(snap / "common")))

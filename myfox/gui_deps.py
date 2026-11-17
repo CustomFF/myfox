@@ -24,7 +24,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from . import firefox, net
+from . import firefox, net, paths
 
 # A new dearpygui-<VERSION> release is published by hand with --latest=false:
 # releases/latest must stay the newest core-*, whose changelog.json about:myfox reads.
@@ -50,6 +50,11 @@ _SHA256 = {
     # Windows: only the Python get.ps1 installs; PyPI has no arm64 one.
     "cp314-cp314-win_amd64": "272cc52c66bc5a4a332f13a3af5e603070d47ca7cc4976e6a8c247594e2b3dd0",
 }
+# Windows: the C++ runtime the wheel's module needs and a fresh Windows
+# lacks (Microsoft's, from Firefox's own install, which carries it too);
+# beside the module, as the wheel carries its vcruntime140_1.dll.
+RUNTIME = "msvcp140.dll"
+RUNTIME_SHA256 = "7c26614e1d733892c2deac7e245ce115504b1d80592dd0a01b08e3e5a55f89ca"
 _PLATFORM = ({"amd64": "win_amd64"} if os.name == "nt"
              else {"amd64": "manylinux1_x86_64", "arm64": "manylinux2014_aarch64"})
 MARKER = ".myfox-wheel"
@@ -97,15 +102,9 @@ def install_into(target: Path, reuse_importable: bool = True) -> None:
     if name is None:
         raise RuntimeError(f"no dearpygui {VERSION} wheel for Python {sys.version_info[0]}.{sys.version_info[1]} "
                            f"on {firefox.detect_arch() or 'this architecture'}")
-    local = os.environ.get("MYFOX_DEARPYGUI_DIR")
-    if local:
-        data = (Path(local) / name).read_bytes()
-    else:
-        with urllib.request.urlopen(net.request(f"{RELEASE_URL}/{name}"), timeout=net.TIMEOUT) as resp:
-            data = resp.read()
     tag = name[len(f"dearpygui-{VERSION}-"):-len(".whl")]
-    if hashlib.sha256(data).hexdigest() != _SHA256[tag]:
-        raise RuntimeError(f"{name}: checksum mismatch")
+    data = _fetch(name, _SHA256[tag])
+    runtime = _fetch(RUNTIME, RUNTIME_SHA256) if paths.WINDOWS else None
 
     with tempfile.TemporaryDirectory() as tmp:
         wheel = Path(tmp) / name
@@ -113,9 +112,24 @@ def install_into(target: Path, reuse_importable: bool = True) -> None:
         with zipfile.ZipFile(wheel) as zf:
             members = [m for m in zf.namelist() if m.startswith("dearpygui/")]
             zf.extractall(tmp, members)
+        if runtime is not None:
+            (Path(tmp) / "dearpygui" / RUNTIME).write_bytes(runtime)
         shutil.rmtree(dest, ignore_errors=True)
         shutil.move(str(Path(tmp) / "dearpygui"), str(dest))
     (dest / MARKER).write_text(f"{tag}\n", encoding="utf-8")
+
+
+def _fetch(name: str, sha256: str) -> bytes:
+    """A file of the release (or of MYFOX_DEARPYGUI_DIR), checked."""
+    local = os.environ.get("MYFOX_DEARPYGUI_DIR")
+    if local:
+        data = (Path(local) / name).read_bytes()
+    else:
+        with urllib.request.urlopen(net.request(f"{RELEASE_URL}/{name}"), timeout=net.TIMEOUT) as resp:
+            data = resp.read()
+    if hashlib.sha256(data).hexdigest() != sha256:
+        raise RuntimeError(f"{name}: checksum mismatch")
+    return data
 
 
 # A tiny off-screen window and one frame. Run in a child process: where
@@ -145,7 +159,7 @@ def prepare() -> None:
     copy is left to whatever is on sys.path. Then checks a window can
     actually open, falling back to Mesa's software rendering; raises
     RuntimeError when neither works."""
-    from . import launcher, paths
+    from . import launcher
 
     share = launcher.share_dir()
     if paths.myfox_root().resolve() == share.resolve():
@@ -155,4 +169,4 @@ def prepare() -> None:
     if window_works({"LIBGL_ALWAYS_SOFTWARE": "1"}):
         os.environ["LIBGL_ALWAYS_SOFTWARE"] = "1"  # read when this process opens its window
         return
-    raise RuntimeError("no window could be opened (OpenGL)")
+    raise RuntimeError("no window could be opened" + ("" if paths.WINDOWS else " (OpenGL)"))
