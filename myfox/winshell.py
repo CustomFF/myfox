@@ -101,3 +101,86 @@ def remove() -> None:
         winreg.DeleteKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY)
     except FileNotFoundError:
         pass
+
+
+# ─── The firefox command (command.py) ────────────────────────────────────
+# Win+R, the Run box and Start-Process find a program by name through App
+# Paths, which a user may have of their own (HKCU, no admin rights); a
+# terminal goes by PATH, where bin\firefox.cmd beside myfox.cmd does it.
+
+APP_PATHS_KEY = r"Software\Microsoft\Windows\CurrentVersion\App Paths\firefox.exe"
+BACKUP_KEY = r"Software\CustomFF\MyFox\AppPathsBackup"
+_OURS = "MyFox"  # a value our App Paths entry carries
+
+
+def _read_key(path: str) -> dict | None:
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as key:
+            values, i = {}, 0
+            while True:
+                try:
+                    name, value, kind = winreg.EnumValue(key, i)
+                except OSError:
+                    return values
+                values[name] = (value, kind)
+                i += 1
+    except FileNotFoundError:
+        return None
+
+
+def _write_key(path: str, values: dict) -> None:
+    import winreg
+
+    _delete_key(path)
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, path) as key:
+        for name, (value, kind) in values.items():
+            winreg.SetValueEx(key, name, 0, kind, value)
+
+
+def _delete_key(path: str) -> None:
+    import winreg
+
+    try:
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
+    except FileNotFoundError:
+        pass
+
+
+def app_path() -> tuple[str, bool] | None:
+    """The user's App Paths entry for firefox.exe: (the program it runs,
+    whether it's MyFox's); None if there is none."""
+    values = _read_key(APP_PATHS_KEY)
+    if values is None:
+        return None
+    return str(values.get("", ("", 0))[0]), _OURS in values
+
+
+def app_paths_backup() -> str | None:
+    """What a foreign entry ran, when MyFox has it put aside."""
+    values = _read_key(BACKUP_KEY)
+    return None if values is None else str(values.get("", ("", 0))[0])
+
+
+def set_app_path(firefox: Path) -> None:
+    """Ours, a foreign one put aside first (the caller has checked there's
+    room for it)."""
+    import winreg
+
+    current = _read_key(APP_PATHS_KEY)
+    if current is not None and _OURS not in current:
+        _write_key(BACKUP_KEY, current)
+    _write_key(APP_PATHS_KEY, {"": (str(firefox), winreg.REG_SZ), "Path": (str(firefox.parent), winreg.REG_SZ),
+                               _OURS: (1, winreg.REG_DWORD)})
+
+
+def clear_app_path(restore: bool = True) -> None:
+    """Ours goes; a foreign one put aside comes back unless not restore."""
+    current = _read_key(APP_PATHS_KEY)
+    if current is not None and _OURS in current:
+        _delete_key(APP_PATHS_KEY)
+    backup = _read_key(BACKUP_KEY)
+    if backup is not None and restore and _read_key(APP_PATHS_KEY) is None:
+        _write_key(APP_PATHS_KEY, backup)
+        _delete_key(BACKUP_KEY)

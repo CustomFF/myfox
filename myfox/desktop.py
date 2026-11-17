@@ -103,10 +103,19 @@ def write_manifest(install_dir: Path, launcher: Path) -> Path:
     MyFox from the browser: where `myfox` is, its version, and what it can
     do (features, so the page asks for a capability, not a version). The
     version is the installed package's: a refresh writes this with the
-    old code right after laying down the new core."""
+    old code right after laying down the new core. Windows adds "launch",
+    the command line that runs it without a console window (pythonw), for
+    the page to use instead of the launcher (myfox.cmd) when it has it."""
     manifest = install_dir / MANIFEST_NAME
     version = core.package_version(paths.share_dir() / "myfox") or __version__
-    _write(manifest, _render(MANIFEST_NAME, launcher=json.dumps(str(launcher)), version=json.dumps(version)), 0o644)
+    text = _render(MANIFEST_NAME, launcher=json.dumps(str(launcher)), version=json.dumps(version))
+    if paths.WINDOWS:
+        from . import launcher as launcher_mod
+
+        data = json.loads(text)
+        data["launch"] = [str(launcher_mod.python_dir() / "pythonw.exe"), str(launcher_mod.gui_launcher(launcher))]
+        text = json.dumps(data, indent=4, ensure_ascii=False) + "\n"
+    _write(manifest, text, 0o644)
     return manifest
 
 

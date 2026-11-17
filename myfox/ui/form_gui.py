@@ -432,7 +432,7 @@ class _Window:
                     self.theme = _combo(self.form.themes, a.theme, lambda v: setattr(a, "theme", v))
                 with self._row(i18n.t("form_doh")) as self.doh_row:
                     self.doh = dpg.add_checkbox(default_value=a.doh, callback=lambda s, value: setattr(a, "doh", value))
-                with self._row(i18n.t("form_command")) as self.command_row:
+                with self._row(i18n.t("form_command")):
                     self.firefox_command = dpg.add_checkbox(
                         default_value=a.firefox_command, callback=lambda s, value: setattr(a, "firefox_command", value),
                     )
@@ -465,7 +465,6 @@ class _Window:
         dpg.configure_item(self.theme_row, show=self.form.theme_applies)
         dpg.configure_item(self.doh_row, show=self.form.doh_applies)
         dpg.configure_item(self.sync_row, show=self.form.sync_applies)
-        dpg.configure_item(self.command_row, show=self.form.command_applies)
         if self.form.error:
             self._show_error(self.form.error)
             dpg.configure_item(self.install, enabled=False)
@@ -483,7 +482,7 @@ class _Window:
 
     def _form_items(self) -> list[int]:
         items = [self.dir_input, self.browse, self.channel, self.sync, self.tweaks, self.theme, self.doh,
-                 *([self.firefox_command] if self.form.command_applies else []), self.search, self.install]
+                 self.firefox_command, self.search, self.install]
         return items + ([self.profile] if self.profile else [])
 
     def _show_error(self, text: str) -> None:

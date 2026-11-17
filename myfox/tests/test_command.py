@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
@@ -10,7 +11,7 @@ from unittest import mock
 from myfox import command, i18n
 from myfox.state import State
 
-from ._helpers import IsolatedStateCase, only_linux
+from ._helpers import WINDOWS, IsolatedStateCase, only_linux
 
 
 @only_linux
@@ -185,3 +186,74 @@ class CommandTests(IsolatedStateCase):
         with redirect_stdout(out), mock.patch("myfox.command.enable", side_effect=PermissionError("denied")):
             self.assertEqual(command.run(state, "on", as_json=True), 1)
         self.assertEqual(json.loads(out.getvalue()), {"error": "denied"})
+
+
+@unittest.skipUnless(WINDOWS, "Windows only")
+class WindowsCommandTests(IsolatedStateCase):
+    """The App Paths entry under a throwaway key of the real HKCU."""
+
+    def setUp(self):
+        super().setUp()
+        from myfox import winshell
+
+        base = r"Software\CustomFF\MyFoxTests" + "\\" + os.urandom(4).hex()
+        for name, key in (("APP_PATHS_KEY", base + r"\App Paths\firefox.exe"), ("BACKUP_KEY", base + r"\Backup")):
+            patch = mock.patch.object(winshell, name, key)
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.addCleanup(self._remove_keys, r"Software\CustomFF\MyFoxTests")
+        for target in ("myfox.winapi.in_user_path", "myfox.winapi.add_to_user_path"):
+            patch = mock.patch(target, return_value=True)
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.install_dir = self.tmp_path / "ff"
+        self.install_dir.mkdir()
+        (self.install_dir / "firefox.exe").write_bytes(b"")
+
+    @staticmethod
+    def _remove_keys(base):
+        import winreg
+
+        def drop(path):
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as key:
+                    subs = []
+                    while True:
+                        try:
+                            subs.append(winreg.EnumKey(key, len(subs)))
+                        except OSError:
+                            break
+                for sub in subs:
+                    drop(path + "\\" + sub)
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
+            except FileNotFoundError:
+                pass
+        drop(base)
+        try:  # the CustomFF key too, when this made it
+            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, r"Software\CustomFF")
+        except OSError:
+            pass
+
+    def test_on_sets_app_paths_and_the_cmd_and_off_takes_them_back(self):
+        from myfox import winshell
+
+        command.enable(self.install_dir)
+        self.assertTrue(command.is_on(self.install_dir))
+        self.assertEqual(winshell.app_path(), (str(self.install_dir / "firefox.exe"), True))
+        self.assertIn(str(self.install_dir / "firefox.exe"), command.link_path().read_text(encoding="utf-8"))
+        self.assertTrue(command.disable(self.install_dir))
+        self.assertIsNone(winshell.app_path())
+        self.assertFalse(command.link_path().exists())
+
+    def test_a_foreign_entry_is_kept_and_put_back(self):
+        import winreg
+
+        from myfox import winshell
+
+        winshell._write_key(winshell.APP_PATHS_KEY, {"": (r"C:\Other\firefox.exe", winreg.REG_SZ)})
+        self.assertEqual(command.foreign(), r"C:\Other\firefox.exe")
+        command.enable(self.install_dir)
+        self.assertEqual(winshell.app_paths_backup(), r"C:\Other\firefox.exe")
+        command.disable(self.install_dir)
+        self.assertEqual(winshell.app_path(), (r"C:\Other\firefox.exe", False))
+        self.assertIsNone(winshell.app_paths_backup())

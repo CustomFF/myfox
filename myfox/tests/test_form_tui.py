@@ -54,10 +54,6 @@ class FormTuiTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.form = InstallForm(langs=LANGS, profiles=[])
-        # The scripted keys walk the Linux form, with the shell command row.
-        patch = mock.patch.object(InstallForm, "command_applies", new_callable=mock.PropertyMock, return_value=True)
-        patch.start()
-        self.addCleanup(patch.stop)
         self.form.answers.install_dir = self._tmp.name
         self.form.answers.lang = "en-US"
         self.installed = []

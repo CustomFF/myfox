@@ -62,7 +62,10 @@ class DesktopTests(unittest.TestCase):
         with mock.patch("myfox.desktop._refresh_menu_cache"):
             desktop.write_entry(self.install_dir, Path('/x/my "fox"/bin/myfox'))
         manifest = self.install_dir / "myfox.json"
-        self.assertEqual(json.loads(manifest.read_text(encoding="utf-8")),
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        if WINDOWS:
+            self.assertEqual([Path(p).name for p in data.pop("launch")], ["pythonw.exe", "myfoxw.pyw"])
+        self.assertEqual(data,
                          {"launcher": str(Path('/x/my "fox"/bin/myfox')), "version": myfox.__version__, "features": ["command", "command-backup", "profiles", "update", "profiles-import", "update-check", "profiles-remove", "profiles-new", "profiles-rename"]})
         if not WINDOWS:
             self.assertEqual(stat.S_IMODE(manifest.stat().st_mode), 0o644)

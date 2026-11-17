@@ -498,8 +498,7 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     doh_label = add_row("form_doh", doh)
     doh.hidden = doh_label.hidden = not form.doh_applies
     firefox_command = _Checkbox("", choice=a.firefox_command)
-    if form.command_applies:
-        add_row("form_command", firefox_command)
+    add_row("form_command", firefox_command)
     row += 1
 
     search = _Entry(w - 4, "", hint=i18n.t("form_lang_search"), moves_on=True)

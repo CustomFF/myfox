@@ -9,6 +9,10 @@ aside). A second foreign one is never thrown away over that backup: then
 turning it on refuses. Whether `firefox` will then
 actually find ours depends on PATH: check() says what stands in the way.
 Shell aliases and functions in the user's rc files can't be seen from here.
+
+Windows: bin\\firefox.cmd beside myfox.cmd (on the user's PATH) for a
+terminal, and the user's App Paths entry for Win+R and the Run box
+(winshell.py); a foreign App Paths entry is what gets kept aside there.
 """
 
 from __future__ import annotations
@@ -27,16 +31,40 @@ WRAPPER_NAME = "firefox-myfox"
 
 
 def link_path() -> Path:
+    if paths.WINDOWS:
+        return launcher.launcher_path().parent / (NAME + ".cmd")
     return launcher.link_path().parent / NAME
 
 
+def _registry(key: str) -> Path:
+    """Windows: a registry key, named for people to read."""
+    return Path("HKCU\\" + key)
+
+
 def backup_path() -> Path:
+    if paths.WINDOWS:
+        from . import winshell
+
+        return _registry(winshell.BACKUP_KEY)
     return link_path().with_name(NAME + ".myfox-backup")
 
 
 def backup() -> Path | None:
+    if paths.WINDOWS:
+        from . import winshell
+
+        return backup_path() if winshell.app_paths_backup() is not None else None
     path = backup_path()
     return path if path.is_symlink() or path.exists() else None
+
+
+def _replaced() -> Path:
+    """What a foreign `firefox` is, the one put aside."""
+    if paths.WINDOWS:
+        from . import winshell
+
+        return _registry(winshell.APP_PATHS_KEY)
+    return link_path()
 
 
 class BackupTaken(OSError):
@@ -44,7 +72,7 @@ class BackupTaken(OSError):
 
 
 def wrapper(install_dir: Path) -> Path:
-    return install_dir / WRAPPER_NAME
+    return install_dir / ("firefox.exe" if paths.WINDOWS else WRAPPER_NAME)
 
 
 def _ours(target: str) -> bool:
@@ -53,13 +81,23 @@ def _ours(target: str) -> bool:
 
 
 def is_on(install_dir: Path) -> bool:
+    if paths.WINDOWS:
+        from . import winshell
+
+        return winshell.app_path() == (str(wrapper(install_dir)), True) and link_path().is_file()
     link = link_path()
     return link.is_symlink() and Path(os.readlink(link)) == wrapper(install_dir)
 
 
 def foreign() -> str | None:
     """What a `firefox` in our bin dir that isn't ours is (its target, or
-    the file itself); None when there's nothing there."""
+    the file itself); None when there's nothing there. Windows: what a
+    foreign App Paths entry runs."""
+    if paths.WINDOWS:
+        from . import winshell
+
+        entry = winshell.app_path()
+        return entry[0] if entry is not None and not entry[1] else None
     link = link_path()
     if link.is_symlink():
         target = os.readlink(link)
@@ -75,7 +113,16 @@ def shadow() -> tuple[str, str | None]:
     """Whether `firefox` in this PATH would find the one in our bin dir:
     ("ok", None), ("not_in_path", None) or ("shadowed", the one found first)."""
     ours = link_path().parent.resolve()
-    for entry in os.environ.get("PATH", "").split(os.pathsep):
+    entries = os.environ.get("PATH", "").split(os.pathsep)
+    names = [NAME]
+    if paths.WINDOWS:
+        from . import winapi
+
+        # Set for terminals opened from now on, after the system's PATH.
+        if winapi.in_user_path(link_path().parent):
+            entries.append(str(link_path().parent))
+        names = [NAME + ext.lower() for ext in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(";") if ext]
+    for entry in entries:
         if not entry:
             continue
         directory = Path(entry).expanduser()
@@ -84,8 +131,9 @@ def shadow() -> tuple[str, str | None]:
                 return "ok", None
         except OSError:
             continue
-        if _executable(directory / NAME):
-            return "shadowed", str(directory / NAME)
+        found = next((directory / name for name in names if _executable(directory / name)), None)
+        if found is not None:
+            return "shadowed", str(found)
     return "not_in_path", None
 
 
@@ -94,9 +142,9 @@ def check(install_dir: Path) -> list[str]:
     notes = []
     other = None if is_on(install_dir) else foreign()
     if other and backup():
-        notes.append(i18n.t("command_backup_taken", paths.shown(link_path()), paths.shown(backup_path())))
+        notes.append(i18n.t("command_backup_taken", paths.shown(_replaced()), paths.shown(backup_path())))
     elif other:
-        notes.append(i18n.t("command_replaces", paths.shown(link_path()), other, paths.shown(backup_path())))
+        notes.append(i18n.t("command_replaces", paths.shown(_replaced()), other, paths.shown(backup_path())))
     status, found = shadow()
     if status == "not_in_path":
         notes.append(i18n.t("command_not_in_path", paths.shown(link_path().parent)))
@@ -108,6 +156,16 @@ def check(install_dir: Path) -> list[str]:
 def enable(install_dir: Path) -> None:
     link = link_path()
     if is_on(install_dir):
+        return
+    if paths.WINDOWS:
+        from . import winshell
+
+        if foreign() and backup():
+            raise BackupTaken(i18n.t("command_backup_taken", paths.shown(_replaced()), paths.shown(backup_path())))
+        winshell.set_app_path(wrapper(install_dir))
+        link.parent.mkdir(parents=True, exist_ok=True)
+        # start: a batch file would otherwise wait for Firefox to quit.
+        link.write_text(f'@start "" "{wrapper(install_dir)}" %*\n', encoding="utf-8")
         return
     link.parent.mkdir(parents=True, exist_ok=True)
     if foreign():
@@ -126,6 +184,11 @@ def disable(install_dir: Path, keep_backup: bool = False) -> bool:
     if not is_on(install_dir):
         return False
     link_path().unlink()
+    if paths.WINDOWS:
+        from . import winshell
+
+        winshell.clear_app_path(restore=not keep_backup)
+        return True
     kept = backup()
     if kept and not keep_backup:
         kept.rename(link_path())

@@ -225,11 +225,6 @@ class InstallForm:
     def doh_applies(self) -> bool:
         return self.answers.tweaks
 
-    @property
-    def command_applies(self) -> bool:
-        """The `firefox` shell command (command.py) is a Linux thing."""
-        return not paths.WINDOWS
-
     def filter_langs(self, query: str) -> list[Lang]:
         return [lang for lang in self.langs if lang.matches(query)]
 
@@ -289,8 +284,7 @@ def summary(answers: Answers) -> list[str]:
         rows.append((i18n.t("form_theme"), i18n.t(f"wizard_theme_{answers.theme}")))
         rows.append((i18n.t("form_doh"), i18n.t("summary_yes" if answers.doh else "summary_no")))
     rows.append((i18n.t("form_lang"), answers.lang))
-    if not paths.WINDOWS:
-        rows.append((i18n.t("form_command"), i18n.t("summary_yes" if answers.firefox_command else "summary_no")))
+    rows.append((i18n.t("form_command"), i18n.t("summary_yes" if answers.firefox_command else "summary_no")))
     width = max(len(label) for label, _value in rows)
     run = i18n.t("install_done_run_windows" if paths.WINDOWS else "install_done_run",
                  "Firefox Beta" if answers.channel == "beta" else "Firefox")
