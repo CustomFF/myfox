@@ -73,12 +73,17 @@ def _install_cmd(launcher: Path) -> Path:
     launcher.write_text(
         "@echo off\n"
         'set "PYTHONPATH=%~dp0..;%PYTHONPATH%"\n'
-        f"{exe} -m myfox %*\n",
+        # UTF-8 mode: what goes into a pipe (--json) isn't the ANSI code page's.
+        f"{exe} -X utf8 -m myfox %*\n",
         encoding="utf-8",
     )
     # For pythonw (no console window): the Start menu's GUI shortcuts.
     gui_launcher(launcher).write_text(
         "import os, runpy, sys\n"
+        "# UTF-8 into pipes (about:myfox reads --json): the ANSI code page otherwise.\n"
+        "for stream in (sys.stdout, sys.stderr):\n"
+        "    if stream is not None:\n"
+        '        stream.reconfigure(encoding="utf-8")\n'
         "sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n"
         'runpy.run_module("myfox", run_name="__main__", alter_sys=True)\n',
         encoding="utf-8",

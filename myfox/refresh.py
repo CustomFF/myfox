@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import addons, apply, changelog, completion, core, desktop, firefox, i18n, launcher, profile_commands, sources, tweaks
+from . import addons, apply, changelog, completion, core, desktop, firefox, i18n, launcher, paths, profile_commands, sources, tweaks
 from . import task as task_mod
 from .install_form import Progress
 from .state import State
@@ -206,6 +206,12 @@ def sync_shortcut(state: State) -> None:
     profile list while our Firefox is closed; a failure is no reason to
     fail the run."""
     install_dir = state.get("install_dir")
+    if paths.WINDOWS and launcher.launcher_path().is_file():
+        # Its myfox.cmd and myfoxw.pyw are written, not linked: a new core's go in.
+        try:
+            launcher.install_self()
+        except OSError:
+            pass
     if install_dir and Path(install_dir).is_dir():
         try:
             desktop.write_entry(Path(install_dir), launcher.launcher_path())
