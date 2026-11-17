@@ -10,9 +10,10 @@ from unittest import mock
 from myfox import command, i18n
 from myfox.state import State
 
-from ._helpers import IsolatedStateCase
+from ._helpers import IsolatedStateCase, only_linux
 
 
+@only_linux
 class CommandTests(IsolatedStateCase):
     def setUp(self):
         super().setUp()

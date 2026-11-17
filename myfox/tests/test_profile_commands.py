@@ -13,13 +13,13 @@ from myfox import __main__ as cli
 from myfox import i18n, importer, paths, profile_commands, profiles
 from myfox.state import State
 
-from ._helpers import IsolatedStateCase
+from ._helpers import IsolatedStateCase, firefox_store
 
 
 class ProfileListTests(IsolatedStateCase):
     def setUp(self):
         super().setUp()
-        self.store = Path.home() / ".mozilla" / "firefox"
+        self.store = firefox_store()
         self.install = self.tmp_path / "firefox"
         self.install.mkdir()
         entries = []
@@ -150,7 +150,7 @@ class _ProfileCase(IsolatedStateCase):
 
     def setUp(self):
         super().setUp()
-        self.store = Path.home() / ".mozilla" / "firefox"
+        self.store = firefox_store()
         self.install = self.tmp_path / "firefox"
         self.install.mkdir()
         self.used = self._profile("myfox-1", "myfox", created=True, tweaked=True, last=self.install)

@@ -69,7 +69,8 @@ def settled(progress: Progress) -> Progress:
 def signals_to(handler: Callable[[int], None]) -> Iterator[None]:
     """While running work, ^C, a kill or a closed terminal go to `handler`
     instead of ending the process halfway through. Main thread only."""
-    caught = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    # Windows has no SIGHUP.
+    caught = [getattr(signal, name) for name in ("SIGINT", "SIGTERM", "SIGHUP") if hasattr(signal, name)]
     previous = {sig: signal.signal(sig, lambda signum, _frame: handler(signum)) for sig in caught}
     try:
         yield
@@ -224,6 +225,11 @@ class InstallForm:
     def doh_applies(self) -> bool:
         return self.answers.tweaks
 
+    @property
+    def command_applies(self) -> bool:
+        """The `firefox` shell command (command.py) is a Linux thing."""
+        return not paths.WINDOWS
+
     def filter_langs(self, query: str) -> list[Lang]:
         return [lang for lang in self.langs if lang.matches(query)]
 
@@ -283,9 +289,12 @@ def summary(answers: Answers) -> list[str]:
         rows.append((i18n.t("form_theme"), i18n.t(f"wizard_theme_{answers.theme}")))
         rows.append((i18n.t("form_doh"), i18n.t("summary_yes" if answers.doh else "summary_no")))
     rows.append((i18n.t("form_lang"), answers.lang))
-    rows.append((i18n.t("form_command"), i18n.t("summary_yes" if answers.firefox_command else "summary_no")))
+    if not paths.WINDOWS:
+        rows.append((i18n.t("form_command"), i18n.t("summary_yes" if answers.firefox_command else "summary_no")))
     width = max(len(label) for label, _value in rows)
-    return [i18n.t("install_done"), *(f"  {label.ljust(width)} {value}" for label, value in rows), i18n.t("install_done_run", "Firefox Beta" if answers.channel == "beta" else "Firefox")]
+    run = i18n.t("install_done_run_windows" if paths.WINDOWS else "install_done_run",
+                 "Firefox Beta" if answers.channel == "beta" else "Firefox")
+    return [i18n.t("install_done"), *(f"  {label.ljust(width)} {value}" for label, value in rows), run]
 
 
 def simulate_install(answers: Answers, progress: Progress) -> None:

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from myfox import profiles
+from myfox import paths, profiles
+
+from ._helpers import WINDOWS, only_linux
 
 
 class IsolatedHomeCase(unittest.TestCase):
@@ -17,12 +20,22 @@ class IsolatedHomeCase(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.home = Path(self._tmp.name)
-        env = {"HOME": str(self.home), "XDG_CONFIG_HOME": str(self.home / ".config")}
+        env = {"HOME": str(self.home), "XDG_CONFIG_HOME": str(self.home / ".config"),
+               "USERPROFILE": str(self.home), "APPDATA": str(self.home / "AppData" / "Roaming"),
+               "LOCALAPPDATA": str(self.home / "AppData" / "Local"), "SYSTEMROOT": os.environ.get("SYSTEMROOT", "")}
         patcher = mock.patch.dict("os.environ", env, clear=True)
         patcher.start()
         self.addCleanup(patcher.stop)
 
+    @property
+    def store(self) -> Path:
+        """Our Firefox's profile store here (profiles.native_dir() once it exists)."""
+        if WINDOWS:
+            return self.home / "AppData" / "Roaming" / "Mozilla" / "Firefox"
+        return self.home / ".mozilla" / "firefox"
 
+
+@only_linux
 class NativeDirTests(IsolatedHomeCase):
     def test_prefers_legacy_path_when_it_exists(self):
         (self.home / ".mozilla" / "firefox").mkdir(parents=True)
@@ -40,7 +53,7 @@ class ParseAndResolveTests(IsolatedHomeCase):
     )
 
     def _write_ini(self) -> Path:
-        store = self.home / ".mozilla" / "firefox"
+        store = self.store
         store.mkdir(parents=True)
         ini = store / "profiles.ini"
         ini.write_text(self.INI_TEXT, encoding="utf-8")
@@ -58,7 +71,7 @@ class ParseAndResolveTests(IsolatedHomeCase):
         entries = profiles.parse_profiles(ini)
         ini_dir = ini.parent
         self.assertEqual(profiles.resolve_dir(ini_dir, entries[1]), ini_dir / "myfox-1")
-        self.assertEqual(profiles.resolve_dir(ini_dir, entries[2]), Path("/somewhere/else"))
+        self.assertEqual(profiles.resolve_dir(ini_dir, entries[2]), ini_dir / "/somewhere/else")
 
     def test_find_ini_locates_it(self):
         ini = self._write_ini()
@@ -67,6 +80,7 @@ class ParseAndResolveTests(IsolatedHomeCase):
     def test_find_ini_returns_none_when_absent(self):
         self.assertIsNone(profiles.find_ini())
 
+    @only_linux
     def test_a_sandboxed_firefox_store_is_never_ours(self):
         flatpak = Path.home() / ".var" / "app" / "org.mozilla.firefox" / ".mozilla" / "firefox"
         flatpak.mkdir(parents=True)
@@ -77,6 +91,7 @@ class ParseAndResolveTests(IsolatedHomeCase):
         self.assertEqual(created.parent, profiles.native_dir())
         self.assertNotIn("myfox", (flatpak / "profiles.ini").read_text(encoding="utf-8"))
 
+    @only_linux
     def test_cleanup_also_reaches_an_entry_left_in_a_sandbox_store(self):
         flatpak = Path.home() / ".var" / "app" / "org.mozilla.firefox" / ".mozilla" / "firefox"
         (flatpak / "myfox-1").mkdir(parents=True)
@@ -102,7 +117,7 @@ class CreateNewTests(IsolatedHomeCase):
         self.assertEqual(entries[0].path, "myfox-1")
 
     def test_numbering_skips_existing_myfox_dirs(self):
-        store = self.home / ".mozilla" / "firefox"
+        store = self.store
         store.mkdir(parents=True)
         (store / "myfox-1").mkdir()
         profile_dir = profiles.create_new()
@@ -150,7 +165,7 @@ class SectionRoundTripTests(IsolatedHomeCase):
 
 class RegisterEntryTests(IsolatedHomeCase):
     def test_registers_a_new_relative_entry(self):
-        store = self.home / ".mozilla" / "firefox"
+        store = self.store
         store.mkdir(parents=True)
         ini = store / "profiles.ini"
         ini.write_text("", encoding="utf-8")
@@ -164,7 +179,7 @@ class RegisterEntryTests(IsolatedHomeCase):
         self.assertTrue(entries[0].is_relative)
 
     def test_is_idempotent_for_the_same_directory(self):
-        store = self.home / ".mozilla" / "firefox"
+        store = self.store
         store.mkdir(parents=True)
         ini = store / "profiles.ini"
         ini.write_text("", encoding="utf-8")
@@ -179,7 +194,7 @@ class RegisterEntryTests(IsolatedHomeCase):
 
 class RemoveMyfoxSectionTests(IsolatedHomeCase):
     def test_removes_only_the_matching_directorys_section(self):
-        store = self.home / ".mozilla" / "firefox"
+        store = self.store
         store.mkdir(parents=True)
         ini = store / "profiles.ini"
         ini.write_text(
@@ -196,7 +211,7 @@ class RemoveMyfoxSectionTests(IsolatedHomeCase):
         self.assertEqual([(e.section, e.path) for e in profiles.parse_profiles(ini)], [("Profile0", "myfox-2")])
 
     def test_the_numbers_after_it_close_up(self):
-        store = self.home / ".mozilla" / "firefox"
+        store = self.store
         store.mkdir(parents=True)
         ini = store / "profiles.ini"
         ini.write_text(
@@ -211,7 +226,7 @@ class RemoveMyfoxSectionTests(IsolatedHomeCase):
         self.assertIn("[InstallABC]\nDefault=bbbb.dev\n", ini.read_text(encoding="utf-8"))
 
     def test_a_new_one_after_a_gap_left_earlier_closes_it(self):
-        store = self.home / ".mozilla" / "firefox"
+        store = self.store
         store.mkdir(parents=True)
         (store / "profiles.ini").write_text(
             "[Profile0]\nName=a\nIsRelative=1\nPath=a\n\n[Profile2]\nName=b\nIsRelative=1\nPath=b\n",
@@ -228,7 +243,7 @@ class PinInstallTests(IsolatedHomeCase):
     binary path is verified once, live, in scratch/ (see commit)."""
 
     def _make_store_with_ini(self) -> Path:
-        store = self.home / ".mozilla" / "firefox"
+        store = self.store
         store.mkdir(parents=True)
         (store / "profiles.ini").write_text("", encoding="utf-8")
         return store
@@ -237,7 +252,7 @@ class PinInstallTests(IsolatedHomeCase):
         store = self._make_store_with_ini()
         install_dir = self.home / "install"
         install_dir.mkdir()
-        binary = install_dir / "firefox"
+        binary = paths.firefox_binary(install_dir)
         binary.write_text("#!/bin/sh\n", encoding="utf-8")
         binary.chmod(0o755)
         our_profile = store / "myfox-1"
@@ -256,7 +271,7 @@ class PinInstallTests(IsolatedHomeCase):
         store = self._make_store_with_ini()
         install_dir = self.home / "install"
         install_dir.mkdir()
-        binary = install_dir / "firefox"
+        binary = paths.firefox_binary(install_dir)
         binary.write_text("#!/bin/sh\n", encoding="utf-8")
         binary.chmod(0o755)
         our_profile = store / "myfox-1"
@@ -276,11 +291,34 @@ class PinInstallTests(IsolatedHomeCase):
         self.assertIsNone(result)  # no hash was ever written, by design of this fake
         self.assertFalse((store / "abcd1234.default-release").exists())
 
+    def test_headless_once_purges_one_made_in_profiles_as_on_windows(self):
+        store = self._make_store_with_ini()
+        install_dir = self.home / "install"
+        install_dir.mkdir()
+        paths.firefox_binary(install_dir).write_text("", encoding="utf-8")
+        our_profile = store / "myfox-1"
+        our_profile.mkdir()
+        ini = store / "profiles.ini"
+
+        def fake_run(*args, **kwargs):
+            stray = store / "Profiles" / "abcd1234.default-release"
+            stray.mkdir(parents=True)
+            (stray / "prefs.js").write_text("", encoding="utf-8")
+            ini.write_text("[Profile0]\nName=default-release\nIsRelative=1\nPath=Profiles/abcd1234.default-release\n",
+                           encoding="utf-8")
+            return mock.Mock(returncode=0)
+
+        with mock.patch("subprocess.run", side_effect=fake_run):
+            profiles.headless_once(install_dir, our_profile)
+        self.assertFalse((store / "Profiles").exists())
+        self.assertNotIn("default-release", ini.read_text(encoding="utf-8"))
+
+    @only_linux
     def test_headless_once_removes_what_the_first_start_left_outside_the_store(self):
         store = self._make_store_with_ini()
         install_dir = self.home / "install"
         install_dir.mkdir()
-        binary = install_dir / "firefox"
+        binary = paths.firefox_binary(install_dir)
         binary.write_text("#!/bin/sh\n", encoding="utf-8")
         binary.chmod(0o755)
         our_profile = store / "myfox-1"
@@ -303,11 +341,12 @@ class PinInstallTests(IsolatedHomeCase):
         self.assertFalse((self.home / "Downloads").exists())
         self.assertTrue((self.home / "Music").is_dir())
 
+    @only_linux
     def test_headless_once_keeps_a_cache_store_and_folders_that_were_in_use(self):
         store = self._make_store_with_ini()
         install_dir = self.home / "install"
         install_dir.mkdir()
-        binary = install_dir / "firefox"
+        binary = paths.firefox_binary(install_dir)
         binary.write_text("#!/bin/sh\n", encoding="utf-8")
         binary.chmod(0o755)
         cache = self.home / ".cache" / "mozilla" / "firefox"
@@ -338,7 +377,7 @@ class PinInstallTests(IsolatedHomeCase):
         store = self._make_store_with_ini()
         install_dir = self.home / "install"
         install_dir.mkdir()
-        binary = install_dir / "firefox"
+        binary = paths.firefox_binary(install_dir)
         binary.write_text("#!/bin/sh\n", encoding="utf-8")
         binary.chmod(0o755)
         our_profile = store / "myfox-1"

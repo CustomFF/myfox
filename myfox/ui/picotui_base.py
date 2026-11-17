@@ -20,6 +20,10 @@ from picotui.screen import Screen  # noqa: E402 (must follow ensure_on_path())
 from picotui.widgets import Dialog, WButton  # noqa: E402
 from picotui.defs import C_WHITE, C_BLACK, C_RED, C_BLUE, C_CYAN  # noqa: E402
 
+from . import console  # noqa: E402
+
+console.use_for_picotui()
+
 BOX_BG = (C_BLACK, C_WHITE)
 SHADOW_BG = (C_BLACK, C_BLACK)
 BTN_BG = (C_WHITE, C_BLUE)

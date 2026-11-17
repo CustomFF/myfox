@@ -12,7 +12,7 @@ from unittest import mock
 
 from myfox import __main__, completion, i18n
 
-from ._helpers import IsolatedStateCase
+from ._helpers import IsolatedStateCase, only_linux
 
 
 def _profiles(state, command):
@@ -82,6 +82,7 @@ class CompleteTests(IsolatedStateCase):
         self.assertEqual(out.getvalue(), completion.SCRIPTS["fish"])
 
 
+@only_linux
 class InstallTests(IsolatedStateCase):
     def setUp(self):
         super().setUp()

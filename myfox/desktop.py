@@ -133,7 +133,15 @@ def write_entry(install_dir: Path, launcher: Path) -> Path:
     profiles.pin_install); a hard path would break a re-created profile.
     The Restart action's --myfox-restart is handled by the tweaks (158.1+):
     the running Firefox restarts itself, session restored; when it isn't
-    running, it just starts."""
+    running, it just starts. Windows: the Start menu's MyFox folder and the
+    entry among the installed apps instead (winshell.py)."""
+    if paths.WINDOWS:
+        from . import winshell
+
+        write_manifest(install_dir, launcher)
+        version = core.package_version(paths.share_dir() / "myfox") or __version__
+        winshell.write(install_dir, launcher, _name(install_dir), version)
+        return winshell.start_menu_dir()
     wrapper = write_wrapper(install_dir)
     write_manifest(install_dir, launcher)
     path = desktop_file()
@@ -144,6 +152,11 @@ def write_entry(install_dir: Path, launcher: Path) -> Path:
 
 
 def remove_entry() -> None:
+    if paths.WINDOWS:
+        from . import winshell
+
+        winshell.remove()
+        return
     desktop_file().unlink(missing_ok=True)
     _refresh_menu_cache()
 

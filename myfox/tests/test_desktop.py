@@ -12,18 +12,22 @@ from unittest import mock
 import myfox
 from myfox import desktop, launcher
 
+from ._helpers import WINDOWS, only_linux
+
 
 class DesktopTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
-        patcher = mock.patch.dict("os.environ", {"XDG_DATA_HOME": str(self.root / "data")})
+        patcher = mock.patch.dict("os.environ", {"XDG_DATA_HOME": str(self.root / "data"),
+                                                 "LOCALAPPDATA": str(self.root / "data")})
         patcher.start()
         self.addCleanup(patcher.stop)
         self.install_dir = self.root / "firefox"
         self.install_dir.mkdir()
 
+    @only_linux
     def test_entry_runs_the_wrapper_and_offers_a_refresh_action(self):
         with mock.patch("myfox.desktop._refresh_menu_cache"):
             path = desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))
@@ -37,6 +41,7 @@ class DesktopTests(unittest.TestCase):
         self.assertTrue(os.access(wrapper, os.X_OK))
         self.assertIn(f'exec "{self.install_dir / "firefox"}" "$@"', wrapper.read_text(encoding="utf-8"))
 
+    @only_linux
     def test_wrapper_started_from_a_deleted_directory_runs_firefox_from_home(self):
         with mock.patch("myfox.desktop._refresh_menu_cache"):
             desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))
@@ -58,8 +63,9 @@ class DesktopTests(unittest.TestCase):
             desktop.write_entry(self.install_dir, Path('/x/my "fox"/bin/myfox'))
         manifest = self.install_dir / "myfox.json"
         self.assertEqual(json.loads(manifest.read_text(encoding="utf-8")),
-                         {"launcher": '/x/my "fox"/bin/myfox', "version": myfox.__version__, "features": ["command", "command-backup", "profiles", "update", "profiles-import", "update-check", "profiles-remove", "profiles-new", "profiles-rename"]})
-        self.assertEqual(stat.S_IMODE(manifest.stat().st_mode), 0o644)
+                         {"launcher": str(Path('/x/my "fox"/bin/myfox')), "version": myfox.__version__, "features": ["command", "command-backup", "profiles", "update", "profiles-import", "update-check", "profiles-remove", "profiles-new", "profiles-rename"]})
+        if not WINDOWS:
+            self.assertEqual(stat.S_IMODE(manifest.stat().st_mode), 0o644)
 
     def test_manifest_has_the_installed_packages_version(self):
         package = self.root / "data" / "myfox" / "myfox"
@@ -68,6 +74,7 @@ class DesktopTests(unittest.TestCase):
         desktop.write_manifest(self.install_dir, Path("/x/bin/myfox"))
         self.assertEqual(json.loads((self.install_dir / "myfox.json").read_text(encoding="utf-8"))["version"], "9.9.9")
 
+    @only_linux
     def test_menu_cache_refresh_tells_both_caches(self):
         present = {"update-desktop-database", "kbuildsycoca6", "kbuildsycoca5"}
         with mock.patch("shutil.which", side_effect=lambda name: name if name in present else None), \
@@ -76,6 +83,7 @@ class DesktopTests(unittest.TestCase):
         ran = [call.args[0][0] for call in run.call_args_list]
         self.assertEqual(ran, ["update-desktop-database", "kbuildsycoca6"])
 
+    @only_linux
     def test_templates_of_the_installed_myfox_win(self):
         # A core update lays down new templates before the old code writes.
         installed = self.root / "data" / "myfox" / "myfox" / "templates"
@@ -89,6 +97,7 @@ class DesktopTests(unittest.TestCase):
         self.assertIn(f'exec "{self.install_dir / "firefox"}" "$@"',
                       (self.install_dir / "firefox-myfox").read_text(encoding="utf-8"))
 
+    @only_linux
     def test_entry_texts_come_from_every_locale_catalog(self):
         # A translation is only a catalog: de.json here, with no template change.
         installed = self.root / "data" / "myfox" / "myfox"
@@ -106,6 +115,7 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual(text, "[Desktop Entry]\nComment=Fast\nComment[de]=Schnell\nComment[ru]=Быстрый\n"
                                "Name=Restart\n")
 
+    @only_linux
     def test_shipped_entry_has_the_russian_texts(self):
         with mock.patch("myfox.desktop._refresh_menu_cache"):
             text = desktop.write_entry(self.install_dir, Path("/x/bin/myfox")).read_text(encoding="utf-8")
@@ -113,6 +123,7 @@ class DesktopTests(unittest.TestCase):
         self.assertIn("\nName=Restart\nName[ru]=Перезапустить\n", text)
         self.assertNotIn("@T:", text)
 
+    @only_linux
     def test_an_unchanged_entry_is_not_rewritten(self):
         with mock.patch("myfox.desktop._refresh_menu_cache") as refresh_cache:
             path = desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))
@@ -121,6 +132,7 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual(refresh_cache.call_count, 1)
         self.assertEqual(path.stat().st_mtime_ns, mtime)
 
+    @only_linux
     def test_entry_is_named_after_the_installs_channel(self):
         for channel, name in (("release", "Firefox"), ("beta", "Firefox Beta")):
             prefs = self.install_dir / "defaults/pref/channel-prefs.js"
@@ -133,6 +145,7 @@ class DesktopTests(unittest.TestCase):
         self.assertIn("\nComment[ru]=Быстрый и приватный браузер\n", text)
         self.assertNotIn("@", text.replace("%u", ""))
 
+    @only_linux
     def test_remove_entry(self):
         with mock.patch("myfox.desktop._refresh_menu_cache"):
             desktop.write_entry(self.install_dir, Path("/x/bin/myfox"))
@@ -140,6 +153,7 @@ class DesktopTests(unittest.TestCase):
         self.assertFalse(desktop.desktop_file().exists())
 
 
+@only_linux
 class LauncherTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

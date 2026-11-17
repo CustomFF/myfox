@@ -12,6 +12,8 @@ from typing import Any
 
 
 def state_dir() -> Path:
+    if os.name == "nt":
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "myfox" / "state"
     base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
     return Path(base) / "myfox"
 

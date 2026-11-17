@@ -31,10 +31,22 @@ def _env_language() -> str | None:
     return None
 
 
+def windows_language() -> str | None:
+    """The Windows display language (ru_RU): locale.getlocale() names it
+    Russian_Russia there, and Windows sets no LANG."""
+    try:
+        import ctypes
+
+        return _locale.windows_locale.get(ctypes.windll.kernel32.GetUserDefaultUILanguage())
+    except (ImportError, AttributeError, OSError):
+        return None
+
+
 def detect(preferred: str | None = None) -> str:
-    """Explicit code, else the environment, else the C library's locale, else
+    """Explicit code, else the environment, else the system's language, else
     en — and en if there's no catalog for it."""
-    candidate = preferred or _env_language() or _locale.getlocale()[0] or "en"
+    system = windows_language() if os.name == "nt" else _locale.getlocale()[0]
+    candidate = preferred or _env_language() or system or "en"
     code = _normalize(candidate)
     return code if (_LOCALES_DIR / f"{code}.json").is_file() else "en"
 

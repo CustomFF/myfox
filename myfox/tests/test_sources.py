@@ -8,14 +8,14 @@ from unittest import mock
 
 from myfox import i18n, sources
 
-from ._helpers import IsolatedStateCase
+from ._helpers import WINDOWS, IsolatedStateCase, firefox_store, only_linux
 
 
 class SourcesTests(IsolatedStateCase):
     def setUp(self):
         super().setUp()
         self.home = Path.home()
-        self.store = self.home / ".mozilla" / "firefox"
+        self.store = firefox_store()
         self.install = self.tmp_path / "firefox"
         self.install.mkdir()
 
@@ -80,6 +80,7 @@ class SourcesTests(IsolatedStateCase):
         self._ini(self.store, ("work", "aaaa.work"))
         self.assertEqual(sources.listing(None)[0].owner, sources.FOREIGN)
 
+    @only_linux
     def test_snap_and_flatpak_get_a_prefix_and_are_foreign(self):
         self._ini(self.store)
         snap = self.home / "snap" / "firefox" / "common" / ".mozilla" / "firefox"
@@ -93,6 +94,7 @@ class SourcesTests(IsolatedStateCase):
             "flatpak:dddd.default-release": ("default-release", sources.FOREIGN),
         })
 
+    @only_linux
     def test_the_flatpak_store_on_the_xdg_path(self):
         app = self.home / ".var" / "app" / "org.mozilla.firefox"
         self._profile(app / "config" / "mozilla" / "firefox", "eeee.default")
@@ -200,6 +202,7 @@ class InUseTests(IsolatedStateCase):
     def test_no_lock_is_free(self):
         self.assertFalse(sources.in_use(self._profile()))
 
+    @only_linux
     def test_a_lock_of_a_live_firefox(self):
         p = self._profile()
         os.symlink(f"127.0.1.1:+{os.getpid()}", p.path / "lock")
@@ -207,11 +210,13 @@ class InUseTests(IsolatedStateCase):
                         else "/usr/lib/firefox/firefox"):
             self.assertTrue(sources.in_use(p))
 
+    @only_linux
     def test_a_stale_lock_whose_pid_is_now_something_else(self):
         p = self._profile()
         os.symlink(f"127.0.1.1:+{os.getpid()}", p.path / "lock")  # this python, not a firefox
         self.assertFalse(sources.in_use(p))
 
+    @only_linux
     def test_flatpak_goes_by_the_running_processes(self):
         p = self._profile(sources.FLATPAK)
         os.symlink("127.0.1.1:+2", p.path / "lock")
@@ -219,6 +224,22 @@ class InUseTests(IsolatedStateCase):
             self.assertTrue(sources.in_use(p))
         with mock.patch("myfox.sources._flatpak_running", return_value=False):
             self.assertFalse(sources.in_use(p))
+
+    @unittest.skipUnless(WINDOWS, "Windows only")
+    def test_a_parent_lock_held_unshared_is_a_running_firefox(self):
+        import ctypes
+        from ctypes import wintypes
+
+        p = self._profile()
+        create = ctypes.windll.kernel32.CreateFileW
+        create.restype = wintypes.HANDLE
+        # What Firefox does: read/write, no sharing, gone once closed.
+        handle = create(str(p.path / "parent.lock"), 0xC0000000, 0, None, 2, 0x04000000, None)
+        try:
+            self.assertTrue(sources.in_use(p))
+        finally:
+            ctypes.windll.kernel32.CloseHandle(wintypes.HANDLE(handle))
+        self.assertFalse(sources.in_use(p))
 
 
 class DowngradeTests(unittest.TestCase):

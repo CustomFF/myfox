@@ -9,6 +9,8 @@ from unittest import mock
 from myfox import importer
 from myfox.install_form import Cancelled
 
+from ._helpers import WINDOWS, only_linux
+
 PREFS = (
     '// Mozilla User Preferences\n'
     'user_pref("browser.startup.page", 3);\n'
@@ -34,13 +36,17 @@ class ImporterTests(unittest.TestCase):
         for rel, text in files.items():
             (self.src / rel).parent.mkdir(parents=True, exist_ok=True)
             (self.src / rel).write_text(text, encoding="utf-8")
-        os.symlink("127.0.1.1:+1", self.src / "lock")
-        (self.src / ".parentlock").touch()
+        # Firefox's locks: a symlink and a file on Linux, a file on Windows.
+        if WINDOWS:
+            (self.src / "parent.lock").touch()
+        else:
+            os.symlink("127.0.1.1:+1", self.src / "lock")
+            (self.src / ".parentlock").touch()
         self.dest.mkdir()
         (self.dest / ".myfox-created").touch()
 
     def _names(self, root: Path) -> set[str]:
-        return {str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() or p.is_symlink()}
+        return {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file() or p.is_symlink()}
 
     def test_without_sync_the_account_and_its_identity_stay_behind(self):
         importer.copy_profile(self.src, self.dest, importer.SYNC_NONE)
@@ -79,6 +85,7 @@ class ImporterTests(unittest.TestCase):
                 importer.copy_profile(self.src, self.dest)
         self.assertEqual(self._names(self.dest), {".myfox-created"})
 
+    @only_linux
     def test_a_fifo_is_skipped(self):
         os.mkfifo(self.src / "storage" / "pipe")
         importer.copy_profile(self.src, self.dest)

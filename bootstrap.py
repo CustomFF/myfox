@@ -10,6 +10,9 @@ latest core-* release into a temp dir, adds dearpygui there for
 --gui, and runs the install form from it (`python3 -m myfox.wizard`); the
 install copies MyFox into ~/.local/share/myfox.
 
+Windows: get.ps1 runs this with the Python it put into
+%LOCALAPPDATA%\\myfox\\python; the install goes to %LOCALAPPDATA%\\myfox.
+
 Development:
   MYFOX_CORE_DIR=<working copy>   use it instead of downloading
   MYFOX_CORE_URL=<path or URL>    a core archive instead of the release
@@ -52,6 +55,9 @@ _MESSAGES = {
 }
 
 
+WINDOWS = os.name == "nt"
+
+
 def _lang() -> str:
     # gettext's order, read directly: locale.getlocale() says "C" when the
     # system lacks the generated locale.
@@ -59,6 +65,14 @@ def _lang() -> str:
         value = (os.environ.get(var) or "").split(":")[0]
         if value:
             return value[:2].lower()
+    if WINDOWS:
+        # Its display language; getlocale() names it "Russian_Russia" there.
+        try:
+            import ctypes
+
+            return (locale.windows_locale.get(ctypes.windll.kernel32.GetUserDefaultUILanguage()) or "en")[:2]
+        except (ImportError, AttributeError, OSError):
+            return "en"
     return (locale.getlocale()[0] or "en")[:2].lower()
 
 
@@ -74,8 +88,12 @@ def _xdg(var: str, default: str) -> Path:
 
 def installed_launcher():
     """The installed `myfox` launcher, or None when MyFox isn't installed."""
-    state = _xdg("XDG_STATE_HOME", ".local/state") / "myfox" / "state.json"
-    launcher = _xdg("XDG_DATA_HOME", ".local/share") / "myfox" / "bin" / "myfox"
+    if WINDOWS:
+        root = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "myfox"
+        state, launcher = root / "state" / "state.json", root / "bin" / "myfox.cmd"
+    else:
+        state = _xdg("XDG_STATE_HOME", ".local/state") / "myfox" / "state.json"
+        launcher = _xdg("XDG_DATA_HOME", ".local/share") / "myfox" / "bin" / "myfox"
     try:
         installed = bool(json.loads(state.read_text(encoding="utf-8")).get("install_dir"))
     except (OSError, ValueError):
@@ -146,6 +164,14 @@ def _ask_yes(prompt: str) -> bool:
     return answer in ("", "y", "yes", "д", "да")
 
 
+def _exec(launcher: Path, argv) -> int:
+    """Runs the installed myfox in this one's place (Windows can't exec:
+    it would start it and return)."""
+    if WINDOWS:
+        return subprocess.run([str(launcher), *argv]).returncode
+    os.execv(str(launcher), [str(launcher), *argv])
+
+
 def main(argv) -> int:
     if sys.version_info < (3, 8):
         print(t("python_too_old"), file=sys.stderr)
@@ -156,14 +182,14 @@ def main(argv) -> int:
         # A command goes to the installed myfox; the install form's own
         # flags (--gui, -y) mean "install", which is done already.
         if argv and not argv[0].startswith("-"):
-            os.execv(str(launcher), [str(launcher), *argv])
+            return _exec(launcher, argv)
         print(t("already_installed", launcher.parent.parent))
         if not _has_tty() or "-y" in argv or "--yes" in argv:
             # No one to ask: a question printed into a pipe reaches nobody.
             print(t("updates_hint"))
             return 0
         if _ask_yes(t("check_updates")):
-            os.execv(str(launcher), [str(launcher), "refresh", *(["--gui"] if "--gui" in argv else [])])
+            return _exec(launcher, ["refresh", *(["--gui"] if "--gui" in argv else [])])
         return 0
 
     core_dir = os.environ.get("MYFOX_CORE_DIR")

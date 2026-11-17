@@ -9,7 +9,7 @@ from unittest import mock
 from myfox import i18n, importer, sources
 from myfox.install_form import IMPORT, OTHER, Answers, InstallForm, Lang, simulate_install
 
-from ._helpers import IsolatedStateCase
+from ._helpers import IsolatedStateCase, firefox_store
 
 NAMES = {"en-US": ("English (US)", "English (US)"), "ru": ("Russian", "Русский"), "be": ("Belarusian", "Беларуская")}
 
@@ -29,6 +29,11 @@ def _found(path, name, store="", owner=sources.FOREIGN, version="157.0"):
     folder = Path(path).name
     return sources.Profile(id=f"{store}:{folder}" if store else folder, name=name, path=Path(path), store=store,
                            owner=owner, last_version=version)
+
+
+def _p(path: str) -> str:
+    """A path as the form shows it on this system."""
+    return str(Path(path))
 
 
 class LangTests(unittest.TestCase):
@@ -58,7 +63,7 @@ class LoadTests(unittest.TestCase):
 
     def test_existing_profiles_come_after_a_create_new_choice(self):
         form = _load(found=[_found("/p/abc.myfox", "myfox", owner=sources.MYFOX)])
-        self.assertEqual([c.value for c in form.profiles], ["", "/p/abc.myfox", OTHER])
+        self.assertEqual([c.value for c in form.profiles], ["", _p("/p/abc.myfox"), OTHER])
         self.assertEqual(form.profiles[0].label, i18n.t("wizard_profile_new"))
 
     def test_related_profiles_are_used_in_place(self):
@@ -67,16 +72,16 @@ class LoadTests(unittest.TestCase):
                  _found("/s/c.default", "default")]
         form = _load(found=found)
         self.assertEqual([(c.value, c.label) for c in form.profiles[1:5]], [
-            ("/s/myfox-1", "myfox (myfox-1)"), ("/s/a.dev", "dev"), ("/s/b.new", "new"),
-            ("/s/myfox-2", "myfox (myfox-2)")])
-        self.assertEqual(form.profiles[5].value, IMPORT + "/s/c.default")
+            (_p("/s/myfox-1"), "myfox (myfox-1)"), (_p("/s/a.dev"), "dev"), (_p("/s/b.new"), "new"),
+            (_p("/s/myfox-2"), "myfox (myfox-2)")])
+        self.assertEqual(form.profiles[5].value, IMPORT + _p("/s/c.default"))
 
     def test_other_firefoxes_profiles_to_import(self):
         found = [_found("/s/a.default", "default"), _found("/s/b.default", "default"),
                  _found("/snap/c.work", "work", store="snap"), _found("/s/myfox-1", "myfox", owner=sources.MYFOX)]
         form = _load(found=found)
         self.assertEqual([c.value for c in form.profiles], [
-            "", "/s/myfox-1", IMPORT + "/s/a.default", IMPORT + "/s/b.default", IMPORT + "/snap/c.work", OTHER])
+            "", _p("/s/myfox-1"), IMPORT + _p("/s/a.default"), IMPORT + _p("/s/b.default"), IMPORT + _p("/snap/c.work"), OTHER])
         self.assertEqual([c.label for c in form.profiles[2:5]], [
             i18n.t("form_profile_import", "default (a.default)"), i18n.t("form_profile_import", "default (b.default)"),
             i18n.t("form_profile_import", "work (snap:c.work)")])
@@ -105,7 +110,7 @@ class FormTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             form.answers.install_dir = f"  {tmp}/firefox/ "
             self.assertIsNone(form.validate())
-            self.assertEqual(form.answers.install_dir, f"{tmp}/firefox")
+            self.assertEqual(form.answers.install_dir, str(Path(tmp) / "firefox"))
 
     def test_validate_returns_the_localized_error(self):
         form = _load()
@@ -137,7 +142,7 @@ if __name__ == "__main__":
 class ImportFormTests(IsolatedStateCase):
     def setUp(self):
         super().setUp()
-        store = Path.home() / ".mozilla" / "firefox"
+        store = firefox_store()
         self.source = store / "a.default"
         self.source.mkdir(parents=True)
         (self.source / "prefs.js").touch()

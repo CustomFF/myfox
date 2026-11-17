@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import os
-import select
 import shutil
 import subprocess
 import tempfile
@@ -12,10 +11,10 @@ from pathlib import Path
 from unittest import mock
 
 from myfox import firefox, i18n, paths, task
-from myfox.ui import task_plain, task_tui
+from myfox.ui import console, task_plain, task_tui
 from picotui.defs import KEY_DOWN, KEY_ENTER, KEY_LEFT, KEY_RIGHT
 
-from ._helpers import IsolatedStateCase
+from ._helpers import WINDOWS, IsolatedStateCase, only_linux
 from .test_form_tui import _drive
 
 
@@ -167,13 +166,13 @@ class TuiTests(IsolatedStateCase):
         ran, blocks = [], iter(["busy", None])
         t = _task(ran, recheck=lambda: next(blocks, None))
         with _drive([KEY_LEFT, KEY_ENTER, KEY_ENTER]), mock.patch("myfox.ui.task_tui._ensure_screen"):
-            ready, calls = select.select, []
+            ready, calls = console.ready, []
 
-            def first_idle(rlist, wlist, xlist, timeout):
+            def first_idle(timeout):
                 calls.append(timeout)
-                return ([], [], []) if len(calls) == 1 else ready(rlist, wlist, xlist, timeout)
+                return False if len(calls) == 1 else ready(timeout)
 
-            with mock.patch("select.select", first_idle):
+            with mock.patch("myfox.ui.console.ready", first_idle):
                 # A second without a key: the recheck clears the block, focus
                 # stays on Cancel; Left to the action, Enter runs, Enter closes.
                 self.assertTrue(task_tui.run(t))
@@ -187,13 +186,13 @@ class TuiTests(IsolatedStateCase):
                       recheck=lambda: "close it" if option.value else None)
         with _drive([KEY_LEFT, b" ", KEY_DOWN, KEY_ENTER, KEY_ENTER]), \
              mock.patch("myfox.ui.task_tui._ensure_screen"):
-            ready, calls = select.select, []
+            ready, calls = console.ready, []
 
-            def idle_after_space(rlist, wlist, xlist, timeout):
+            def idle_after_space(timeout):
                 calls.append(timeout)
-                return ([], [], []) if len(calls) == 3 else ready(rlist, wlist, xlist, timeout)
+                return False if len(calls) == 3 else ready(timeout)
 
-            with mock.patch("select.select", idle_after_space):
+            with mock.patch("myfox.ui.console.ready", idle_after_space):
                 # Cancel first (blocked); Left to the checkbox, Space unticks
                 # it, a second passes, Down to the freed action, Enter runs.
                 self.assertTrue(task_tui.run(t))
@@ -220,6 +219,7 @@ class TuiTests(IsolatedStateCase):
         self.assertEqual((t.blocked, ran), ("busy", []))
 
 
+@only_linux
 class ShownPathTests(unittest.TestCase):
     def test_home_becomes_a_tilde(self):
         home = Path.home()
@@ -231,6 +231,19 @@ class ShownPathTests(unittest.TestCase):
 
 
 class RunningPidsTests(unittest.TestCase):
+    @unittest.skipUnless(WINDOWS, "Windows only")
+    def test_finds_a_process_started_from_the_install_on_windows(self):
+        with tempfile.TemporaryDirectory() as d:
+            binary = Path(d) / "sleeper.exe"
+            shutil.copy(Path(os.environ["SYSTEMROOT"]) / "System32" / "PING.EXE", binary)
+            proc = subprocess.Popen([str(binary), "-n", "30", "127.0.0.1"], stdout=subprocess.DEVNULL)
+            try:
+                self.assertIn(proc.pid, firefox.running_pids(Path(d)))
+            finally:
+                proc.kill()
+                proc.wait()
+
+    @only_linux
     def test_finds_a_process_started_from_the_install(self):
         with tempfile.TemporaryDirectory() as d:
             binary = Path(d) / "sleeper"

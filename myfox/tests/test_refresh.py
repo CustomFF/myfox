@@ -13,7 +13,7 @@ from myfox.state import State
 from myfox.ui import task_plain, task_tui
 from picotui.defs import KEY_ENTER, KEY_ESC
 
-from ._helpers import IsolatedStateCase
+from ._helpers import IsolatedStateCase, firefox_store, only_linux
 from .test_form_tui import _drive
 
 
@@ -416,7 +416,7 @@ class ApplyThemesTests(IsolatedStateCase):
         self.assertIsNone(self._apply(force=True).call_args.kwargs["current"])
 
     def test_into_every_myfox_profile(self):
-        other = Path.home() / ".mozilla" / "firefox" / "myfox-2"
+        other = firefox_store() / "myfox-2"
         other.mkdir(parents=True)
         (other / "prefs.js").touch()
         (other / ".myfox").touch()
@@ -460,6 +460,7 @@ class SyncShortcutTests(IsolatedStateCase):
         write.assert_called_once()
         self.assertEqual(write.call_args.args[0], self.tmp_path)
 
+    @only_linux  # the Windows launcher comes with the Start menu shortcuts
     def test_after_a_core_update_the_new_core_syncs_in_its_own_process(self):
         with mock.patch("subprocess.run", return_value=mock.Mock(returncode=0)) as run, \
              mock.patch("myfox.refresh.sync_shortcut") as in_process:

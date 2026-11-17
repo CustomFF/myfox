@@ -12,11 +12,25 @@ import os
 from pathlib import Path
 
 
+WINDOWS = os.name == "nt"
+
+
+def local_app_data() -> Path:
+    """Windows: per-user, per-machine data (%LOCALAPPDATA%)."""
+    return Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+
+
+def firefox_binary(install_dir: Path) -> Path:
+    return install_dir / ("firefox.exe" if WINDOWS else "firefox")
+
+
 def myfox_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
 def share_dir() -> Path:
+    if WINDOWS:
+        return local_app_data() / "myfox"
     base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
     return Path(base) / "myfox"
 
@@ -34,6 +48,9 @@ def chrome_dir() -> Path:
 
 
 def shown(path: str | Path) -> str:
-    """A path for people to read: the home directory as ~."""
+    """A path for people to read: the home directory as ~ (not on Windows,
+    where people don't write it so)."""
     home, p = str(Path.home()), str(path)
+    if WINDOWS:
+        return p
     return "~" + p[len(home):] if p == home or p.startswith(home + "/") else p

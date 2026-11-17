@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import tarfile
+from pathlib import Path
 from unittest import mock
 
 from myfox import core, paths
@@ -41,7 +42,8 @@ class LatestReleaseTests(IsolatedStateCase):
     def test_local_archive_instead_of_a_release(self):
         with mock.patch.dict("os.environ", {"MYFOX_CORE_URL": "/tmp/myfox-core.tar.gz"}), \
              mock.patch("myfox.version._fetch_refs", side_effect=AssertionError("network")):
-            self.assertEqual(core.latest_release(), core.Release("dev", "file:///tmp/myfox-core.tar.gz"))
+            self.assertEqual(core.latest_release(),
+                             core.Release("dev", Path("/tmp/myfox-core.tar.gz").resolve().as_uri()))
 
     def test_none_without_any(self):
         self.assertIsNone(self._latest("refs/heads/master", "refs/tags/dearpygui-2.3.1"))

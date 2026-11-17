@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import addons, apply, command, completion, desktop, firefox, gui_deps, i18n, importer, launcher, net, profiles
-from . import tweaks
+from . import paths, tweaks
 from . import __version__
 from .install_form import Answers, Progress, settled
 from .state import State
@@ -193,22 +193,29 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
             answers.notes.append(i18n.t("note_plasma_pkg_missing", hint) if hint
                                  else i18n.t("note_plasma_pkg_missing_manual"))
 
-    undo.created(launcher.link_path())
+    if paths.WINDOWS:
+        undo.add(launcher.remove_self)
+    else:
+        undo.created(launcher.link_path())
     launcher_path = launcher.install_self()
     stages.report("gui", i18n.t("progress_gui"))
-    try:
-        gui_deps.install_into(launcher.share_dir())
-    except (OSError, RuntimeError) as exc:
-        answers.notes.append(i18n.t("note_gui_failed", exc))
+    # Windows: not until there are dearpygui wheels for it.
+    if not paths.WINDOWS:
+        try:
+            gui_deps.install_into(launcher.share_dir())
+        except (OSError, RuntimeError) as exc:
+            answers.notes.append(i18n.t("note_gui_failed", exc))
 
     stages.report("shortcut", i18n.t("progress_shortcut"))
-    if not desktop.desktop_file().exists():
+    completions: list[Path] = []
+    if paths.WINDOWS or not desktop.desktop_file().exists():
         undo.add(desktop.remove_entry)
     desktop.write_entry(install_dir, launcher_path)
-    completions = completion.install()
-    undo.add(lambda: completion.remove([str(p) for p in completions]))
-    if completion.zsh_by_hand(completions):
-        answers.notes.append(i18n.t("note_zsh_completion"))
+    if not paths.WINDOWS:
+        completions = completion.install()
+        undo.add(lambda: completion.remove([str(p) for p in completions]))
+        if completion.zsh_by_hand(completions):
+            answers.notes.append(i18n.t("note_zsh_completion"))
 
     if answers.firefox_command:
         stages.report("command", i18n.t("progress_command"))

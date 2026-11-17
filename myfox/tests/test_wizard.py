@@ -4,14 +4,13 @@ import io
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
-from pathlib import Path
 from unittest import mock
 
 from myfox import i18n, importer, wizard
 from myfox.install_form import INSTALL_COMMAND, OTHER, Answers, Choice, InstallForm, Lang, summary
 from myfox.ui import form_plain
 
-from ._helpers import IsolatedStateCase
+from ._helpers import IsolatedStateCase, firefox_store, WINDOWS
 
 # Sorted by English name, as InstallForm.load() returns them.
 LANGS = [Lang("be", "Belarusian", "Беларуская"), Lang("en-US", "English (US)", "English (US)"),
@@ -61,7 +60,7 @@ class SummaryTests(unittest.TestCase):
         self.assertTrue(any("/opt/ff" in line for line in lines))
         self.assertTrue(any("/p/myfox-1" in line for line in lines))
         self.assertTrue(any(i18n.t("wizard_theme_dark") in line for line in lines))
-        self.assertEqual(lines[-1], i18n.t("install_done_run", "Firefox"))
+        self.assertEqual(lines[-1], i18n.t("install_done_run_windows" if WINDOWS else "install_done_run", "Firefox"))
 
     def test_without_tweaks_no_theme(self):
         lines = summary(Answers(install_dir="/opt/ff", tweaks=False))
@@ -125,7 +124,7 @@ class ImportFlagTests(IsolatedStateCase):
         patcher = mock.patch("myfox.wizard.InstallForm.load", return_value=self.form)
         patcher.start()
         self.addCleanup(patcher.stop)
-        self.source = Path.home() / ".mozilla" / "firefox" / "a.default"
+        self.source = firefox_store() / "a.default"
         self.source.mkdir(parents=True)
         (self.source / "prefs.js").touch()
         (self.source.parent / "profiles.ini").write_text("[Profile0]\nName=work\nIsRelative=1\nPath=a.default\n",

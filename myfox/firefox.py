@@ -8,6 +8,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -44,6 +45,8 @@ def detect_arch() -> str | None:
 
 
 def _mozilla_arch(arch: str) -> str:
+    if os.name == "nt":
+        return {"amd64": "win64", "arm64": "win64-aarch64"}[arch]
     return {"amd64": "linux64", "arm64": "linux64-aarch64"}[arch]
 
 
@@ -54,7 +57,12 @@ def pick_lang(catalog: dict[str, str], env_lang: str | None = None) -> str:
     of them right now, e.g. 4 Spanish variants, 6 English ones) — a fixed
     table drifts out of sync with that; the catalog is the only thing that
     can't."""
-    lang = env_lang if env_lang is not None else os.environ.get("LANG", "en_US.UTF-8")
+    if env_lang is not None:
+        lang = env_lang
+    elif os.name == "nt" and not os.environ.get("LANG"):
+        lang = i18n.windows_language() or "en_US"
+    else:
+        lang = os.environ.get("LANG", "en_US.UTF-8")
     base = lang.split("@", 1)[0].split(".", 1)[0]  # strip @modifier, then encoding
     # POSIX locales are "language_REGION" (region already uppercase);
     # Mozilla's codes are "language-REGION" — same string, "_" for "-".
@@ -94,13 +102,13 @@ def validate_install_dir(raw: str) -> Path:
     p = raw.strip()
     if not p:
         raise InstallDirError("err_installdir_empty")
-    if p in ("~", ) or p.startswith("~/"):
+    if p in ("~", ) or p.startswith("~/") or p.startswith("~" + os.sep):
         p = str(Path.home()) + p[1:]
-    if not p.startswith("/"):
-        raise InstallDirError("err_installdir_relative", p)
     path = Path(p)
-    # Path() already collapses a trailing slash; "/" itself needs its own check.
-    if str(path) == "/":
+    if not path.is_absolute():
+        raise InstallDirError("err_installdir_relative", p)
+    # "/" (or C:\), which Path() leaves as it is.
+    if path == Path(path.anchor):
         raise InstallDirError("err_installdir_root")
 
     if path.exists():
@@ -172,9 +180,29 @@ def resolve_download(arch: str, lang: str, channel: str) -> tuple[str, str]:
     req = net.request(_download_url(arch, lang, channel), method="HEAD")
     with urllib.request.urlopen(req, timeout=net.TIMEOUT) as resp:
         effective_url = resp.geturl()
-    m = re.search(r"firefox-([^/]+)\.tar", effective_url)
+    # .../firefox-158.0.tar.xz; Windows: .../releases/158.0/win64/ru/Firefox%20Setup%20158.0.exe
+    m = re.search(r"firefox-([^/]+)\.tar", effective_url) or re.search(r"/releases/([^/]+)/", effective_url)
     version = m.group(1) if m else "unknown"
     return effective_url, version
+
+
+def _extract_installer(installer: Path, install_dir: Path) -> None:
+    """Windows: Mozilla has no archive there, only installers. The full one
+    unpacks itself with /ExtractDir, no admin rights and nothing installed;
+    its core folder is the Firefox."""
+    with tempfile.TemporaryDirectory(dir=install_dir.parent, prefix=".firefox-unpack-") as tmp:
+        subprocess.run([str(installer), f"/ExtractDir={tmp}"], check=True, timeout=600,
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        core = Path(tmp) / "core"
+        if not (core / "firefox.exe").is_file():
+            raise RuntimeError("unexpected installer layout: no core\\firefox.exe")
+        for item in core.iterdir():
+            target = install_dir / item.name
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+            elif target.exists():
+                target.unlink()
+            item.replace(target)
 
 
 def download_and_extract(url: str, install_dir: Path, on_download=None, on_extract=None, on_wait=None) -> None:
@@ -185,6 +213,17 @@ def download_and_extract(url: str, install_dir: Path, on_download=None, on_extra
     on_extract(archive_bytes_done, archive_bytes_total) report progress if
     given; any of them may raise to stop."""
     install_dir.mkdir(parents=True, exist_ok=True)
+    if os.name == "nt":
+        with tempfile.TemporaryDirectory(prefix="myfox-") as tmp:
+            installer = Path(tmp) / "firefox-setup.exe"
+            with open(installer, "wb") as out:
+                net.download(url, out, on_data=on_download, on_wait=on_wait)
+            if on_extract:
+                on_extract(0, 1)
+            _extract_installer(installer, install_dir)
+            if on_extract:
+                on_extract(1, 1)
+        return
     with tempfile.NamedTemporaryFile(suffix=".tar.xz", delete=False) as tmp:
         tmp_path = Path(tmp.name)
         try:
@@ -214,6 +253,10 @@ def running_pids(install_dir: Path) -> list[int]:
     """Processes running a binary from this install (Firefox and its
     helpers), found through /proc/<pid>/exe."""
     root = install_dir.resolve()
+    if os.name == "nt":
+        from . import winapi
+
+        return [pid for pid, exe in winapi.processes() if root in exe.parents]
     pids = []
     for proc in Path("/proc").iterdir():
         if not proc.name.isdigit():
@@ -227,12 +270,20 @@ def running_pids(install_dir: Path) -> list[int]:
     return pids
 
 
+def executable(install_dir: Path) -> Path:
+    """What starts this install's Firefox: its wrapper (see
+    desktop.write_wrapper); on Windows firefox.exe itself, which needs none."""
+    return install_dir / ("firefox.exe" if os.name == "nt" else "firefox-myfox")
+
+
 def _launch(install_dir: Path, *args: str) -> None:
     """This install's Firefox through its wrapper: a running one gets the
     arguments by Firefox's remoting. Detached, so closing MyFox's window
     doesn't take it along."""
-    subprocess.Popen([str(install_dir / "firefox-myfox"), *args], stdin=subprocess.DEVNULL,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    detached = ({"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+                if os.name == "nt" else {"start_new_session": True})
+    subprocess.Popen([str(executable(install_dir)), *args], stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **detached)
 
 
 def request_restart(install_dir: Path) -> None:

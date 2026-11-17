@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -20,6 +21,18 @@ def git_refs(*refs: str) -> bytes:
         if ref.startswith("refs/tags/"):
             lines.append(pkt(f"{i + 101:040x} {ref}^{{}}\n"))
     return b"".join(lines) + b"0000"
+
+
+WINDOWS = os.name == "nt"
+only_linux = unittest.skipIf(WINDOWS, "Linux only")
+
+
+def firefox_store() -> Path:
+    """Where our Firefox keeps its profiles (profiles.native_dir()) in an
+    IsolatedStateCase: the legacy path on Linux, %APPDATA%'s on Windows."""
+    if WINDOWS:
+        return Path(os.environ["APPDATA"]) / "Mozilla" / "Firefox"
+    return Path.home() / ".mozilla" / "firefox"
 
 
 def make_tweaks(root: Path) -> Path:
@@ -52,6 +65,9 @@ class IsolatedStateCase(unittest.TestCase):
         self._env_patch = mock.patch.dict("os.environ", {
             "XDG_STATE_HOME": str(root), "XDG_DATA_HOME": str(root / "data"),
             "XDG_CONFIG_HOME": str(root / "config"), "HOME": str(root / "home"),
+            # Their Windows counterparts.
+            "USERPROFILE": str(root / "home"), "LOCALAPPDATA": str(root / "data"),
+            "APPDATA": str(root / "config"),
         })
         self._env_patch.start()
         self.addCleanup(self._env_patch.stop)

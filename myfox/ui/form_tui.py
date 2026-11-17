@@ -7,7 +7,6 @@ install_form.InstallForm; this only draws it.
 from __future__ import annotations
 
 import os
-import select
 import signal
 import sys
 import textwrap
@@ -20,6 +19,7 @@ from typing import Callable
 from .. import i18n
 from .. import sources
 from ..install_form import OTHER, Answers, Cancel, Cancelled, Choice, InstallForm, Installer, Lang, Progress, signals_to
+from . import console
 from .picotui_base import BOX_BG, FIELD_BG, FOCUS_BG, SGR_GRAY_ON_CYAN, SGR_WHITE_ON_GRAY, BoxDialog, ThemedButton, _button_row, _centered, _clear, _ensure_screen, _set_focus, abandon_screen, end_screen
 
 from picotui.defs import (  # noqa: E402 (picotui_base put it on sys.path)
@@ -230,7 +230,7 @@ class _FormDialog(BoxDialog):
 
     def get_input(self):
         if self.on_idle is not None and not self.kbuf:
-            while not select.select([0], [], [], 1)[0]:
+            while not console.ready(1):
                 self.on_idle()
         # picotui hands out the first character of a read whole but then
         # takes its leftover buffer one byte at a time, splitting multibyte
@@ -419,7 +419,7 @@ def run_live(d: BoxDialog, status: _Label, bar: _Label, cancel_btn: ThemedButton
             if hangup.is_set():
                 continue
             try:
-                key = d.get_input() if d.kbuf or select.select([0], [], [], 0.05)[0] else None
+                key = d.get_input() if d.kbuf or console.ready(0.05) else None
             except (OSError, IndexError):  # read nothing: the terminal is gone
                 on_signal(signal.SIGHUP)
                 continue
@@ -498,7 +498,8 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     doh_label = add_row("form_doh", doh)
     doh.hidden = doh_label.hidden = not form.doh_applies
     firefox_command = _Checkbox("", choice=a.firefox_command)
-    add_row("form_command", firefox_command)
+    if form.command_applies:
+        add_row("form_command", firefox_command)
     row += 1
 
     search = _Entry(w - 4, "", hint=i18n.t("form_lang_search"), moves_on=True)

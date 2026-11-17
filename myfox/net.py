@@ -3,6 +3,7 @@ download that keeps reporting while the network is silent."""
 
 from __future__ import annotations
 
+import os
 import queue
 import socket
 import threading
@@ -15,6 +16,34 @@ from . import i18n
 USER_AGENT = "myfox"
 # Seconds without an answer before a request gives up.
 TIMEOUT = 20
+
+
+def _fetch_missing_roots() -> None:
+    """Windows: a site whose root certificate Windows hasn't fetched yet
+    fails Python's check (see winapi.fetch_root). Every HTTPS connection
+    here (urllib's) then has Windows fetch it and tries once more."""
+    import http.client
+    import ssl
+
+    connect = http.client.HTTPSConnection.connect
+
+    def connect_fetching_roots(self) -> None:
+        try:
+            connect(self)
+        except ssl.SSLCertVerificationError:
+            pem = ssl.get_server_certificate((self.host, self.port), timeout=TIMEOUT)
+            from . import winapi
+
+            winapi.fetch_root(ssl.PEM_cert_to_DER_cert(pem))
+            # A context reads the roots when it's made.
+            self._context = ssl.create_default_context()
+            connect(self)
+
+    http.client.HTTPSConnection.connect = connect_fetching_roots
+
+
+if os.name == "nt":
+    _fetch_missing_roots()
 
 
 def request(url: str, *, method: str | None = None, headers: dict[str, str] | None = None) -> urllib.request.Request:

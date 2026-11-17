@@ -9,7 +9,7 @@ from myfox import i18n, importer, installer
 from myfox.install_form import Answers, Cancelled
 from myfox.state import State
 
-from ._helpers import IsolatedStateCase
+from ._helpers import IsolatedStateCase, only_linux
 
 
 class InstallTests(IsolatedStateCase):
@@ -53,6 +53,7 @@ class InstallTests(IsolatedStateCase):
              mock.patch("myfox.completion.zsh_by_hand", return_value=zsh_by_hand):
             installer.install(answers, progress or (lambda message, fraction: self.reports.append((message, fraction))))
 
+    @only_linux
     def test_full_install_runs_every_step_and_saves_state(self):
         answers = Answers(install_dir=str(self.install_dir), lang="ru", theme="light")
         self._install(answers)
@@ -140,10 +141,12 @@ class InstallTests(IsolatedStateCase):
         self.assertEqual(self.reports[-1], (i18n.t("progress_done"), 1.0))
         self.assertIn(i18n.t("progress_firefox_download"), [m for m, _f in self.reports])
 
+    @only_linux
     def test_without_tweaks_the_profile_is_left_alone(self):
         self._install(Answers(install_dir=str(self.install_dir), tweaks=False))
         self.assertEqual(self.calls, ["tarball", "gui", "desktop"])
 
+    @only_linux
     def test_plasma_session_gets_the_addon_and_no_note_with_the_package(self):
         answers = Answers(install_dir=str(self.install_dir))
         self._install(answers, plasma=True)
@@ -165,6 +168,7 @@ class InstallTests(IsolatedStateCase):
         self._install(Answers(install_dir=str(self.install_dir), tweaks=False), plasma=True)
         self.assertNotIn("plasma", self.calls)
 
+    @only_linux
     def test_completions_are_recorded_and_zsh_without_a_folder_is_a_note(self):
         answers = Answers(install_dir=str(self.install_dir))
         bash = self.tmp_path / "completions" / "myfox"
@@ -172,6 +176,7 @@ class InstallTests(IsolatedStateCase):
         self.assertEqual(State().get("completions"), [str(bash)])
         self.assertEqual(answers.notes, [i18n.t("note_zsh_completion")])
 
+    @only_linux
     def test_gui_failure_is_a_note_not_a_failed_install(self):
         answers = Answers(install_dir=str(self.install_dir))
         self._install(answers, gui_error=OSError("no release"))
@@ -198,6 +203,7 @@ class InstallTests(IsolatedStateCase):
         self.assertFalse(self.install_dir.exists())  # with the parent made for it
         self.assertIsNone(State().get("install_dir"))
 
+    @only_linux
     def test_a_failure_later_takes_back_the_new_profile_and_firefox(self):
         with self.assertRaises(OSError), mock.patch("myfox.profiles.unpin_install") as unpin:
             self._install(Answers(install_dir=str(self.install_dir)), desktop_error=OSError("disk full"))
@@ -206,6 +212,7 @@ class InstallTests(IsolatedStateCase):
         unpin.assert_called_once_with("HASH")
         self.assertIsNone(State().get("install_dir"))
 
+    @only_linux
     def test_a_picked_profile_and_an_existing_folder_stay(self):
         self.install_dir.mkdir()
         with self.assertRaises(OSError):

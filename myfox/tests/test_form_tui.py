@@ -34,15 +34,15 @@ def _drive(keys):
         assert keys, "ran out of scripted keys — a real run would have blocked on input here"
         return keys.pop(0)
 
-    def ready(rlist, _wlist, _xlist, timeout):
+    def ready(timeout):
         # While work runs, a key is there only while the script has one.
         if keys:
-            return rlist, [], []
+            return True
         time.sleep(timeout)
-        return [], [], []
+        return False
 
     with mock.patch.object(Dialog, "get_input", get_input), \
-         mock.patch("select.select", ready), \
+         mock.patch("myfox.ui.console.ready", ready), \
          mock.patch.object(Screen, "screen_size", return_value=(80, 24)), \
          mock.patch.object(Screen, "wr"), \
          mock.patch("myfox.ui.form_tui._ensure_screen"):
@@ -54,6 +54,10 @@ class FormTuiTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.form = InstallForm(langs=LANGS, profiles=[])
+        # The scripted keys walk the Linux form, with the shell command row.
+        patch = mock.patch.object(InstallForm, "command_applies", new_callable=mock.PropertyMock, return_value=True)
+        patch.start()
+        self.addCleanup(patch.stop)
         self.form.answers.install_dir = self._tmp.name
         self.form.answers.lang = "en-US"
         self.installed = []

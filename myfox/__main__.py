@@ -12,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, command, completion, i18n, profile_commands, refresh, reinstall, task, tweaks_commands, uninstall
+from . import __version__, command, completion, i18n, paths, profile_commands, refresh, reinstall, task, tweaks_commands, uninstall
 from .state import State
 
 LOGO = Path(__file__).resolve().parent / "ui" / "assets" / "logo.txt"
@@ -123,6 +123,11 @@ def cmd_browser(firefox_args: list[str], state: State) -> int:
     if not install_dir:
         _not_installed()
         return 1
+    if os.name == "nt":
+        # No exec there (os.execv starts a new process and leaves ours behind).
+        import subprocess
+
+        return subprocess.call([str(paths.firefox_binary(Path(install_dir))), *firefox_args])
     wrapper = os.path.join(install_dir, "firefox-myfox")
     target = wrapper if os.access(wrapper, os.X_OK) else os.path.join(install_dir, "firefox")
     os.execv(target, [target, *firefox_args])  # never returns on success
@@ -269,5 +274,22 @@ def main(argv: list[str] | None = None) -> int:
     return 1
 
 
+def _hold_own_console() -> None:
+    """Windows: a console window opened for this (a Start menu shortcut)
+    closes as soon as it ends; it waits for a key first, so what was said
+    last can be read."""
+    if os.name != "nt" or not sys.stdin.isatty():
+        return
+    from . import winapi
+
+    if winapi.started_in_own_console():
+        import msvcrt
+
+        print(i18n.t("press_any_key"), end="", flush=True)
+        msvcrt.getwch()
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    code = main()
+    _hold_own_console()
+    sys.exit(code)

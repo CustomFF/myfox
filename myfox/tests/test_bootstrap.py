@@ -14,6 +14,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+from ._helpers import WINDOWS, only_linux
+
 _PATH = Path(__file__).resolve().parents[2] / "bootstrap.py"
 _spec = importlib.util.spec_from_file_location("myfox_bootstrap", _PATH)
 bootstrap = importlib.util.module_from_spec(_spec)
@@ -26,77 +28,84 @@ class _Env(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
         patcher = mock.patch.dict("os.environ", {"XDG_STATE_HOME": str(self.root / "state"),
-                                                 "XDG_DATA_HOME": str(self.root / "data")})
+                                                 "XDG_DATA_HOME": str(self.root / "data"),
+                                                 "LOCALAPPDATA": str(self.root / "local")})
         patcher.start()
         self.addCleanup(patcher.stop)
 
+    def state_file(self) -> Path:
+        if WINDOWS:
+            return self.root / "local" / "myfox" / "state" / "state.json"
+        return self.root / "state" / "myfox" / "state.json"
+
     def install(self):
-        state = self.root / "state" / "myfox" / "state.json"
+        state = self.state_file()
         state.parent.mkdir(parents=True)
         state.write_text(json.dumps({"install_dir": "/opt/firefox"}))
-        launcher = self.root / "data" / "myfox" / "bin" / "myfox"
+        launcher = (self.root / "local" / "myfox" / "bin" / "myfox.cmd" if WINDOWS
+                    else self.root / "data" / "myfox" / "bin" / "myfox")
         launcher.parent.mkdir(parents=True)
         launcher.write_text("#!/bin/sh\n")
         launcher.chmod(0o755)
         return launcher
 
 
-class _Exec(Exception):
-    """os.execv never returns; the stand-in mustn't either."""
-
-
 class InstalledTests(_Env):
     def test_arguments_go_to_the_installed_myfox(self):
         launcher = self.install()
-        with mock.patch("os.execv", side_effect=_Exec) as execv, self.assertRaises(_Exec):
-            bootstrap.main(["uninstall", "-y"])
-        execv.assert_called_once_with(str(launcher), [str(launcher), "uninstall", "-y"])
+        with mock.patch.object(bootstrap, "_exec", return_value=3) as run:
+            self.assertEqual(bootstrap.main(["uninstall", "-y"]), 3)
+        run.assert_called_once_with(launcher, ["uninstall", "-y"])
 
     def test_no_arguments_asks_and_yes_runs_refresh(self):
         launcher = self.install()
-        with mock.patch("os.execv", side_effect=_Exec) as execv, mock.patch("builtins.input", return_value=""), \
-             mock.patch.object(bootstrap, "_has_tty", return_value=True), \
-             redirect_stdout(io.StringIO()), self.assertRaises(_Exec):
+        with mock.patch.object(bootstrap, "_exec", return_value=0) as run, mock.patch("builtins.input", return_value=""), \
+             mock.patch.object(bootstrap, "_has_tty", return_value=True), redirect_stdout(io.StringIO()):
             bootstrap.main([])
-        execv.assert_called_once_with(str(launcher), [str(launcher), "refresh"])
+        run.assert_called_once_with(launcher, ["refresh"])
 
     def test_no_means_exit(self):
         self.install()
-        with mock.patch("os.execv") as execv, mock.patch("builtins.input", return_value="n"), \
-             mock.patch.object(bootstrap, "_has_tty", return_value=True), \
-             redirect_stdout(io.StringIO()):
+        with mock.patch.object(bootstrap, "_exec") as run, mock.patch("builtins.input", return_value="n"), \
+             mock.patch.object(bootstrap, "_has_tty", return_value=True), redirect_stdout(io.StringIO()):
             self.assertEqual(bootstrap.main([]), 0)
-        execv.assert_not_called()
+        run.assert_not_called()
 
     def test_install_flags_are_not_passed_to_myfox(self):
         launcher = self.install()
-        with mock.patch("os.execv", side_effect=_Exec) as execv, mock.patch("builtins.input", return_value=""), \
-             mock.patch.object(bootstrap, "_has_tty", return_value=True), \
-             redirect_stdout(io.StringIO()), self.assertRaises(_Exec):
+        with mock.patch.object(bootstrap, "_exec", return_value=0) as run, mock.patch("builtins.input", return_value=""), \
+             mock.patch.object(bootstrap, "_has_tty", return_value=True), redirect_stdout(io.StringIO()):
             bootstrap.main(["--gui"])
-        execv.assert_called_once_with(str(launcher), [str(launcher), "refresh", "--gui"])
+        run.assert_called_once_with(launcher, ["refresh", "--gui"])
 
     def test_yes_when_installed_asks_nothing(self):
         self.install()
         out = io.StringIO()
-        with mock.patch("os.execv") as execv, mock.patch("builtins.input", side_effect=AssertionError("asked")), \
+        with mock.patch.object(bootstrap, "_exec") as run, mock.patch("builtins.input", side_effect=AssertionError("asked")), \
              mock.patch.object(bootstrap, "_has_tty", return_value=True), redirect_stdout(out):
             self.assertEqual(bootstrap.main(["-y"]), 0)
-        execv.assert_not_called()
+        run.assert_not_called()
         self.assertIn(bootstrap.t("updates_hint"), out.getvalue())
 
     def test_without_a_terminal_names_the_command_instead_of_asking(self):
         self.install()
         out = io.StringIO()
-        with mock.patch("os.execv") as execv, mock.patch("builtins.input", side_effect=AssertionError("asked")), \
+        with mock.patch.object(bootstrap, "_exec") as run, mock.patch("builtins.input", side_effect=AssertionError("asked")), \
              mock.patch.object(bootstrap, "_has_tty", return_value=False), redirect_stdout(out):
             self.assertEqual(bootstrap.main([]), 0)
-        execv.assert_not_called()
+        run.assert_not_called()
         self.assertIn(bootstrap.t("updates_hint"), out.getvalue())
+
+    @only_linux
+    def test_the_installed_myfox_takes_this_process_over(self):
+        launcher = self.install()
+        with mock.patch("os.execv") as execv:
+            bootstrap._exec(launcher, ["refresh"])
+        execv.assert_called_once_with(str(launcher), [str(launcher), "refresh"])
 
     def test_state_without_install_dir_is_not_installed(self):
         self.install()
-        (self.root / "state" / "myfox" / "state.json").write_text("{}")
+        self.state_file().write_text("{}")
         self.assertIsNone(bootstrap.installed_launcher())
 
 
@@ -134,10 +143,11 @@ class FreshTests(_Env):
         run.assert_not_called()
 
     def test_core_dir_skips_the_download(self):
-        with mock.patch.dict("os.environ", {"MYFOX_CORE_DIR": "/work/myfox"}), \
+        core_dir = str(Path("/work/myfox").resolve())
+        with mock.patch.dict("os.environ", {"MYFOX_CORE_DIR": core_dir}), \
              mock.patch("subprocess.run", return_value=mock.Mock(returncode=0)) as run:
             bootstrap.main([])
-        self.assertTrue(run.call_args.kwargs["env"]["PYTHONPATH"].startswith("/work/myfox"))
+        self.assertTrue(run.call_args.kwargs["env"]["PYTHONPATH"].startswith(core_dir))
 
 
 class CoreUrlTests(unittest.TestCase):

@@ -12,7 +12,7 @@ from myfox import __main__ as cli
 from myfox import completion, i18n, importer, paths, reinstall, uninstall
 from myfox.install_form import Cancelled
 from myfox.state import State, state_file
-from ._helpers import IsolatedStateCase
+from ._helpers import IsolatedStateCase, firefox_store, WINDOWS, only_linux
 
 
 def _run(argv: list[str]) -> tuple[int, str]:
@@ -121,7 +121,7 @@ class UninstallTests(IsolatedStateCase):
             self.assertTrue(profile_dir.exists())
 
     def test_every_myfox_profile_and_only_created_ones_go(self):
-        store = Path.home() / ".mozilla" / "firefox"
+        store = firefox_store()
         used, made, applied = store / "myfox-1", store / "myfox-2", store / "aaaa.work"
         for p in (used, made, applied):
             p.mkdir(parents=True)
@@ -173,7 +173,7 @@ class UninstallRestoreSyncTests(IsolatedStateCase):
         running = mock.patch("myfox.firefox.running_pids", return_value=[])
         running.start()
         self.addCleanup(running.stop)
-        self.source = Path.home() / ".mozilla" / "firefox" / "aaaa.work"
+        self.source = firefox_store() / "aaaa.work"
         self.source.mkdir(parents=True)
         (self.source / "signedInUser.json").write_text(self.ACCOUNT, encoding="utf-8")
         (self.source / "prefs.js").write_text(self.PREFS, encoding="utf-8")
@@ -420,6 +420,16 @@ class BrowserCommandTests(IsolatedStateCase):
         self.assertEqual(rc, 1)
         self.assertEqual(err.getvalue().strip(), i18n.t("err_not_installed"))
 
+    @unittest.skipUnless(WINDOWS, "Windows only")
+    def test_runs_firefox_exe_on_windows(self):
+        state = State()
+        state.set("install_dir", r"C:\ff")
+        state.save()
+        with mock.patch("subprocess.call", return_value=0) as call:
+            self.assertEqual(cli.main(["browser", "--new-window"]), 0)
+        call.assert_called_once_with([str(Path(r"C:\ff") / "firefox.exe"), "--new-window"])
+
+    @only_linux
     def test_execs_the_myfox_wrapper_when_present(self):
         state = State()
         state.set("install_dir", "/opt/firefox")
@@ -435,6 +445,7 @@ class BrowserCommandTests(IsolatedStateCase):
             ["/opt/firefox/firefox-myfox", "--new-window"],
         )
 
+    @only_linux
     def test_falls_back_to_plain_firefox_binary_when_no_wrapper(self):
         state = State()
         state.set("install_dir", "/opt/firefox")
@@ -446,6 +457,7 @@ class BrowserCommandTests(IsolatedStateCase):
 
         execv.assert_called_once_with("/opt/firefox/firefox", ["/opt/firefox/firefox"])
 
+    @only_linux
     def test_a_leading_dash_argument_reaches_firefox_untouched(self):
         # Regression: argparse.REMAINDER silently drops a leading "-"-style
         # token (a documented CPython limitation, confirmed independent of

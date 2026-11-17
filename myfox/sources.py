@@ -247,7 +247,7 @@ def resolve(arg: str, found: list[Profile], install_dir: Path | None = None) -> 
     for p in found:
         if p.id == arg:
             return p
-    if "/" in arg or arg.startswith("~"):
+    if "/" in arg or os.sep in arg or arg.startswith("~"):
         path = Path(arg).expanduser().resolve()
         for p in found:
             if p.path.resolve() == path:
@@ -303,6 +303,11 @@ def _flatpak_running() -> bool:
 
 def in_use(profile: Profile) -> bool:
     """A Firefox has it open (and so it can't be copied consistently)."""
+    if os.name == "nt":
+        # There Firefox holds parent.lock open, unshared, while it runs.
+        from . import winapi
+
+        return winapi.is_locked(profile.path / "parent.lock")
     if profile.store == FLATPAK:
         return _flatpak_running()
     pid = _lock_pid(profile.path)

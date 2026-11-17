@@ -27,6 +27,8 @@ from configparser import ConfigParser
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import paths
+
 _PROFILE_SECTION_RE = re.compile(r"^Profile\d+$")
 # In a profile MyFox created: its name, whether profiles.ini lists it or not.
 NAME_FILE = ".myfox-name"
@@ -50,7 +52,9 @@ def _read_ini(ini: Path) -> ConfigParser:
 def native_dir() -> Path:
     """Same rule Firefox itself uses: the legacy path if it already exists
     (an existing install keeps using it), else the XDG path (Firefox 147+
-    on a system that never had the legacy layout)."""
+    on a system that never had the legacy layout). Windows: %APPDATA%."""
+    if os.name == "nt":
+        return Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "Mozilla" / "Firefox"
     legacy = Path.home() / ".mozilla" / "firefox"
     if legacy.is_dir():
         return legacy
@@ -349,13 +353,21 @@ def _hash_sections(ini: Path | None) -> set[str]:
 
 
 def _store_profile_dirs(store_dir: Path) -> set[str]:
+    """The profiles in the store, as paths relative to it: Firefox makes new
+    ones at its top on Linux, in its Profiles/ on Windows."""
     if not store_dir.is_dir():
         return set()
-    return {d.name for d in store_dir.iterdir() if d.is_dir() and (d / "prefs.js").is_file()}
+    found = set()
+    for parent, prefix in ((store_dir, ""), (store_dir / "Profiles", "Profiles/")):
+        if parent.is_dir():
+            found |= {prefix + d.name for d in parent.iterdir() if d.is_dir() and (d / "prefs.js").is_file()}
+    return found
 
 
 def _cache_store() -> Path:
-    """Firefox keeps a profile's cache in <this>/<the profile's dir name>."""
+    """Firefox keeps a profile's cache in <this>/<the profile's path in the store>."""
+    if os.name == "nt":
+        return paths.local_app_data() / "Mozilla" / "Firefox"
     return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "mozilla" / "firefox"
 
 
@@ -411,7 +423,7 @@ def headless_once(install_dir: Path, our_profile: Path) -> str | None:
     or [<HASH>] section Firefox itself wrote — that's the only way to learn
     the hash, there's no API for it. Cleans up whatever stray first-run
     profile that headless pass created along the way."""
-    binary = install_dir / "firefox"
+    binary = paths.firefox_binary(install_dir)
     if not os.access(binary, os.X_OK):
         return None
 
@@ -424,13 +436,15 @@ def headless_once(install_dir: Path, our_profile: Path) -> str | None:
     before_names = _store_profile_dirs(store_dir) if store_dir else set()
     home_before = set(os.listdir(Path.home())) if Path.home().is_dir() else set()
     cache_top = _missing_top(_cache_store())
+    made_in = (store_dir / "Profiles") if store_dir and not (store_dir / "Profiles").exists() else None
 
     found_hash: str | None = None
     for _attempt in range(2):
-        with tempfile.NamedTemporaryFile(suffix=".myfox-shot.png") as shot:
+        # A directory, not an open temp file: Windows won't let Firefox write that one.
+        with tempfile.TemporaryDirectory(prefix="myfox-shot-") as shot_dir:
             try:
                 subprocess.run(
-                    [str(binary), "--headless", "--screenshot", shot.name, "about:blank"],
+                    [str(binary), "--headless", "--screenshot", str(Path(shot_dir) / "shot.png"), "about:blank"],
                     timeout=180, env=_headless_env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 )
             except (subprocess.SubprocessError, OSError):
@@ -447,6 +461,11 @@ def headless_once(install_dir: Path, our_profile: Path) -> str | None:
 
     if store_dir:
         _purge_headless_strays(store_dir, ini, our_profile, before_names)
+    if made_in is not None:
+        try:
+            made_in.rmdir()  # Windows makes it for the stray, if it's empty now
+        except OSError:
+            pass
     _remove_first_run_dirs(home_before, cache_top)
     return found_hash
 
@@ -461,9 +480,10 @@ def _headless_env() -> dict[str, str]:
 def install_hash_fresh(install_dir: Path) -> str | None:
     """Fallback for headless_once: runs Firefox with a throwaway $HOME so
     whatever hash it computes lands in a profiles.ini we can just read, no
-    diffing needed."""
-    binary = install_dir / "firefox"
-    if not os.access(binary, os.X_OK):
+    diffing needed. Not on Windows: Firefox asks the system for its
+    folders there, not the environment."""
+    binary = paths.firefox_binary(install_dir)
+    if os.name == "nt" or not os.access(binary, os.X_OK):
         return None
     with tempfile.TemporaryDirectory() as tmp_home:
         tmp = Path(tmp_home)

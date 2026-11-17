@@ -8,6 +8,8 @@ from unittest import mock
 
 from myfox import firefox
 
+from ._helpers import WINDOWS, only_linux
+
 
 class DetectArchTests(unittest.TestCase):
     def test_x86_64_is_amd64(self):
@@ -72,9 +74,15 @@ class PickLangTests(unittest.TestCase):
         with mock.patch.dict("os.environ", {"LANG": "de_DE.UTF-8"}, clear=True):
             self.assertEqual(firefox.pick_lang(self.CATALOG), "de-DE")
 
+    @only_linux
     def test_missing_environ_lang_defaults_to_en_us(self):
         with mock.patch.dict("os.environ", {}, clear=True):
             self.assertEqual(firefox.pick_lang(self.CATALOG), "en-US")
+
+    def test_windows_goes_by_its_display_language(self):
+        with mock.patch.dict("os.environ", {}, clear=True), mock.patch("os.name", "nt"), \
+             mock.patch("myfox.i18n.windows_language", return_value="ru_RU"):
+            self.assertEqual(firefox.pick_lang(self.CATALOG), "ru")
 
 
 class PickLangLiveCatalogTests(unittest.TestCase):
@@ -121,7 +129,7 @@ class ValidateInstallDirTests(unittest.TestCase):
 
     def test_root_rejected(self):
         with self.assertRaises(firefox.InstallDirError) as ctx:
-            firefox.validate_install_dir("/")
+            firefox.validate_install_dir(Path.cwd().anchor)
         self.assertEqual(ctx.exception.key, "err_installdir_root")
 
     def test_existing_empty_writable_dir_is_accepted(self):
@@ -149,14 +157,14 @@ class ValidateInstallDirTests(unittest.TestCase):
             self.assertEqual(firefox.validate_install_dir(target), Path(target))
 
     def test_tilde_is_expanded(self):
-        with mock.patch("pathlib.Path.home", return_value=Path("/home/fakeuser")):
-            with self.assertRaises(firefox.InstallDirError) as ctx:
-                # /home/fakeuser almost certainly doesn't exist on the test
-                # machine — this only checks the tilde was expanded to an
-                # absolute path at all (no err_installdir_relative), not
-                # that the target is actually usable.
-                firefox.validate_install_dir("~/wherever")
-            self.assertNotEqual(ctx.exception.key, "err_installdir_relative")
+        home = Path(Path.cwd().anchor) / "home" / "fakeuser"
+        with mock.patch("pathlib.Path.home", return_value=home):
+            # Only that the tilde became the home directory (whether that
+            # one is usable on the test machine doesn't matter here).
+            try:
+                self.assertEqual(firefox.validate_install_dir("~/wherever"), home / "wherever")
+            except firefox.InstallDirError as exc:
+                self.assertNotEqual(exc.key, "err_installdir_relative")
 
 
 class DirClaimStateTests(unittest.TestCase):
@@ -207,6 +215,7 @@ class ResolveDownloadTests(unittest.TestCase):
         self.assertEqual(version, "158.0")
         self.assertIn("linux-x86_64", url)
 
+    @only_linux
     def test_arm64_asks_mozilla_for_the_aarch64_build(self):
         # "linux64-aarch64" is Mozilla's name for it; "linux-aarch64" is a 404.
         cm = mock.MagicMock()
@@ -217,6 +226,17 @@ class ResolveDownloadTests(unittest.TestCase):
             url, version = firefox.resolve_download("arm64", "ru", "stable")
         self.assertIn("os=linux64-aarch64&", urlopen.call_args.args[0].full_url)
         self.assertEqual((version, url.split("/")[-3]), ("158.0", "linux-aarch64"))
+
+    @unittest.skipUnless(WINDOWS, "Windows only")
+    def test_windows_gets_the_installer_and_its_version(self):
+        cm = mock.MagicMock()
+        cm.__enter__.return_value.geturl.return_value = (
+            "https://download-installer.cdn.mozilla.net/pub/firefox/releases/161.0b4/win64/ru/Firefox%20Setup%20161.0b4.exe"
+        )
+        with mock.patch("urllib.request.urlopen", return_value=cm) as urlopen:
+            _url, version = firefox.resolve_download("amd64", "ru", "beta")
+        self.assertIn("product=firefox-beta-latest-ssl&os=win64&", urlopen.call_args.args[0].full_url)
+        self.assertEqual(version, "161.0b4")
 
 
 if __name__ == "__main__":
@@ -247,7 +267,7 @@ class QuitTests(unittest.TestCase):
             firefox.start(Path("/ff"), Path("/p/x"))
             firefox.start(Path("/ff"))
         self.assertEqual([c.args for c in launch.call_args_list],
-                         [(Path("/ff"), "--profile", "/p/x"), (Path("/ff"),)])
+                         [(Path("/ff"), "--profile", str(Path("/p/x"))), (Path("/ff"),)])
 
     def test_each_open_profile_is_asked_to_quit(self):
         pids = [[42], []]
@@ -255,6 +275,6 @@ class QuitTests(unittest.TestCase):
              mock.patch("myfox.firefox._launch") as launch, mock.patch("myfox.firefox.time.sleep"):
             firefox.quit_and_wait(Path("/ff"), [Path("/p/a"), Path("/p/b")])
         self.assertEqual([c.args for c in launch.call_args_list],
-                         [(Path("/ff"), "--profile", "/p/a", "--myfox-quit"),
-                          (Path("/ff"), "--profile", "/p/b", "--myfox-quit")])
+                         [(Path("/ff"), "--profile", str(Path("/p/a")), "--myfox-quit"),
+                          (Path("/ff"), "--profile", str(Path("/p/b")), "--myfox-quit")])
 
