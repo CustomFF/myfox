@@ -50,6 +50,8 @@ class FirefoxTracesTests(IsolatedStateCase):
 
     def _cleanup(self):
         self.winshell._delete_tree(r"Software\Classes\.myfoxtest")
+        for ext in (".myfoxtest", ".myfoxtest2"):
+            self.winshell._delete_tree(rf"{self.winshell._FILE_CHOICES}\{ext}")
         # Keys the test made, left empty, go with it.
         self.winshell._drop_values(r"Software\Mozilla", lambda text: str(self.other) in text)
 
@@ -75,6 +77,18 @@ class FirefoxTracesTests(IsolatedStateCase):
         self.assertFalse(self._has_value(r"Software\Mozilla\Firefox\TaskBarIDs", str(self.install)))
         self.assertTrue(self._has_value(r"Software\Mozilla\Firefox\TaskBarIDs", str(self.other)))
         self.assertEqual((ours.exists(), theirs.exists()), (False, True))
+
+    def test_default_app_choices_naming_this_install_go(self):
+        files = self.winshell._FILE_CHOICES
+        self._value(rf"{files}\.myfoxtest\UserChoice", "ProgId", f"FirefoxHTML-{self.hash}")
+        self._value(rf"{files}\.myfoxtest\OpenWithProgids", f"FirefoxHTML-{self.hash}", "")
+        self._value(rf"{files}\.myfoxtest2\UserChoice", "ProgId", "Other.Html")
+
+        self.winshell.remove_firefox_traces(self.install, self.hash)
+
+        self.assertFalse(self._has_value(rf"{files}\.myfoxtest\UserChoice", "ProgId"))
+        self.assertFalse(self._has_value(rf"{files}\.myfoxtest\OpenWithProgids", f"FirefoxHTML-{self.hash}"))
+        self.assertTrue(self._has_value(rf"{files}\.myfoxtest2\UserChoice", "ProgId"))
 
 
 if __name__ == "__main__":
