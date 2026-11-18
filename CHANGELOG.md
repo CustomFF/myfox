@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.0 – 2026-11-18
+
+- Windows: MyFox installs and runs on Windows 10 and 11, for your user only and without administrator rights: `irm https://raw.githubusercontent.com/CustomFF/myfox/master/get.ps1 | iex` in PowerShell. Firefox goes into %LOCALAPPDATA%\myfox together with the Python MyFox runs on; the Start menu gets a MyFox folder with Firefox, Firefox Private Browsing and Update MyFox, and Settings > Apps lists MyFox, which is where it's uninstalled. The `myfox` command works in a new terminal. The dialogs open in a window on x64, in the console on ARM64
+- On Windows `myfox command on` makes `firefox` start this Firefox in a terminal and from Win+R
+- On Windows, uninstalling also takes away what Firefox registered for itself (its entries in the registry, its own shortcuts and taskbar pin)
+- Downloads no longer fail on a system missing a root certificate the server needs: Windows is asked to fetch it
+- Pinning the profile no longer leaves behind a stray profile Firefox made for its headless run
+- Ticking or clearing a checkbox in a dialog window (for example "Also delete the profile" when uninstalling) no longer fails
+
 ## 1.5.0 – 2026-11-13
 
 - Choosing the tweaks version: if your Firefox is older than the one the newest tweaks are made for and they misbehave on it, `myfox tweaks use 159` installs the tweaks made for Firefox 159 and keeps them, `myfox refresh` leaves them alone; `myfox tweaks use latest` goes back to the newest. `myfox tweaks` shows what is installed, `myfox tweaks versions` the versions there are and which fit your Firefox
