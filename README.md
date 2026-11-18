@@ -44,8 +44,8 @@ command (the directory must be in PATH).
 
 On Windows everything goes into %LOCALAPPDATA%\myfox, for your user only, without administrator
 rights: Firefox (from Mozilla's own installer), python.org's embeddable Python that MyFox runs on, and
-MyFox itself. The Start menu gets a MyFox folder (Firefox, Update MyFox, Uninstall MyFox), Settings >
-Apps lists MyFox, and the `myfox` command works in a new terminal. The GUI dialogs need x64; on ARM64
+MyFox itself. The Start menu gets a MyFox folder (Firefox, Firefox Private Browsing, Update MyFox), Settings >
+Apps lists MyFox (uninstalling goes there), and the `myfox` command works in a new terminal. The GUI dialogs need x64; on ARM64
 the dialogs open in the console.
 
 ## Updating
@@ -99,7 +99,7 @@ myfox help          the list of all commands
 myfox uninstall
 ```
 
-Or, on Windows, Start menu > MyFox > Uninstall MyFox, or Settings > Apps > MyFox.
+Or, on Windows, Settings > Apps > MyFox > Uninstall.
 
 Removes Firefox, the shortcut, the `myfox` command and MyFox's directory. The profile
 (bookmarks, history, passwords) is kept; to delete it too, tick "Also delete the profile" in the

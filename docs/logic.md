@@ -370,9 +370,10 @@ PATH, корневые сертификаты – через ctypes), `winshell.
 - **Команда `myfox`**: `bin\myfox.cmd` (запускает `python\python.exe -m myfox` с `PYTHONPATH` на
   каталог MyFox), `bin\` добавляется в PATH пользователя (`HKCU\Environment`, с рассылкой
   `WM_SETTINGCHANGE`). Для окон без консоли – `bin\myfoxw.pyw` под `pythonw.exe`.
-- **Ярлыки** (`desktop.write_entry` → `winshell.write`): папка MyFox в меню «Пуск» (Firefox, «Обновить
-  MyFox», «Удалить MyFox»; последние два – `pythonw … --gui`, без GUI – консоль) и запись в
-  «Параметры → Приложения» (`HKCU\…\Uninstall\MyFox`). Консольное окно, открытое ярлыком (в консоли
+- **Ярлыки** (`desktop.write_entry` → `winshell.write`): папка MyFox в меню «Пуск» (Firefox, «Приватный
+  просмотр Firefox», «Обновить MyFox» – `pythonw … --gui`, без GUI – консоль) и запись в
+  «Параметры → Приложения» (`HKCU\…\Uninstall\MyFox`, удаление тем же `pythonw … --gui`).
+  Ярлыка удаления в «Пуске» нет: «Пуск» сам прячет ярлыки с «Удалить»/«Uninstall» в названии. Консольное окно, открытое ярлыком (в консоли
   только `cmd` и Python), перед закрытием ждёт клавишу.
 - **Команда firefox** (`command.py`): `bin\firefox.cmd` (`start`, чтобы не ждать Firefox) для терминала
   и пользовательская запись App Paths `firefox.exe` для Win+R и «Выполнить». Чужая пользовательская

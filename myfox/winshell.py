@@ -80,7 +80,6 @@ def _shortcuts(install_dir: Path, launcher: Path, app_name: str, aumid: str | No
     from . import launcher as launcher_mod
 
     firefox = str(install_dir / "firefox.exe")
-    helper = install_dir / "uninstall" / "helper.exe"
     pythonw = launcher_mod.python_dir() / "pythonw.exe"
     script = launcher_mod.gui_launcher(launcher)
     gui = (launcher_mod.share_dir() / "dearpygui").is_dir() and pythonw.is_file() and script.is_file()
@@ -98,8 +97,8 @@ def _shortcuts(install_dir: Path, launcher: Path, app_name: str, aumid: str | No
             "dir": str(install_dir), "icon": str(private),
             "aumid": aumid + PRIVATE_AUMID_SUFFIX if aumid else None}] if private.is_file() else []),
         {"name": i18n.t("desktop_action_refresh"), **myfox("refresh"), "dir": str(launcher.parent), "icon": firefox},
-        {"name": i18n.t("shortcut_uninstall"), **myfox("uninstall"), "dir": str(launcher.parent),
-         "icon": str(helper) if helper.is_file() else firefox},
+        # Not a shortcut: Start hides any named "Uninstall …"; Settings > Apps runs it.
+        {"name": None, **myfox("uninstall")},
     ]
 
 
@@ -110,7 +109,7 @@ def write(install_dir: Path, launcher: Path, app_name: str, version: str, instal
     # Rewritten whole: a shortcut named in another language before goes.
     shutil.rmtree(folder, ignore_errors=True)
     folder.mkdir(parents=True, exist_ok=True)
-    shortcuts = _shortcuts(install_dir, launcher, app_name, install_hash)
+    *shortcuts, uninstall = _shortcuts(install_dir, launcher, app_name, install_hash)
     items = json.dumps([{**s, "path": str(folder / f"{s['name']}.lnk")} for s in shortcuts])
     _powershell(
         f"Add-Type -TypeDefinition '{_ps(_AUMID_CS)}'\n"
@@ -121,7 +120,6 @@ def write(install_dir: Path, launcher: Path, app_name: str, version: str, instal
         "  $l.IconLocation = $s.icon + ',0'; $l.Save()\n"
         "  if ($s.aumid) { [MyFoxAumid]::Set($s.path, $s.aumid) }\n"
         "}\n")
-    uninstall = shortcuts[-1]
     _write_uninstall_entry(install_dir, launcher, version, f'"{uninstall["target"]}" {uninstall["args"]}')
 
 
