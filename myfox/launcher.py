@@ -100,7 +100,7 @@ def gui_launcher(launcher: Path) -> Path:
 
 
 def remove_self() -> None:
-    """Removes the link only if it points into our copy — a `myfox` that
+    """Removes the link only if it points into our copy – a `myfox` that
     belongs to something else stays."""
     if paths.WINDOWS:
         from . import winapi

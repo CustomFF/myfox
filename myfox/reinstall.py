@@ -23,7 +23,7 @@ def build(state: State) -> task_mod.Task:
         title=i18n.t("reinstall_title"),
         subtitle=i18n.t("reinstall_subtitle"),
         rows=[
-            (i18n.t("row_firefox"), state.get("firefox_version") or "—"),
+            (i18n.t("row_firefox"), state.get("firefox_version") or "–"),
             (i18n.t("form_channel"), i18n.t(channel) if channel else state.get("channel")),
             (i18n.t("form_dir"), paths.shown(install_dir)),
         ],

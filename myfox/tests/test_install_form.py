@@ -38,7 +38,7 @@ def _p(path: str) -> str:
 
 class LangTests(unittest.TestCase):
     def test_label_shows_native_then_english_and_code(self):
-        self.assertEqual(Lang("ru", "Russian", "Русский").label(), "Русский — Russian (ru)")
+        self.assertEqual(Lang("ru", "Russian", "Русский").label(), "Русский – Russian (ru)")
 
     def test_label_skips_native_when_identical_or_unwanted(self):
         self.assertEqual(Lang("en-US", "English (US)", "English (US)").label(), "English (US) (en-US)")

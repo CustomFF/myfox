@@ -1,7 +1,7 @@
 """profiles.ini / installs.ini handling, headless install-hash pinning.
 
 The profile store is *shared* with regular Firefox (~/.mozilla/firefox or
-the XDG path Firefox 147+ uses) — every function here touches only the
+the XDG path Firefox 147+ uses) – every function here touches only the
 sections it owns ([Install<HASH>], [ProfileN] Name=myfox), never someone
 else's.
 
@@ -33,7 +33,7 @@ _PROFILE_SECTION_RE = re.compile(r"^Profile\d+$")
 # In a profile MyFox created: its name, whether profiles.ini lists it or not.
 NAME_FILE = ".myfox-name"
 CREATED_MARKER = ".myfox-created"
-# Both capture just the inner name (no brackets) — callers only ever want
+# Both capture just the inner name (no brackets) – callers only ever want
 # the bare "Install<HASH>" or "<HASH>", never the bracket punctuation.
 _INSTALL_SECTION_RE = re.compile(r"^\[(Install[0-9A-F]{1,16})\]$")
 _HASH_SECTION_RE = re.compile(r"^\[([0-9A-F]{1,16})\]$")
@@ -176,7 +176,7 @@ def create_new(name: str | None = None, register: bool = True) -> Path:
     return profile_dir
 
 
-# ─── Raw section add/remove (line-based, not full re-serialization — a
+# ─── Raw section add/remove (line-based, not full re-serialization – a
 #     minimal diff instead of configparser reformatting the whole file) ───
 
 def _remove_section_text(text: str, section_name: str) -> str:
@@ -220,7 +220,7 @@ def remove_ini_section(ini: Path, section_name: str) -> None:
 
 def write_install_section(ini: Path, section_name: str, profile_path: str) -> None:
     """Replaces [section_name] wholesale with Default=<profile_path> /
-    Locked=1 — used for both profiles.ini's [Install<HASH>] and
+    Locked=1 – used for both profiles.ini's [Install<HASH>] and
     installs.ini's [<HASH>], same shape."""
     text = ini.read_text(encoding="utf-8") if ini.is_file() else ""
     text = _remove_section_text(text, section_name)
@@ -305,7 +305,7 @@ def _all_inis() -> list[Path]:
 
 
 def remove_myfox_section(profile_dir: Path) -> None:
-    """Scoped to this exact profile directory — never "any [ProfileN] named
+    """Scoped to this exact profile directory – never "any [ProfileN] named
     myfox", which would also rip out unrelated myfox installs elsewhere."""
     for ini in _all_inis():
         # Every one: a Firefox can list a folder more than once.
@@ -422,7 +422,7 @@ def _remove_first_run_dirs(home_before: set[str], cache_top: Path | None) -> Non
 def headless_once(install_dir: Path, our_profile: Path) -> str | None:
     """Runs `firefox --headless --screenshot` (throwaway) up to twice and
     diffs profiles.ini/installs.ini before/after for a new [Install<HASH>]
-    or [<HASH>] section Firefox itself wrote — that's the only way to learn
+    or [<HASH>] section Firefox itself wrote – that's the only way to learn
     the hash, there's no API for it. Cleans up whatever stray first-run
     profile that headless pass created along the way."""
     binary = paths.firefox_binary(install_dir)

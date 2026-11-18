@@ -31,7 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
 
     # "browser" is intercepted in main() before argparse ever sees it (see
-    # comment there) — not registered as a subparser, or --help would list
+    # comment there) – not registered as a subparser, or --help would list
     # a command whose own flags argparse can never correctly describe.
 
     refresh_parser = sub.add_parser("refresh", parents=[common], help=i18n.t("cmd_refresh"))
@@ -194,14 +194,14 @@ def main(argv: list[str] | None = None) -> int:
         argv = sys.argv[1:]
 
     state = State()
-    # Always from the system locale, never saved — no state key for it,
+    # Always from the system locale, never saved – no state key for it,
     # and no coupling with --lang (that picks Firefox's own language,
     # a completely different, much larger code space; see firefox.pick_lang).
     i18n.load()
 
     # Bypasses argparse entirely: Firefox's own flags (e.g. --new-window)
     # can start with "-", which argparse.REMAINDER fails to capture as the
-    # first token (confirmed CPython limitation) — and these need passing
+    # first token (confirmed CPython limitation) – and these need passing
     # through untouched anyway.
     if argv and argv[0] == "browser":
         return cmd_browser(argv[1:], state)
@@ -221,7 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
 
     # Top-level -h/--help goes through the same hand-composed listing as
-    # bare `myfox`/`myfox help` — argparse's own would still be missing
+    # bare `myfox`/`myfox help` – argparse's own would still be missing
     # "browser" (see build_parser). `myfox refresh -h` etc. still gets
     # argparse's normal per-subcommand help, that one's accurate.
     if argv and argv[0] in ("-h", "--help"):

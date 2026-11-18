@@ -1,4 +1,4 @@
-"""Shared test scaffolding — not a test module itself (no Test* classes)."""
+"""Shared test scaffolding – not a test module itself (no Test* classes)."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def firefox_store() -> Path:
 
 
 def make_tweaks(root: Path) -> Path:
-    """A minimal tweaks tree (autoconfig/ + chrome/) under root — what a
+    """A minimal tweaks tree (autoconfig/ + chrome/) under root – what a
     release archive or paths.tweaks_dir() holds."""
     files = {
         "autoconfig/autoconfig.js": "pref('general.config.filename', 'myfox.cfg');\n",

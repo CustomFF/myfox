@@ -44,7 +44,7 @@ def latest_themes_release() -> ThemesRelease | None:
 def themes_display(tag: str | None) -> str:
     """"themes-20261001154613" -> "2026-10-01 15:46": the tag is a build time."""
     m = re.fullmatch(r"themes-(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d*", tag or "")
-    return f"{m[1]}-{m[2]}-{m[3]} {m[4]}:{m[5]}" if m else (tag or "—")
+    return f"{m[1]}-{m[2]}-{m[3]} {m[4]}:{m[5]}" if m else (tag or "–")
 
 
 def fetch_themes(profile_dir: Path, local_dir: str | None = None, current: str | None = None,
@@ -106,7 +106,7 @@ _NMH_DEFAULT_DIRS = (
 
 def pkg_installed() -> bool:
     """Whether the plasma-browser-integration system package (the native-
-    messaging host) is present. MYFOX_NMH_DIRS overrides the search dirs —
+    messaging host) is present. MYFOX_NMH_DIRS overrides the search dirs –
     dev/test only, to simulate "package missing" without uninstalling it;
     production never sets it."""
     override = os.environ.get("MYFOX_NMH_DIRS")
@@ -139,7 +139,7 @@ def addon_guid(slug: str) -> str | None:
 
 
 def addon_fetch(slug: str, out: Path) -> bool:
-    """XPI is a zip — "PK" magic bytes are the only sanity check worth
+    """XPI is a zip – "PK" magic bytes are the only sanity check worth
     doing here."""
     url = f"https://addons.mozilla.org/firefox/downloads/latest/{slug}/addon-latest.xpi"
     try:
@@ -155,7 +155,7 @@ def addon_fetch(slug: str, out: Path) -> bool:
 
 def apply_amo_addons(profile_dir: Path, slugs: list[str]) -> list[str]:
     """Returns the slugs that failed (guid unresolved or download/validation
-    failed) — a warning per slug for the caller, never a hard failure for
+    failed) – a warning per slug for the caller, never a hard failure for
     the whole batch."""
     ext_dir = profile_dir / "extensions"
     ext_dir.mkdir(parents=True, exist_ok=True)

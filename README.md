@@ -27,8 +27,8 @@ irm https://raw.githubusercontent.com/CustomFF/myfox/master/get.ps1 | iex
 Install modes:
 
 - interactive, TUI dialog (the default);
-- interactive, GUI dialog — `sh -s -- --gui`;
-- non-interactive, default settings — `sh -s -- -y`.
+- interactive, GUI dialog – `sh -s -- --gui`;
+- non-interactive, default settings – `sh -s -- -y`.
 
 The install is controlled by flags passed after `sh -s --`; on Windows,
 `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/CustomFF/myfox/master/get.ps1))) --gui`.

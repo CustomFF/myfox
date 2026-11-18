@@ -59,7 +59,7 @@ def status(state: State) -> int:
     shown = changelog.display(current)
     if pin:
         shown = i18n.t("tweaks_pinned", shown)
-    rows = [(i18n.t("refresh_track_tweaks"), shown), ("Firefox:", ff or "—")]
+    rows = [(i18n.t("refresh_track_tweaks"), shown), ("Firefox:", ff or "–")]
     width = max(len(label) for label, _ in rows)
     for label, value in rows:
         print(f"{label.ljust(width)}  {value}")
@@ -146,7 +146,7 @@ def build(state: State, release: tweaks.Release, pin: str | None, wanted: str,
             (i18n.t("tweaks_row_pin"), i18n.t("tweaks_pin_on", changelog.display(pin)) if pin
              else i18n.t("tweaks_pin_off"))]
     if ff_major is not None:
-        rows.append(("Firefox:", firefox.local_version(install_dir) or "—"))
+        rows.append(("Firefox:", firefox.local_version(install_dir) or "–"))
     warnings = _warnings(release.tag, ff_major, best_major(list(found), ff_major))
 
     def run(progress: Progress) -> None:

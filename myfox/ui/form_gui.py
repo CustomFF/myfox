@@ -138,7 +138,7 @@ def fit_viewport(w: int, h: int) -> None:
 
 
 def _renderable(text: str) -> bool:
-    """Latin, Greek and Cyrillic only — what the system sans font carries.
+    """Latin, Greek and Cyrillic only – what the system sans font carries.
     dpg loads one font file with no fallback chain, so other scripts would
     render as replacement boxes."""
     return all(ord(ch) < 0x0530 or 0x1E00 <= ord(ch) <= 0x206F for ch in text)
@@ -146,7 +146,7 @@ def _renderable(text: str) -> bool:
 
 def symbol_font(char: str) -> int | None:
     """A font that has `char` (via fontconfig), for a single item to use
-    when the system sans lacks it — dpg has no fallback chain."""
+    when the system sans lacks it – dpg has no fallback chain."""
     path = _font_file(f"sans-serif:charset={ord(char):x}")
     if not path:
         return None
@@ -268,7 +268,7 @@ def _input_themes() -> tuple[int, int]:
 
 
 class _LangList:
-    """Single-choice list on selectables — dpg's listbox can't scroll to
+    """Single-choice list on selectables – dpg's listbox can't scroll to
     its selected row, and the default in 172 languages must be visible."""
 
     def __init__(self, langs: list[Lang], default: str) -> None:

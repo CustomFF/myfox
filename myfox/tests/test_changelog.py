@@ -23,7 +23,7 @@ class VersionTests(unittest.TestCase):
     def test_display_drops_the_prefix(self):
         self.assertEqual(changelog.display("core-1.0.0"), "1.0.0")
         self.assertEqual(changelog.display("158.0"), "158.0")
-        self.assertEqual(changelog.display(None), "—")
+        self.assertEqual(changelog.display(None), "–")
 
     def test_is_newer_compares_numbers(self):
         self.assertTrue(changelog.is_newer("core-1.10.0", "1.9.0"))

@@ -1,6 +1,6 @@
 """`myfox uninstall`: Firefox, the shortcut, the `myfox` command and MyFox's
 own copy go. The profile (bookmarks, history, passwords) stays on disk, only
-unregistered from Firefox's profile list — unless deleting it is asked for
+unregistered from Firefox's profile list – unless deleting it is asked for
 (a checkbox, off by default; --remove-profile), and then only those MyFox
 created. That holds for every MyFox profile, not just the one our Firefox
 opens. A profile imported with its Firefox account moved along gives the

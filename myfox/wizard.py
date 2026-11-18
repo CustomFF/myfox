@@ -12,7 +12,7 @@ only picks how it looks:
   --sync MODE     with --import: none (default), move or copy its sync account
   --allow-downgrade  with --import: go on with a profile from a newer Firefox
 
-Runs from bootstrap.py's "not installed yet" branch — there's no `install`
+Runs from bootstrap.py's "not installed yet" branch – there's no `install`
 subcommand. For development:
 
     python3 -m myfox.wizard [--gui] [-y] [--dry-run]

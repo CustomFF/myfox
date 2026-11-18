@@ -1,4 +1,4 @@
-"""Desktop notifications over D-Bus (org.freedesktop.Notifications) — the
+"""Desktop notifications over D-Bus (org.freedesktop.Notifications) – the
 "tray" message every desktop shows, without notify-send being installed.
 https://specifications.freedesktop.org/notification-spec/latest/
 """

@@ -33,7 +33,7 @@ class State:
                 self._data = json.loads(self._path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 # A corrupt or unreadable state file is treated as "nothing
-                # installed yet", not a crash — the installer itself is the
+                # installed yet", not a crash – the installer itself is the
                 # only writer, so this only happens from manual tampering.
                 self._data = {}
 

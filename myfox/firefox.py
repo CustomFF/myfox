@@ -35,7 +35,7 @@ class InstallDirError(ValueError):
 
 
 def detect_arch() -> str | None:
-    """amd64 | arm64 | None (unsupported — 32-bit and exotic arches)."""
+    """amd64 | arm64 | None (unsupported – 32-bit and exotic arches)."""
     machine = platform.machine()
     if machine in ("x86_64", "AMD64"):
         return "amd64"
@@ -52,9 +52,9 @@ def _mozilla_arch(arch: str) -> str:
 
 def pick_lang(catalog: dict[str, str], env_lang: str | None = None) -> str:
     """Full locale (e.g. $LANG) -> Mozilla language code, matched against
-    `catalog` (fetch_lang_catalog()'s result) — never a hardcoded guess.
+    `catalog` (fetch_lang_catalog()'s result) – never a hardcoded guess.
     Mozilla renames/adds/drops regional codes over time (checked live: 40
-    of them right now, e.g. 4 Spanish variants, 6 English ones) — a fixed
+    of them right now, e.g. 4 Spanish variants, 6 English ones) – a fixed
     table drifts out of sync with that; the catalog is the only thing that
     can't."""
     if env_lang is not None:
@@ -65,9 +65,9 @@ def pick_lang(catalog: dict[str, str], env_lang: str | None = None) -> str:
         lang = os.environ.get("LANG", "en_US.UTF-8")
     base = lang.split("@", 1)[0].split(".", 1)[0]  # strip @modifier, then encoding
     # POSIX locales are "language_REGION" (region already uppercase);
-    # Mozilla's codes are "language-REGION" — same string, "_" for "-".
+    # Mozilla's codes are "language-REGION" – same string, "_" for "-".
     # Try the specific region first ("es_AR" -> "es-AR"), then the bare
-    # language ("es") — some languages have one, some don't.
+    # language ("es") – some languages have one, some don't.
     candidates = [base.replace("_", "-"), base.partition("_")[0]]
     lower_catalog = {code.lower(): code for code in catalog}
     for candidate in candidates:
@@ -75,7 +75,7 @@ def pick_lang(catalog: dict[str, str], env_lang: str | None = None) -> str:
             return lower_catalog[candidate.lower()]
     # No match at all, or a bare language ("zh", "pt", "no") that only
     # exists in region-specific flavors Mozilla doesn't otherwise
-    # disambiguate for us — the honest fallback, not a guessed region.
+    # disambiguate for us – the honest fallback, not a guessed region.
     return "en-US"
 
 
@@ -132,7 +132,7 @@ def os_access_w_x(path: Path) -> bool:
 
 
 def dir_claim_state(path: Path) -> str:
-    """ours | foreign | empty — same three states as firefox_dir_claim_state."""
+    """ours | foreign | empty – same three states as firefox_dir_claim_state."""
     if (path / "application.ini").is_file() and is_myfox_dir(path):
         return "ours"
     if path.is_dir() and any(path.iterdir()):
@@ -142,7 +142,7 @@ def dir_claim_state(path: Path) -> str:
 
 def fetch_lang_names() -> dict[str, tuple[str, str]]:
     """code -> (English name, native name), straight from Mozilla's own
-    JSON — no scraping. Native falls back to English if ever missing."""
+    JSON – no scraping. Native falls back to English if ever missing."""
     with urllib.request.urlopen(net.request(LANGUAGES_URL), timeout=net.TIMEOUT) as resp:
         raw = json.loads(resp.read().decode("utf-8"))
     return {code: (info["English"], info.get("native") or info["English"]) for code, info in raw.items()}
@@ -176,7 +176,7 @@ def _download_url(arch: str, lang: str, channel: str) -> str:
 
 def resolve_download(arch: str, lang: str, channel: str) -> tuple[str, str]:
     """Follows the download.mozilla.org redirect without downloading the
-    tarball — gives the real file URL and the version parsed out of it."""
+    tarball – gives the real file URL and the version parsed out of it."""
     req = net.request(_download_url(arch, lang, channel), method="HEAD")
     with urllib.request.urlopen(req, timeout=net.TIMEOUT) as resp:
         effective_url = resp.geturl()
@@ -335,7 +335,7 @@ def start(install_dir: Path, profile_dir: Path | None = None) -> None:
 def install_tarball(install_dir: Path, lang: str, channel: str, on_download=None, on_extract=None,
                     on_wait=None) -> str:
     """Downloads + extracts, returns the installed version. Raises on
-    failure (unsupported arch, network error) — the caller decides what to
+    failure (unsupported arch, network error) – the caller decides what to
     tell the user."""
     arch = detect_arch()
     if arch is None:

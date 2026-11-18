@@ -10,7 +10,7 @@ from myfox import i18n
 
 
 class I18nStateGuard(unittest.TestCase):
-    """load() mutates module-level globals — every test restores them so
+    """load() mutates module-level globals – every test restores them so
     order between test files never matters."""
 
     def setUp(self) -> None:
@@ -46,7 +46,7 @@ class NormalizeAndDetectTests(I18nStateGuard):
 
 
 class LoadOverlayMechanismTests(I18nStateGuard):
-    """Uses fixture catalogs, not the real en/ru.json — the overlay
+    """Uses fixture catalogs, not the real en/ru.json – the overlay
     mechanism shouldn't be coupled to the actual (still-changing) copy."""
 
     def setUp(self) -> None:
@@ -87,7 +87,7 @@ class TTests(I18nStateGuard):
 
 
 class RealCatalogsTests(I18nStateGuard):
-    """Not isolated from the real locales/ dir on purpose — this is the one
+    """Not isolated from the real locales/ dir on purpose – this is the one
     place that should notice a genuinely broken en.json/ru.json."""
 
     def test_real_catalogs_load_and_answer_a_known_key(self):

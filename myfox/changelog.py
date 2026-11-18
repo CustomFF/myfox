@@ -27,7 +27,7 @@ def parse(tag: str | None) -> tuple[int, ...] | None:
 def display(tag: str | None) -> str:
     """What the user sees: the version without the tag's prefix."""
     m = _VERSION_RE.search(tag or "")
-    return m.group(1) if m else (tag or "—")
+    return m.group(1) if m else (tag or "–")
 
 
 def is_newer(latest: str | None, current: str | None) -> bool:

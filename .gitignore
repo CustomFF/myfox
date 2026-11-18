@@ -22,4 +22,4 @@ build/
 themes/*/.amo-upload-uuid
 
 # bookmarklet tweaks (docs/blm_panel.css, icons/*.svg) are copied from the separate
-# ddblm project into the profile at install time — never committed here.
+# ddblm project into the profile at install time – never committed here.

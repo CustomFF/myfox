@@ -1,5 +1,5 @@
 """Native directory picker via xdg-desktop-portal (org.freedesktop.portal.
-FileChooser) over D-Bus — the desktop routes it to its own dialog (KDE,
+FileChooser) over D-Bus – the desktop routes it to its own dialog (KDE,
 GNOME, ...), nothing like kdialog/zenity has to be installed.
 
 The portal answers asynchronously: OpenFile returns a request handle, the

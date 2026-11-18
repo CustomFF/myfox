@@ -27,7 +27,7 @@ class DetectArchTests(unittest.TestCase):
 
 class PickLangTests(unittest.TestCase):
     # A slice of a *real* fetch_lang_catalog() response (checked live
-    # 2026-09-30: 172 codes, 40 of them regional) — not invented, so the
+    # 2026-09-30: 172 codes, 40 of them regional) – not invented, so the
     # matching logic is proven against what Mozilla actually ships, not
     # against our own assumptions about it.
     CATALOG = {
@@ -42,7 +42,7 @@ class PickLangTests(unittest.TestCase):
     }
 
     CASES = [
-        ("ru_RU.UTF-8", "ru"),  # bare "ru" exists — no "ru-RU" needed
+        ("ru_RU.UTF-8", "ru"),  # bare "ru" exists – no "ru-RU" needed
         ("de_DE.UTF-8", "de-DE"),  # region-specific beats the also-valid bare "de"
         ("de_XX.UTF-8", "de"),  # unknown region for a language with a bare fallback
         ("pt_BR.UTF-8", "pt-BR"),
@@ -65,7 +65,7 @@ class PickLangTests(unittest.TestCase):
 
     def test_bare_language_with_only_regional_flavors_falls_back_to_default(self):
         # "no"/"pt"/"zh"/"en" alone aren't real Mozilla codes (see the live
-        # check above) — no guessed region, an honest default instead.
+        # check above) – no guessed region, an honest default instead.
         for bare in ("no", "pt", "zh", "en"):
             with self.subTest(bare=bare):
                 self.assertEqual(firefox.pick_lang(self.CATALOG, bare), "en-US")
@@ -86,7 +86,7 @@ class PickLangTests(unittest.TestCase):
 
 
 class PickLangLiveCatalogTests(unittest.TestCase):
-    """Same matching logic, against the real, freshly-fetched catalog —
+    """Same matching logic, against the real, freshly-fetched catalog –
     the point of pick_lang is to never drift from this."""
 
     @classmethod

@@ -1,6 +1,6 @@
 """The first-install form, independent of how it is drawn: the GUI and the
 TUI show it as one window, the plain view prints it (it never asks). Runs
-only from bootstrap.py's "not installed yet" branch — there is no `install`
+only from bootstrap.py's "not installed yet" branch – there is no `install`
 subcommand.
 """
 
@@ -22,7 +22,7 @@ def default_install_dir() -> str:
     return str(launcher.share_dir() / "firefox")
 
 
-# (message, overall fraction 0..1) — how an install reports progress.
+# (message, overall fraction 0..1) – how an install reports progress.
 Progress = Callable[[str, float], None]
 Installer = Callable[["Answers", Progress], None]
 
@@ -129,7 +129,7 @@ class Lang:
 
     def label(self, show_native: bool = True) -> str:
         if show_native and self.native != self.english:
-            return f"{self.native} — {self.english} ({self.code})"
+            return f"{self.native} – {self.english} ({self.code})"
         return f"{self.english} ({self.code})"
 
     def matches(self, query: str) -> bool:
@@ -229,7 +229,7 @@ class InstallForm:
         return [lang for lang in self.langs if lang.matches(query)]
 
     def validate(self, asks: bool = True) -> str | None:
-        """A message to show, or None — then answers.install_dir is normalized.
+        """A message to show, or None – then answers.install_dir is normalized.
         Without `asks` (no form to press Install again in) a newer profile
         to import needs answers.allow_downgrade set beforehand."""
         if self.error:

@@ -96,7 +96,7 @@ def apply_chrome(profile_dir: Path) -> bool:
 
 
 def _user_pref(profile_dir: Path, name: str, value: str) -> None:
-    """Pre-seeds a pref into user.js — a fresh profile hasn't run Firefox
+    """Pre-seeds a pref into user.js – a fresh profile hasn't run Firefox
     yet to have a prefs.js of its own. Idempotent: replaces an existing
     line for the pref instead of piling up duplicates on repeat installs
     against the same profile. `value` is the JavaScript literal."""
@@ -161,7 +161,7 @@ def latest_ddblm_release() -> DdblmRelease | None:
 def ddblm_display(tag: str | None) -> str:
     """"ddblm-20261015123456" -> "2026-10-15 12:34", like the themes."""
     m = re.fullmatch(r"ddblm-(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d*", tag or "")
-    return f"{m[1]}-{m[2]}-{m[3]} {m[4]}:{m[5]}" if m else (tag or "—")
+    return f"{m[1]}-{m[2]}-{m[3]} {m[4]}:{m[5]}" if m else (tag or "–")
 
 
 def _ddblm_fetch(rel: str, out: Path, local_dir: str | None, ref: str = DDBLM_BRANCH) -> bool:

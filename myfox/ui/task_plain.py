@@ -1,5 +1,5 @@
 """The task dialog (task.Task) without a tty: what will happen, then a line
-per stage. It never asks — a question printed into a pipe reaches nobody —
+per stage. It never asks – a question printed into a pipe reaches nobody –
 so without -y it only says which command does it.
 """
 

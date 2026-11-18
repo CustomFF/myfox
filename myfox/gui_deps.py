@@ -1,9 +1,9 @@
 """dearpygui for the GUI views. It's a compiled wheel per Python version x
 architecture, not portable source, so it isn't in git: the install puts
 the matching one next to MyFox's own copy (share_dir()/dearpygui), from
-this project's own GitHub release — never PyPI/pip at runtime.
+this project's own GitHub release – never PyPI/pip at runtime.
 
-The binary inside is a bare _dearpygui.so — no Python version in its
+The binary inside is a bare _dearpygui.so – no Python version in its
 name, so a newer Python would try to load an old one and may crash rather
 than fail to import. Hence the marker file naming the wheel it came from:
 ensure_current() compares it with the running Python before any import.

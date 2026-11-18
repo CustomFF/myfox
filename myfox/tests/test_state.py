@@ -16,7 +16,7 @@ class StateTests(IsolatedStateCase):
         state.set("install_dir", "/opt/firefox")
         self.assertEqual(state.get("install_dir"), "/opt/firefox")
         self.assertTrue(state.is_installed())
-        # A second, unrelated State() must not see it — nothing was saved.
+        # A second, unrelated State() must not see it – nothing was saved.
         self.assertIsNone(State().get("install_dir"))
 
     def test_save_then_reload_round_trips(self):

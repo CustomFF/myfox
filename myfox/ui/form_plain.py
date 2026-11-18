@@ -1,4 +1,4 @@
-"""The install form without a tty: no questions — a question printed into a
+"""The install form without a tty: no questions – a question printed into a
 pipe reaches nobody. With -y it installs with the defaults, otherwise it
 shows them and the command that installs. All decisions live in
 install_form.InstallForm.

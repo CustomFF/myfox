@@ -1,4 +1,4 @@
-"""MyFox bootstrap — what `curl -fsSL …/get.sh | sh` runs. Fetched fresh on
+"""MyFox bootstrap – what `curl -fsSL …/get.sh | sh` runs. Fetched fresh on
 every call, so it has no version of its own; stdlib only, it can't import
 myfox before downloading it.
 

@@ -204,7 +204,7 @@ class _ProfileCase(IsolatedStateCase):
         return (self.store / "profiles.ini").read_text(encoding="utf-8")
 
 class ProfileChangeTests(_ProfileCase):
-    """new, apply, use, remove, import, rename — confirmed with -y."""
+    """new, apply, use, remove, import, rename – confirmed with -y."""
 
     def test_new_makes_a_tweaked_profile_outside_profiles_ini_with_firefox_open(self):
         self.running = [42]

@@ -12,7 +12,7 @@ from ._helpers import WINDOWS, only_linux
 
 
 class IsolatedHomeCase(unittest.TestCase):
-    """Every profiles.py entry point walks from $HOME/$XDG_CONFIG_HOME —
+    """Every profiles.py entry point walks from $HOME/$XDG_CONFIG_HOME –
     point both at a throwaway directory so nothing here can ever touch a
     real ~/.mozilla or ~/.config/mozilla."""
 
@@ -237,7 +237,7 @@ class RemoveMyfoxSectionTests(IsolatedHomeCase):
 
 
 class PinInstallTests(IsolatedHomeCase):
-    """headless_once/install_hash_fresh call a real Firefox binary — mocked
+    """headless_once/install_hash_fresh call a real Firefox binary – mocked
     here via subprocess.run's side effect writing the section Firefox would
     have written, so the diff logic gets exercised for real. The actual
     binary path is verified once, live, in scratch/ (see commit)."""
@@ -401,7 +401,7 @@ class PinInstallTests(IsolatedHomeCase):
 
     def test_pin_install_reuses_a_saved_hash_already_present(self):
         store = self._make_store_with_ini()
-        # Real Firefox hashes are hex only ([0-9A-F]) — the section-matching
+        # Real Firefox hashes are hex only ([0-9A-F]) – the section-matching
         # regex depends on that, so the fixture has to look like a real one.
         (store / "profiles.ini").write_text("[InstallCAFEBABE]\nDefault=old\n", encoding="utf-8")
         install_dir = self.home / "install"

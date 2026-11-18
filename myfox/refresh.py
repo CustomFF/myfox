@@ -1,12 +1,12 @@
 """`myfox refresh`: updates what MyFox ships besides the browser, each from
-its own releases — the tweaks (look and config) and the themes (both from
+its own releases – the tweaks (look and config) and the themes (both from
 CustomFF/myfox-tweaks), the bookmarklet styling (ddblm) and MyFox's own logic
 (core, CustomFF/myfox). The browser updates itself; forcing it is
 `myfox reinstall`.
 
 The check comes first. Nothing new (and no --force): no dialog, just one
 line in a terminal or a desktop notification for --gui. Otherwise a dialog
-lists what will be updated — unless -y, which updates without asking.
+lists what will be updated – unless -y, which updates without asking.
 --force downloads everything again.
 
 Like install_form, this holds the logic; the dialog is a task.Task, shown

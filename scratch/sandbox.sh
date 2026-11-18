@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sandbox.sh — runs a command with its own $HOME and every $XDG_* directory
+# sandbox.sh – runs a command with its own $HOME and every $XDG_* directory
 # under <sandbox-dir>, so MyFox never touches the real browser, profile,
 # state, desktop entries or ~/.local/share/myfox.
 #

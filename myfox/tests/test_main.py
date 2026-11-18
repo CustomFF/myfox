@@ -84,7 +84,7 @@ class UninstallTests(IsolatedStateCase):
         self.assertIn(i18n.t("err_firefox_running"), err.getvalue())
 
     def test_unregisters_the_profile_without_touching_its_files(self):
-        # Only the browser install is removed — the profile (bookmarks,
+        # Only the browser install is removed – the profile (bookmarks,
         # history) stays so a later reinstall can find it again.
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
             profile_dir = Path(d) / "profile"
@@ -383,7 +383,7 @@ class RefreshTests(IsolatedStateCase):
 
 
 class DispatchWiringTests(IsolatedStateCase):
-    """argv -> cmd_* wiring in main() — the commands' own logic is tested
+    """argv -> cmd_* wiring in main() – the commands' own logic is tested
     directly above, this only checks main() calls the right one with the
     right arguments."""
 
@@ -461,7 +461,7 @@ class BrowserCommandTests(IsolatedStateCase):
     def test_a_leading_dash_argument_reaches_firefox_untouched(self):
         # Regression: argparse.REMAINDER silently drops a leading "-"-style
         # token (a documented CPython limitation, confirmed independent of
-        # this parser) — "browser" bypasses argparse entirely to dodge it,
+        # this parser) – "browser" bypasses argparse entirely to dodge it,
         # see main(). --new-window is exactly the shape that broke.
         state = State()
         state.set("install_dir", "/opt/firefox")
@@ -484,7 +484,7 @@ class ParserStructureTests(IsolatedStateCase):
         self.assertIn("myfox", out)
 
     def test_no_command_help_and_dash_h_help_agree_on_listing_browser(self):
-        # "browser" isn't a real argparse subparser (see build_parser) —
+        # "browser" isn't a real argparse subparser (see build_parser) –
         # both entry points into the top-level help must still mention it,
         # not just the bare-`myfox` one.
         _, bare = _run([])

@@ -1,6 +1,6 @@
 """Drives the real picotui form with a scripted key sequence: the real
 widgets, focus and key handling run; only reading a key and the terminal
-(tty setup, screen size, output) are stubbed — those need a real pty and
+(tty setup, screen size, output) are stubbed – those need a real pty and
 are checked live."""
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ def _drive(keys):
     keys = list(keys)
 
     def get_input(self):
-        assert keys, "ran out of scripted keys — a real run would have blocked on input here"
+        assert keys, "ran out of scripted keys – a real run would have blocked on input here"
         return keys.pop(0)
 
     def ready(timeout):

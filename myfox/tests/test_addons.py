@@ -104,7 +104,7 @@ class FetchThemesTests(unittest.TestCase):
 
     def test_tag_shows_as_its_build_time(self):
         self.assertEqual(addons.themes_display("themes-20261001154613"), "2026-10-01 15:46")
-        self.assertEqual(addons.themes_display(None), "—")
+        self.assertEqual(addons.themes_display(None), "–")
 
 
 class IsPlasmaSessionTests(unittest.TestCase):

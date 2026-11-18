@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# docker-test.sh — MyFox in a clean container: get.sh -y, checks, uninstall.
+# docker-test.sh – MyFox in a clean container: get.sh -y, checks, uninstall.
 #
 # Usage:
 #   scratch/docker-test.sh [--arch amd64|arm64] [--release] <image>...

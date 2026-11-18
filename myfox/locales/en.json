@@ -252,7 +252,7 @@
     "tweaks_pinned": "{0} (pinned)",
     "tweaks_installed": "{0} (installed)",
     "tweaks_pinned_note": "Tweaks are pinned to {0}; back to the newest: {1}",
-    "tweaks_latest": "Newest tweaks: {0} — {1}",
+    "tweaks_latest": "Newest tweaks: {0} – {1}",
     "tweaks_hint_older": "Tweaks {0} are made for a Firefox newer than {1}. If something doesn't work: {2}",
     "tweaks_hint_versions": "Other versions: {0}",
     "tweaks_list_failed": "Could not get the tweaks versions: {0}",

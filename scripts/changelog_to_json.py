@@ -13,10 +13,10 @@ Usage:
 Every mode validates the whole file first. --changelog PATH reads another
 file (for testing).
 
-CHANGELOG.md: sections '## <major>.<minor>.<patch> — <YYYY-MM-DD>', newest
+CHANGELOG.md: sections '## <major>.<minor>.<patch> – <YYYY-MM-DD>', newest
 first, each holding only '- ' items; an optional '## Unreleased' goes on top
 and is left out of the JSON. changelog.json is {"versions": [{"version",
-"date", "changes": [...]}]}, newest first — the same format as the tweaks'
+"date", "changes": [...]}]}, newest first – the same format as the tweaks'
 (CustomFF/myfox-tweaks), which this script was adapted from.
 """
 import argparse
@@ -28,7 +28,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
-HEADER_RE = re.compile(r"^## (\S+) — (\S+)$")
+HEADER_RE = re.compile(r"^## (\S+) – (\S+)$")
 
 
 class ChangelogError(Exception):
@@ -68,7 +68,7 @@ def parse(path):
                 continue
             m = HEADER_RE.match(line)
             if not m:
-                errors.append(f"{where}: bad header {line!r}, expected '## <major>.<minor>.<patch> — <YYYY-MM-DD>'")
+                errors.append(f"{where}: bad header {line!r}, expected '## <major>.<minor>.<patch> – <YYYY-MM-DD>'")
                 current = {"changes": []}
                 continue
             version, date = m.groups()

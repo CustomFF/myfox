@@ -22,7 +22,7 @@ def _normalize(code: str) -> str:
 
 def _env_language() -> str | None:
     """The first of LANGUAGE (its first entry), LC_ALL, LC_MESSAGES, LANG
-    that is set — gettext's order. Read directly: locale.getlocale() says
+    that is set – gettext's order. Read directly: locale.getlocale() says
     "C" when the system lacks the generated locale."""
     for var in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
         value = (os.environ.get(var) or "").split(":")[0]
@@ -44,7 +44,7 @@ def windows_language() -> str | None:
 
 def detect(preferred: str | None = None) -> str:
     """Explicit code, else the environment, else the system's language, else
-    en — and en if there's no catalog for it."""
+    en – and en if there's no catalog for it."""
     system = windows_language() if os.name == "nt" else _locale.getlocale()[0]
     candidate = preferred or _env_language() or system or "en"
     code = _normalize(candidate)
@@ -67,7 +67,7 @@ def t(key: str, *args: object) -> str:
 
 
 # Loaded with the system default on import so t() works even if a caller
-# forgets load() (e.g. early error messages before argv is parsed) —
+# forgets load() (e.g. early error messages before argv is parsed) –
 # main() calls load() again too, redundant in a real one-shot process but
 # needed so tests can change $LANG between calls within one test run.
 load()
