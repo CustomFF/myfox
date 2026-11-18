@@ -246,10 +246,10 @@ class RunningPidsTests(unittest.TestCase):
     @only_linux
     def test_finds_a_process_started_from_the_install(self):
         with tempfile.TemporaryDirectory() as d:
-            binary = Path(d) / "sleeper"
+            # Named sleep: a multi-call coreutils (uutils) picks the program by its file's name.
+            binary = Path(d) / "sleep"
             shutil.copy(os.path.realpath("/bin/sleep"), binary)
-            # Named sleep: a multi-call coreutils (uutils) picks the program by it.
-            proc = subprocess.Popen(["sleep", "5"], executable=str(binary))
+            proc = subprocess.Popen([str(binary), "5"])
             try:
                 self.assertIn(proc.pid, firefox.running_pids(Path(d)))
             finally:
