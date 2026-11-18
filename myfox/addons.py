@@ -110,7 +110,7 @@ def pkg_installed() -> bool:
     dev/test only, to simulate "package missing" without uninstalling it;
     production never sets it."""
     override = os.environ.get("MYFOX_NMH_DIRS")
-    candidates = override.split(":") if override else list(_NMH_DEFAULT_DIRS)
+    candidates = override.split(os.pathsep) if override else list(_NMH_DEFAULT_DIRS)
     return any((Path(d) / "org.kde.plasma.browser_integration.json").is_file() for d in candidates)
 
 

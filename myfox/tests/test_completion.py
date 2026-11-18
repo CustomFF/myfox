@@ -152,6 +152,7 @@ class InstallTests(IsolatedStateCase):
         self.assertEqual([p for p in written if p.exists()], [])
 
 
+@only_linux  # the shells' scripts; a Windows bash (Git, WSL) is no `myfox` shell
 class ScriptTests(unittest.TestCase):
     """The scripts against a `myfox` that answers like `_complete` would."""
 
