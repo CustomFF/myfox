@@ -131,7 +131,8 @@ class _Window:
                 for option in self.task.options:
                     item = dpg.add_checkbox(
                         label=option.label, default_value=option.value, pos=(px(PAD), y),
-                        callback=lambda sender, value, option=option: setattr(option, "value", value),
+                        # The option as user_data: dearpygui passes that third, over a default.
+                        callback=lambda sender, value, option: setattr(option, "value", value), user_data=option,
                     )
                     self._blocks.append(([item], px(PAD) if self._blocks else 0))
                     self.checks.append((item, option))
