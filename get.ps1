@@ -31,7 +31,8 @@
     $root = Join-Path $env:LOCALAPPDATA 'myfox'
     $python = Join-Path $root 'python'
     $marker = Join-Path $python '.myfox-python'
-    if (-not ((Test-Path $marker) -and ((Get-Content $marker -Raw).Trim() -eq "$version-$arch"))) {
+    if (-not ((Test-Path $marker) -and (Test-Path (Join-Path $python 'python.exe')) -and
+              ((Get-Content $marker -Raw).Trim() -eq "$version-$arch"))) {
         $tmp = Join-Path ([IO.Path]::GetTempPath()) ("myfox-" + [Guid]::NewGuid())
         New-Item -ItemType Directory $tmp | Out-Null
         try {

@@ -127,12 +127,20 @@ def _remove_after_exit(path: Path) -> None:
     import subprocess
 
     quoted = str(path).replace("'", "''")
+    # The Python's marker first: get.ps1 reuses a Python that has one.
     script = (f"Wait-Process -Id {os.getpid()},{os.getppid()} -ErrorAction SilentlyContinue; "
+              f"Remove-Item -LiteralPath '{quoted}\\python\\.myfox-python' -Force -ErrorAction SilentlyContinue; "
               f"foreach ($i in 1..30) {{ Remove-Item -LiteralPath '{quoted}' -Recurse -Force "
               f"-ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath '{quoted}')) {{ break }}; "
               "Start-Sleep 1 }")
-    subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-                     cwd=os.environ.get("SYSTEMROOT", "C:\\"), stdin=subprocess.DEVNULL,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                     # Not DETACHED_PROCESS: without a console PowerShell quits at once.
-                     creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP)
+    # Not DETACHED_PROCESS: without a console PowerShell quits at once.
+    flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+    # Out of a job that ends its processes with it (an SSH session's), where the job allows.
+    for extra in (subprocess.CREATE_BREAKAWAY_FROM_JOB, 0):
+        try:
+            subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                             cwd=os.environ.get("SYSTEMROOT", "C:\\"), stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags | extra)
+            return
+        except OSError:
+            continue
