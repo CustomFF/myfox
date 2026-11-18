@@ -336,12 +336,15 @@ def _remove_shortcuts_into(install_dir: Path) -> None:
     folders = json.dumps([str(p) for p in places if p.is_dir()])
     _powershell(
         "$shell = New-Object -ComObject WScript.Shell\n"
+        "$app = New-Object -ComObject Shell.Application\n"
         f"$into = '{_ps(str(install_dir).rstrip(chr(92)) + chr(92))}'\n"
         f"foreach ($dir in ('{_ps(folders)}' | ConvertFrom-Json)) {{\n"
         "  Get-ChildItem -LiteralPath $dir -Filter *.lnk -Recurse -ErrorAction SilentlyContinue | ForEach-Object {\n"
         "    $target = $shell.CreateShortcut($_.FullName).TargetPath\n"
         "    if ($target -and $target.StartsWith($into, [StringComparison]::OrdinalIgnoreCase)) {\n"
-        "      Remove-Item -LiteralPath $_.FullName -Force\n"
+        # A pin whose file is just deleted stays on the taskbar until Explorer restarts.
+        "      try { $app.NameSpace($_.DirectoryName).ParseName($_.Name).InvokeVerb('taskbarunpin') } catch {}\n"
+        "      Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue\n"
         "    }\n"
         "  }\n"
         "}\n")
