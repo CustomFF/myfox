@@ -301,6 +301,33 @@ def _drop_values(path: str, matches) -> None:
             pass
 
 
+_URL_CHOICES = r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations"
+_FILE_CHOICES = r"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts"
+
+
+def _drop_user_choices(progids: list[str]) -> None:
+    """The user's choice of a default (links, file types) that is one of
+    these ProgIDs goes: Windows asks again instead of starting a program
+    that's gone. Where Windows guards the choice (http, https, .pdf: its
+    UCPD driver lets only its own settings change them) it stays."""
+    import winreg
+
+    for parent in (_URL_CHOICES, _FILE_CHOICES):
+        for name in _subkeys(winreg.HKEY_CURRENT_USER, parent):
+            for choice in ("UserChoice", "UserChoiceLatest"):
+                path = rf"{parent}\{name}\{choice}"
+                try:
+                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as key:
+                        progid = winreg.QueryValueEx(key, "ProgId")[0]
+                except OSError:
+                    continue
+                if progid in progids:
+                    _delete_tree(path)
+        if parent == _FILE_CHOICES:
+            for name in _subkeys(winreg.HKEY_CURRENT_USER, parent):
+                _drop_values(rf"{parent}\{name}\OpenWithProgids", lambda value: value in progids)
+
+
 def remove_firefox_traces(install_dir: Path, install_hash: str | None) -> None:
     import winreg
 
@@ -322,6 +349,7 @@ def remove_firefox_traces(install_dir: Path, install_hash: str | None) -> None:
             if ext.startswith("."):
                 _drop_values(rf"Software\Classes\{ext}\OpenWithProgids", lambda name: name in progids)
         _delete_tree(rf"Software\Mozilla\Firefox\Installer\{install_hash}")
+        _drop_user_choices(progids)
     _drop_values(r"Software\RegisteredApplications", ours)
     # Its settings name the install's folder or hash; keys left empty go too.
     _drop_values(r"Software\Mozilla", ours)
