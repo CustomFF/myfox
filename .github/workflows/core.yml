@@ -58,6 +58,20 @@ jobs:
       - name: Build the archive
         run: ./scripts/build-core-dist.sh build/dist
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.x"
+          cache: false
+
+      - name: Test the Windows installer
+        working-directory: setup
+        run: go test ./... && GOOS=windows GOARCH=amd64 go vet ./...
+
+      # Signing, once there is a certificate, goes after this step: the
+      # release takes the signed file.
+      - name: Build the Windows installer
+        run: ./scripts/build-setup-exe.sh build/dist
+
       - uses: actions/upload-artifact@v7
         with:
           name: myfox-core
@@ -69,7 +83,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 scripts/changelog_to_json.py --notes "${TAG#core-}" > build/notes.md
-          gh release create "$TAG" build/dist/myfox-core.tar.gz build/dist/changelog.json \
+          gh release create "$TAG" build/dist/myfox-core.tar.gz build/dist/changelog.json build/dist/MyFox-Setup.exe \
             --title "MyFox ${TAG#core-}" \
             --notes-file build/notes.md \
             --target "$GITHUB_SHA" \

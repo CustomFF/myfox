@@ -23,3 +23,21 @@ jobs:
 
       - name: Tests
         run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} -m unittest discover -t . -s myfox/tests -p "test_*.py"
+
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.x"
+          cache: false
+
+      - name: Windows installer
+        working-directory: setup
+        run: |
+          test -z "$(gofmt -l .)"
+          go test ./...
+          GOOS=windows GOARCH=amd64 go vet ./...
+          ../scripts/build-setup-exe.sh ../build/setup
