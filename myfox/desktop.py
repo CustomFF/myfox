@@ -133,7 +133,7 @@ def _icon(install_dir: Path) -> str:
     return "firefox"
 
 
-def _name(install_dir: Path) -> str:
+def app_name(install_dir: Path) -> str:
     """The menu name Mozilla's own packages give the channel; the install
     knows its channel, so a reinstall or refresh needs no saved one."""
     try:
@@ -160,13 +160,13 @@ def write_entry(install_dir: Path, launcher: Path, install_hash: str | None = No
             from .state import State
 
             install_hash = State().get("install_hash")
-        winshell.write(install_dir, launcher, _name(install_dir), version, install_hash)
+        winshell.write(install_dir, launcher, app_name(install_dir), version, install_hash)
         return winshell.start_menu_dir()
     wrapper = write_wrapper(install_dir)
     write_manifest(install_dir, launcher)
     path = desktop_file()
     if _write(path, _render(DESKTOP_NAME, wrapper=wrapper, launcher=launcher, icon=_icon(install_dir),
-                           app_name=_name(install_dir))):
+                           app_name=app_name(install_dir))):
         _refresh_menu_cache()
     return path
 

@@ -455,7 +455,8 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     _ensure_screen()
     a = form.answers
     cols, rows = Screen.screen_size()
-    w, h = min(_MAX_W, cols - 2), min(_MAX_H, rows - 1)
+    # Windows' two rows more: the language list keeps its height.
+    w, h = min(_MAX_W, cols - 2), min(_MAX_H + (1 if form.windows_options else 0), rows - 1)
     x, y = _centered(w, h)
     _clear()
     d = _FormDialog(x, y, w, h, title=i18n.t("form_title"))
@@ -499,6 +500,13 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     doh.hidden = doh_label.hidden = not form.doh_applies
     firefox_command = _Checkbox("", choice=a.firefox_command)
     add_row("form_command", firefox_command)
+    extras = {}
+    if form.windows_options:
+        # Rows of their own from the left edge, the caption after the box.
+        for name in ("desktop_shortcut", "launch"):
+            extras[name] = _Checkbox(i18n.t(f"form_{name}"), choice=getattr(a, name))
+            d.add(2, row, extras[name])
+            row += 1
     row += 1
 
     search = _Entry(w - 4, "", hint=i18n.t("form_lang_search"), moves_on=True)
@@ -590,6 +598,8 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
         a.theme = theme.value
         a.doh = doh.choice
         a.firefox_command = firefox_command.choice
+        for name, box in extras.items():
+            setattr(a, name, box.choice)
         a.lang = langs.value or a.lang
         error = form.validate()
         if error is None:

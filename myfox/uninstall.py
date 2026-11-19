@@ -129,6 +129,8 @@ def run(state: State, progress: Progress, remove_profile: bool = False, restore_
     shutil.rmtree(install_dir, ignore_errors=True)
     progress(i18n.t("progress_uninstall_myfox"), 0.8)
     desktop.remove_entry()
+    if state.get("desktop_shortcut"):
+        Path(state.get("desktop_shortcut")).unlink(missing_ok=True)
     command.disable(install_dir)  # puts back a `firefox` it replaced
     completion.remove(state.get("completions"))
     launcher.remove_self()

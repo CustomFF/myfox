@@ -97,7 +97,9 @@ def _shortcuts(install_dir: Path, launcher: Path, app_name: str, aumid: str | No
             "dir": str(install_dir), "icon": str(private),
             "aumid": aumid + PRIVATE_AUMID_SUFFIX if aumid else None}] if private.is_file() else []),
         {"name": i18n.t("desktop_action_refresh"), **myfox("refresh"), "dir": str(launcher.parent), "icon": firefox},
-        # Not a shortcut: Start hides any named "Uninstall …"; Settings > Apps runs it.
+        # Not shortcuts: Settings > Apps runs them (Modify, Uninstall); Start
+        # hides any named "Uninstall …".
+        {"name": None, **myfox("reinstall")},
         {"name": None, **myfox("uninstall")},
     ]
 
@@ -109,8 +111,14 @@ def write(install_dir: Path, launcher: Path, app_name: str, version: str, instal
     # Rewritten whole: a shortcut named in another language before goes.
     shutil.rmtree(folder, ignore_errors=True)
     folder.mkdir(parents=True, exist_ok=True)
-    *shortcuts, uninstall = _shortcuts(install_dir, launcher, app_name, install_hash)
-    items = json.dumps([{**s, "path": str(folder / f"{s['name']}.lnk")} for s in shortcuts])
+    *shortcuts, reinstall, uninstall = _shortcuts(install_dir, launcher, app_name, install_hash)
+    _make_shortcuts([{**s, "path": str(folder / f"{s['name']}.lnk")} for s in shortcuts])
+    _write_uninstall_entry(install_dir, launcher, version, f'"{uninstall["target"]}" {uninstall["args"]}',
+                           f'"{reinstall["target"]}" {reinstall["args"]}')
+
+
+def _make_shortcuts(shortcuts: list[dict]) -> None:
+    items = json.dumps(shortcuts)
     _powershell(
         f"Add-Type -TypeDefinition '{_ps(_AUMID_CS)}'\n"
         "$shell = New-Object -ComObject WScript.Shell\n"
@@ -120,7 +128,32 @@ def write(install_dir: Path, launcher: Path, app_name: str, version: str, instal
         "  $l.IconLocation = $s.icon + ',0'; $l.Save()\n"
         "  if ($s.aumid) { [MyFoxAumid]::Set($s.path, $s.aumid) }\n"
         "}\n")
-    _write_uninstall_entry(install_dir, launcher, version, f'"{uninstall["target"]}" {uninstall["args"]}')
+
+
+def desktop_dir() -> Path:
+    """The user's desktop, wherever it was moved (OneDrive moves it)."""
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders") as key:
+            folder = os.path.expandvars(winreg.QueryValueEx(key, "Desktop")[0])
+    except OSError:
+        folder = ""
+    return Path(folder) if folder else Path.home() / "Desktop"
+
+
+def write_desktop_shortcut(install_dir: Path, app_name: str, install_hash: str | None = None) -> Path:
+    """Firefox's shortcut on the desktop: its path, for uninstalling. A
+    shortcut of that name there already is another Firefox's."""
+    folder = desktop_dir()
+    path = folder / f"{app_name}.lnk"
+    if path.exists():
+        path = folder / f"{app_name} (MyFox).lnk"
+    firefox = str(install_dir / "firefox.exe")
+    _make_shortcuts([{"path": str(path), "target": firefox, "args": "", "dir": str(install_dir), "icon": firefox,
+                      "aumid": install_hash}])
+    return path
 
 
 def _ps(text: str) -> str:
@@ -128,19 +161,22 @@ def _ps(text: str) -> str:
     return text.replace("'", "''")
 
 
-def _write_uninstall_entry(install_dir: Path, launcher: Path, version: str, command: str) -> None:
+def _write_uninstall_entry(install_dir: Path, launcher: Path, version: str, command: str, modify: str) -> None:
     import winreg
 
     values = {
         "DisplayName": "MyFox", "DisplayVersion": version, "Publisher": "CustomFF",
         "DisplayIcon": str(install_dir / "firefox.exe"), "InstallLocation": str(launcher.parent.parent),
-        "UninstallString": command, "URLInfoAbout": "https://github.com/CustomFF/myfox",
+        "UninstallString": command, "ModifyPath": modify, "URLInfoAbout": "https://github.com/CustomFF/myfox",
     }
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY) as key:
         for name, value in values.items():
             winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
-        for name in ("NoModify", "NoRepair"):
-            winreg.SetValueEx(key, name, 0, winreg.REG_DWORD, 1)
+        winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
+        try:  # an entry written before ModifyPath hid Modify
+            winreg.DeleteValue(key, "NoModify")
+        except FileNotFoundError:
+            pass
 
 
 def remove() -> None:

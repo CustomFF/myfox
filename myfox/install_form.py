@@ -92,6 +92,9 @@ class Answers:
     theme: str = "dark"
     doh: bool = True  # off: the tweaks leave DNS over HTTPS alone (myfox.doh)
     firefox_command: bool = False  # `firefox` on the command line runs this one (command.py)
+    # Windows only (InstallForm.windows_options), where installers offer them.
+    desktop_shortcut: bool = True
+    launch: bool = True  # Firefox starts once installed
     # Filled by the install: things to tell the user in the terminal once
     # the form is closed (the TUI owns the terminal while it's open).
     notes: list[str] = field(default_factory=list)
@@ -224,6 +227,11 @@ class InstallForm:
     @property
     def doh_applies(self) -> bool:
         return self.answers.tweaks
+
+    @property
+    def windows_options(self) -> bool:
+        """The desktop shortcut and starting Firefox once installed."""
+        return paths.WINDOWS
 
     def filter_langs(self, query: str) -> list[Lang]:
         return [lang for lang in self.langs if lang.matches(query)]

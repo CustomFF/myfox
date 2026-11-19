@@ -32,6 +32,9 @@ def _summary(form: InstallForm) -> None:
     lang = next((lang for lang in form.langs if lang.code == a.lang), None)
     rows.append((i18n.t("form_lang"), lang.label() if lang else a.lang))
     rows.append((i18n.t("form_command"), i18n.t("summary_yes" if a.firefox_command else "summary_no")))
+    if form.windows_options:
+        for name in ("desktop_shortcut", "launch"):
+            rows.append((i18n.t(f"form_{name}") + ":", i18n.t("summary_yes" if getattr(a, name) else "summary_no")))
     print(i18n.t("form_title"))
     for label, value in rows:
         print(f"  {label} {value}")

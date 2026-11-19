@@ -26,9 +26,11 @@ HEADER_H = 64
 FOOTER_H = 52
 PAD = 16
 BTN_W, BTN_H = 96, 28
-LABEL_W = 110
+LABEL_W = 126
 COMBO_W = 220
 BTN_GAP = 8
+FRAME_PAD_Y = 4
+CHECK_PAD = 1
 FONT_PT = 10
 
 ACCENT = (61, 174, 233)
@@ -41,6 +43,8 @@ FRAME_BORDER = (214, 216, 218)
 
 
 WINDOWS = os.name == "nt"
+# Windows' form has two rows more (InstallForm.windows_options): the language list keeps its height.
+WIN_H += 60 if WINDOWS else 0
 # Windows has no fontconfig: its own UI fonts, and Segoe UI Symbol for
 # what Segoe UI lacks.
 _WINDOWS_FONTS = {"sans-serif": "segoeui.ttf", "sans-serif:bold": "segoeuib.ttf", "symbol": "seguisym.ttf"}
@@ -201,13 +205,20 @@ def _global_theme() -> int:
             dpg.add_theme_style(dpg.mvStyleVar_ChildBorderSize, 0)
             dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize, 1)
             dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, px(3))
-            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, px(6), px(4))
+            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, px(6), px(FRAME_PAD_Y))
             dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, px(8), px(6))
+        # The box is the font's height plus the padding: with the fields' it
+        # comes out far bigger than a desktop's checkbox.
+        # (A disabled one takes only its own component below.)
+        with dpg.theme_component(dpg.mvCheckbox):
+            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, px(CHECK_PAD), px(CHECK_PAD))
         for kind in (dpg.mvCombo, dpg.mvInputText, dpg.mvButton, dpg.mvCheckbox, dpg.mvSelectable):
             with dpg.theme_component(kind, enabled_state=False):
                 dpg.add_theme_color(dpg.mvThemeCol_Text, (160, 164, 168))
                 dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (246, 246, 247))
                 dpg.add_theme_color(dpg.mvThemeCol_Button, (246, 246, 247))
+                if kind == dpg.mvCheckbox:
+                    dpg.add_theme_style(dpg.mvStyleVar_FramePadding, px(CHECK_PAD), px(CHECK_PAD))
     return theme
 
 
@@ -355,6 +366,10 @@ class _Window:
         self._idle_input, self._focused_input = _input_themes()
         self._error_theme = _color_theme(Text=ERROR)
         self._normal_theme = _color_theme(Text=(35, 38, 41))
+        with dpg.theme() as self._tight_theme:  # no spacing under _row_checkbox's spacer
+            for enabled in (True, False):
+                with dpg.theme_component(dpg.mvAll, enabled_state=enabled):
+                    dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, px(8), 0)
         self._focused: set[int] = set()
         self._picked: str | None = None
         self._picked_profile: tuple[str | None] | None = None  # (folder or None if cancelled), once picked
@@ -381,6 +396,15 @@ class _Window:
         with dpg.group(horizontal=True, xoffset=px(LABEL_W)) as group:
             dpg.add_text(label)
             yield group
+
+    def _row_checkbox(self, **kwargs) -> int:
+        """A checkbox after a row's label: lowered to the label's line, which
+        sits at the fields' padding, deeper than the checkbox's."""
+        with dpg.group() as group:
+            dpg.add_spacer(height=px(FRAME_PAD_Y - CHECK_PAD))
+            box = dpg.add_checkbox(**kwargs)
+        dpg.bind_item_theme(group, self._tight_theme)
+        return box
 
     def _build(self, bold_font: int | None) -> None:
         a = self.answers
@@ -427,15 +451,23 @@ class _Window:
                 with self._row(i18n.t("form_sync")) as self.sync_row:
                     self.sync = _combo(self.form.syncs, a.sync, lambda v: setattr(a, "sync", v))
                 with self._row(i18n.t("form_tweaks")):
-                    self.tweaks = dpg.add_checkbox(default_value=a.tweaks, callback=self._on_tweaks)
+                    self.tweaks = self._row_checkbox(default_value=a.tweaks, callback=self._on_tweaks)
                 with self._row(i18n.t("form_theme")) as self.theme_row:
                     self.theme = _combo(self.form.themes, a.theme, lambda v: setattr(a, "theme", v))
                 with self._row(i18n.t("form_doh")) as self.doh_row:
-                    self.doh = dpg.add_checkbox(default_value=a.doh, callback=lambda s, value: setattr(a, "doh", value))
+                    self.doh = self._row_checkbox(default_value=a.doh, callback=lambda s, value: setattr(a, "doh", value))
                 with self._row(i18n.t("form_command")):
-                    self.firefox_command = dpg.add_checkbox(
+                    self.firefox_command = self._row_checkbox(
                         default_value=a.firefox_command, callback=lambda s, value: setattr(a, "firefox_command", value),
                     )
+                self.extras = []
+                if self.form.windows_options:
+                    # Rows of their own from the left edge, the caption after the box.
+                    self.extras = [
+                        dpg.add_checkbox(label=i18n.t(f"form_{name}"), default_value=getattr(a, name),
+                                         callback=lambda s, value, name: setattr(a, name, value), user_data=name)
+                        for name in ("desktop_shortcut", "launch")
+                    ]
                 dpg.add_spacer(height=px(4))
                 self.search = dpg.add_input_text(
                     hint=i18n.t("form_lang_search"), width=-1,
@@ -483,7 +515,7 @@ class _Window:
     def _form_items(self) -> list[int]:
         items = [self.dir_input, self.browse, self.channel, self.sync, self.tweaks, self.theme, self.doh,
                  self.firefox_command, self.search, self.install]
-        return items + ([self.profile] if self.profile else [])
+        return items + self.extras + ([self.profile] if self.profile else [])
 
     def _show_error(self, text: str) -> None:
         dpg.set_value(self.status, text)

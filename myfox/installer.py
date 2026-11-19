@@ -104,7 +104,21 @@ def install(answers: Answers, progress: Progress) -> None:
     except BaseException:
         undo.run()
         raise
+    if paths.WINDOWS and answers.launch:
+        _launch(Path(answers.install_dir), answers)
     settled(progress)(i18n.t("progress_done"), 1.0)
+
+
+def _launch(install_dir: Path, answers: Answers) -> None:
+    """Firefox on its own: it outlives the installer."""
+    import subprocess
+
+    flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    try:
+        subprocess.Popen([str(paths.firefox_binary(install_dir))], cwd=install_dir, creationflags=flags,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError as exc:
+        answers.notes.append(i18n.t("note_launch_failed", exc))
 
 
 def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
@@ -211,6 +225,12 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
     if paths.WINDOWS or not desktop.desktop_file().exists():
         undo.add(desktop.remove_entry)
     desktop.write_entry(install_dir, launcher_path, install_hash)
+    shortcut = None
+    if paths.WINDOWS and answers.desktop_shortcut:
+        from . import winshell
+
+        shortcut = winshell.write_desktop_shortcut(install_dir, desktop.app_name(install_dir), install_hash)
+        undo.add(lambda: shortcut.unlink(missing_ok=True))
     if not paths.WINDOWS:
         completions = completion.install()
         undo.add(lambda: completion.remove([str(p) for p in completions]))
@@ -242,6 +262,7 @@ def _install(answers: Answers, progress: Progress, undo: _Undo) -> None:
         ("core_version", __version__), ("tweaks_version", tweaks_version), ("themes_version", themes_version),
         ("ddblm_version", ddblm_version), ("doh", answers.doh),
         ("completions", [str(p) for p in completions]),
+        ("desktop_shortcut", str(shortcut) if shortcut else None),
     ):
         state.set(key, value)
     state.save()

@@ -35,6 +35,8 @@ def run(gui: bool = False, noninteractive: bool = False, install: Installer = re
     form = InstallForm.load()
     form.answers.firefox_command = firefox_command
     form.answers.doh = doh
+    # Without questions it may be a script: no browser popping up.
+    form.answers.launch = not noninteractive
     if import_from:
         try:
             value = form.add_import(sources.resolve(import_from, sources.listing()).path.as_posix())

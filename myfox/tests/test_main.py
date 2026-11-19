@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -277,6 +278,9 @@ class ReinstallTests(IsolatedStateCase):
             patcher = mock.patch(target, return_value=value)
             patcher.start()
             self.addCleanup(patcher.stop)
+        patcher = mock.patch("myfox.tweaks.install", return_value="158.2")
+        self.tweaks_install = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _installed(self, d: str, **extra) -> tuple[State, Path]:
         install_dir = Path(d) / "firefox"
@@ -334,7 +338,8 @@ class ReinstallTests(IsolatedStateCase):
             return _fake_tarball(dest, lang, channel)
 
         def progress(message, fraction):
-            raise Cancelled()
+            if message != i18n.t("progress_tweaks_download"):
+                raise Cancelled()
 
         with tempfile.TemporaryDirectory() as d:
             state, install_dir = self._installed(d)
@@ -345,7 +350,8 @@ class ReinstallTests(IsolatedStateCase):
 
     def test_a_stop_after_the_swap_is_too_late(self):
         def progress(message, fraction):
-            raise Cancelled()
+            if message != i18n.t("progress_tweaks_download"):
+                raise Cancelled()
 
         with tempfile.TemporaryDirectory() as d:
             profile_dir = Path(d) / "profile"
@@ -358,6 +364,22 @@ class ReinstallTests(IsolatedStateCase):
             self.assertEqual((install_dir / "firefox").read_text(encoding="utf-8"), "new")
             reapply.assert_called_once()
             self.assertEqual(State().get("firefox_version"), "158.0")
+
+    def test_downloads_the_installed_tweaks_release_again(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            state, _install_dir = self._installed(d, tweaks_version="158.1")
+            with mock.patch("myfox.firefox.install_tarball", side_effect=_fake_tarball), \
+                 mock.patch.dict(os.environ, {"MYFOX_TWEAKS_LOCAL": ""}):
+                self.assertEqual(cli.cmd_reinstall(state, noninteractive=True), 0)
+            self.assertEqual(self.tweaks_install.call_args.args[0].tag, "158.1")
+            self.assertEqual(State().get("tweaks_version"), "158.2")
+
+    def test_without_tweaks_downloads_none(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            state, _install_dir = self._installed(d, tweaks=False)
+            with mock.patch("myfox.firefox.install_tarball", side_effect=_fake_tarball):
+                self.assertEqual(cli.cmd_reinstall(state, noninteractive=True), 0)
+            self.tweaks_install.assert_not_called()
 
     def test_skips_profile_steps_when_no_profile_is_recorded(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):

@@ -1,15 +1,16 @@
-"""`myfox reinstall`: Firefox downloaded again (same language and channel),
-swapped in once complete, then the wrapper, shortcut, profile pin and
-tweaks put back. The profile itself (bookmarks, history, settings) stays.
+"""`myfox reinstall`: the tweaks (the installed release) and Firefox (same
+language and channel) downloaded again, Firefox swapped in once complete,
+then the wrapper, shortcut, profile pin and tweaks put back. The profile itself (bookmarks, history, settings) stays.
 """
 
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 from pathlib import Path
 
-from . import apply, desktop, firefox, i18n, launcher, paths, profiles, sources
+from . import apply, desktop, firefox, i18n, launcher, paths, profiles, sources, tweaks
 from . import task as task_mod
 from .install_form import Progress, settled
 from .installer import Stages, firefox_progress
@@ -21,7 +22,7 @@ def build(state: State) -> task_mod.Task:
     channel = {"stable": "wizard_channel_stable", "beta": "wizard_channel_beta"}.get(state.get("channel", "stable"))
     return task_mod.Task(
         title=i18n.t("reinstall_title"),
-        subtitle=i18n.t("reinstall_subtitle"),
+        subtitle=i18n.t("reinstall_subtitle_tweaks" if state.get("tweaks", True) else "reinstall_subtitle"),
         rows=[
             (i18n.t("row_firefox"), state.get("firefox_version") or "–"),
             (i18n.t("form_channel"), i18n.t(channel) if channel else state.get("channel")),
@@ -39,9 +40,17 @@ def build(state: State) -> task_mod.Task:
 def run(state: State, progress: Progress) -> None:
     install_dir = Path(state.get("install_dir"))
     profile_dir = state.get("profile_dir")
-    tweaks = state.get("tweaks", True)
-    weights = [("download", 70), ("extract", 15), ("profile", 5), ("tweaks", 10 if tweaks else 0)]
+    with_tweaks = state.get("tweaks", True)
+    weights = [("tweaks_download", 5 if with_tweaks else 0), ("download", 70), ("extract", 15), ("profile", 5),
+               ("tweaks", 10 if with_tweaks else 0)]
     stages = Stages(progress, weights)
+
+    if with_tweaks:
+        # Replaced whole once downloaded: stopping later leaves the same release.
+        stages.report("tweaks_download", i18n.t("progress_tweaks_download"))
+        tag = state.get("tweaks_version")
+        local = os.environ.get("MYFOX_TWEAKS_LOCAL") or tag in (None, tweaks.LOCAL_TAG)
+        state.set("tweaks_version", tweaks.install(None if local else tweaks.release(tag)))
 
     # Into a sibling first: a failed or stopped download leaves the current
     # Firefox alone.
@@ -60,7 +69,7 @@ def run(state: State, progress: Progress) -> None:
     (install_dir / ".myfox-installed").touch()
     desktop.write_entry(install_dir, launcher.launcher_path())
 
-    if profile_dir and tweaks:
+    if profile_dir and with_tweaks:
         stages.report("profile", i18n.t("progress_profile"))
         pinned = profiles.pin_install(install_dir, Path(profile_dir), saved_hash=state.get("install_hash"))
         if pinned:
