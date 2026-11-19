@@ -1,0 +1,36 @@
+// MyFox-Setup.exe's resources. version.h (VERSION_COMMAS, VERSION_TEXT) is
+// written by scripts/build-setup-exe.sh from MyFox's version.
+#include <windows.h>
+#include "version.h"
+
+1 ICON "icon.ico"
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "setup.manifest"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION VERSION_COMMAS
+PRODUCTVERSION VERSION_COMMAS
+FILEFLAGSMASK 0x3F
+FILEFLAGS 0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE 0
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "CustomFF"
+      VALUE "FileDescription", "MyFox Setup"
+      VALUE "FileVersion", VERSION_TEXT
+      VALUE "InternalName", "MyFox-Setup"
+      VALUE "LegalCopyright", "MyFox contributors, MPL-2.0"
+      VALUE "OriginalFilename", "MyFox-Setup.exe"
+      VALUE "ProductName", "MyFox"
+      VALUE "ProductVersion", VERSION_TEXT
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409, 1200
+  END
+END

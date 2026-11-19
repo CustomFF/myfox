@@ -58,14 +58,8 @@ jobs:
       - name: Build the archive
         run: ./scripts/build-core-dist.sh build/dist
 
-      - uses: actions/setup-go@v6
-        with:
-          go-version: "1.27.x"
-          cache: false
-
-      - name: Test the Windows installer
-        working-directory: setup
-        run: go test ./... && GOOS=windows GOARCH=amd64 go vet ./...
+      - name: Install MinGW-w64
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64
 
       # Signing, once there is a certificate, goes after this step: the
       # release takes the signed file.

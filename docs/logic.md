@@ -361,7 +361,8 @@ PATH, корневые сертификаты – через ctypes), `winshell.
   стучится PowerShell-ом на `https://github.com` (см. сертификаты ниже) и запускает `bootstrap.py`
   этим Python. Дальше как на Linux; `bootstrap.py` вместо `os.execv` запускает установленный `myfox`
   дочерним процессом.
-- **MyFox-Setup.exe** (`setup/`, Go, только stdlib; x64: окна установщика есть только там, на ARM64
+- **MyFox-Setup.exe** (`setup/setup.c`, C, MinGW-w64, около 100 КБ; только то, что есть в Windows:
+  WinHTTP качает, BCrypt проверяет sha256, `tar.exe` из Windows 10 1803+ распаковывает zip; x64: окна установщика есть только там, на ARM64
   он показывает команду PowerShell) делает то же, что `get.ps1`, без PowerShell: тот же Python с тем
   же маркером `.myfox-python` (версию и sha256 при сборке берёт из `get.ps1`
   `scripts/build-setup-exe.sh`), затем `bootstrap.py --gui` через `python.exe` без консоли
@@ -369,9 +370,10 @@ PATH, корневые сертификаты – через ctypes), `winshell.
   прячет, когда у его дочерних процессов появляется видимое окно больше 100×100 (не проба
   `gui_deps`); если оно так и не появилось, а установщик завершился с ошибкой, показывает хвост
   его вывода и команду PowerShell. Если MyFox уже установлен – спрашивает, проверить ли обновления (как `bootstrap.py` в терминале), и при «Да» запускает `myfoxw.pyw refresh --gui`.
-  Ресурсы exe (иконка, манифест `asInvoker` – иначе Windows по слову «Setup» в имени просит права
-  администратора, Common Controls 6, сведения о версии ProductName=MyFox) пишет в `.syso`
-  `setup/rsrc`. Собирается в `core.yml` и уходит ассетом в релиз core; подписи пока нет.
+  Python получает stdin из NUL (без него `sys.stdin` – None). Ресурсы exe (`setup/setup.rc`: иконка,
+  манифест `asInvoker` – иначе Windows по слову «Setup» в имени просит права администратора,
+  Common Controls 6, сведения о версии ProductName=MyFox) собирает `windres`. Собирается в
+  `core.yml` (на ubuntu, `gcc-mingw-w64-x86-64`) и уходит ассетом в релиз core; подписи пока нет.
 - **Каталоги**: всё в `%LOCALAPPDATA%\myfox` (состояние – в `state\`, Firefox по умолчанию – в
   `firefox\`), профили – в `%APPDATA%\Mozilla\Firefox` (общий с обычным Firefox, как на Linux;
   новые профили Firefox там кладёт в `Profiles\`); snap/flatpak не ищутся.
