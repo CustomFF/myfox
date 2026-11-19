@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.2 – 2026-11-19
+
+- Windows: cancelling MyFox-Setup.exe while it downloads stops the download and leaves nothing behind in %LOCALAPPDATA%\myfox
+
 ## 1.7.1 – 2026-11-19
 
 - Windows: MyFox-Setup.exe is about 100 KB instead of 7.5 MB: it now uses what Windows itself has to download, check and unpack
