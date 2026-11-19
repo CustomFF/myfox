@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.0 – 2026-11-19
+
+- Windows: MyFox-Setup.exe installs MyFox without PowerShell – download it from the release and run it. With MyFox installed, it offers to check for updates
+- Windows: the install form can put a Firefox shortcut on the desktop and start Firefox once installed (both on by default; uninstalling removes the shortcut)
+- Windows: MyFox in Settings > Apps (and Programs and Features) has Modify, which reinstalls Firefox and the tweaks
+- `myfox reinstall` downloads the tweaks again too (the version installed), not only Firefox
+- Windows: uninstalling started from Settings > Apps or the Start menu no longer leaves MyFox's files behind
+- Smaller checkboxes in the dialog windows
+
 ## 1.6.0 – 2026-11-18
 
 - Windows: MyFox installs and runs on Windows 10 and 11, for your user only and without administrator rights: `irm https://raw.githubusercontent.com/CustomFF/myfox/master/get.ps1 | iex` in PowerShell. Firefox goes into %LOCALAPPDATA%\myfox together with the Python MyFox runs on; the Start menu gets a MyFox folder with Firefox, Firefox Private Browsing and Update MyFox, and Settings > Apps lists MyFox, which is where it's uninstalled. The `myfox` command works in a new terminal. The dialogs open in a window on x64, in the console on ARM64
