@@ -50,7 +50,9 @@ class InstallTests(IsolatedStateCase):
              mock.patch("myfox.gui_deps.install_into", side_effect=gui_error or record("gui")), \
              mock.patch("myfox.desktop.write_entry", side_effect=desktop_error or record("desktop")), \
              mock.patch("myfox.completion.install", return_value=list(completions)), \
-             mock.patch("myfox.completion.zsh_by_hand", return_value=zsh_by_hand):
+             mock.patch("myfox.completion.zsh_by_hand", return_value=zsh_by_hand), \
+             mock.patch("myfox.winshell.write_desktop_shortcut", return_value=self.tmp_path / "Firefox.lnk"), \
+             mock.patch("myfox.installer._launch"):
             installer.install(answers, progress or (lambda message, fraction: self.reports.append((message, fraction))))
 
     @only_linux

@@ -53,6 +53,10 @@ class FormTuiTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
+        # The rows as on Linux; Windows' own two are tested on their own.
+        patcher = mock.patch.object(InstallForm, "windows_options", new_callable=mock.PropertyMock, return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.form = InstallForm(langs=LANGS, profiles=[])
         self.form.answers.install_dir = self._tmp.name
         self.form.answers.lang = "en-US"
@@ -113,6 +117,17 @@ class FormTuiTests(unittest.TestCase):
     def test_firefox_command_is_off_unless_ticked(self):
         with _drive(TO_INSTALL + [KEY_ENTER]):
             self.assertFalse(form_tui.run(self.form, self.install).firefox_command)
+
+    def test_windows_shortcut_and_launch_are_on_unless_unticked(self):
+        with mock.patch.object(InstallForm, "windows_options", new_callable=mock.PropertyMock, return_value=True):
+            with _drive(TO_INSTALL + [KEY_ENTER]):
+                answers = form_tui.run(self.form, self.install)
+            self.assertEqual((answers.desktop_shortcut, answers.launch), (True, True))
+            # dir -> browse -> channel -> tweaks -> theme -> DoH -> command -> shortcut, Space;
+            # launch, Space; then search -> list -> Install
+            with _drive([KEY_TAB] * 7 + [b" ", KEY_TAB, b" "] + [KEY_TAB] * 3 + [KEY_ENTER]):
+                answers = form_tui.run(self.form, self.install)
+            self.assertEqual((answers.desktop_shortcut, answers.launch), (False, False))
 
     def test_invalid_dir_stays_on_the_form(self):
         keys = [b"x"] + TO_INSTALL + [KEY_ENTER, KEY_ESC]  # "x" replaces the path: relative
