@@ -127,8 +127,12 @@ def _remove_after_exit(path: Path) -> None:
     import subprocess
 
     quoted = str(path).replace("'", "''")
+    # The parent only if it's the cmd.exe running myfox.cmd: started from
+    # the Start menu or Settings, it is Explorer, which stays.
     # The Python's marker first: get.ps1 reuses a Python that has one.
-    script = (f"Wait-Process -Id {os.getpid()},{os.getppid()} -ErrorAction SilentlyContinue; "
+    script = (f"Wait-Process -Id {os.getpid()} -ErrorAction SilentlyContinue; "
+              f"Get-Process -Id {os.getppid()} -ErrorAction SilentlyContinue | "
+              "Where-Object { $_.ProcessName -eq 'cmd' } | Wait-Process -ErrorAction SilentlyContinue; "
               f"Remove-Item -LiteralPath '{quoted}\\python\\.myfox-python' -Force -ErrorAction SilentlyContinue; "
               f"foreach ($i in 1..30) {{ Remove-Item -LiteralPath '{quoted}' -Recurse -Force "
               f"-ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath '{quoted}')) {{ break }}; "
