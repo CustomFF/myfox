@@ -90,6 +90,9 @@ static HANDLE child;                 /* the running installer */
 static DWORD child_pid;
 static wchar_t temp_script[MAX_PATH];
 static BOOL cancelled;
+static HANDLE worker;
+static HINTERNET current_request;  /* a download, for cancel() to cut */
+static wchar_t setup_dir[MAX_PATH]; /* where the Python is unpacked */
 
 static wchar_t error[4096];  /* set by the worker when it failed */
 static BOOL checksum_failed;
@@ -209,18 +212,29 @@ static void refresh_status(void)
 
 static void kill_tree(DWORD root_pid);
 
-/* On the window's thread: whatever runs stops, and this exits. */
+/* On the window's thread: whatever runs stops, nothing half-done stays,
+ * and this exits. */
 static void cancel(void)
 {
     EnableWindow(cancel_button, FALSE);
+    ShowWindow(window, SW_HIDE);
     EnterCriticalSection(&lock);
     cancelled = TRUE;
     DWORD pid = child ? child_pid : 0;
+    /* Closing it ends a read waiting on the network. */
+    if (current_request)
+        WinHttpCloseHandle(current_request);
+    current_request = NULL;
     LeaveCriticalSection(&lock);
     if (pid)
         kill_tree(pid);
+    /* The worker stops at its next step and lets go of its files. */
+    WaitForSingleObject(worker, 10000);
     if (temp_script[0])
         DeleteFileW(temp_script);
+    if (setup_dir[0])
+        delete_tree(setup_dir);
+    RemoveDirectoryW(root);  /* only if this run made it and left it empty */
     ExitProcess(1);
 }
 
@@ -452,6 +466,17 @@ static BOOL fetch(const wchar_t *url, HANDLE out, BCRYPT_HASH_HANDLE hash, progr
         request = WinHttpOpenRequest(connection, out ? L"GET" : L"HEAD", path, NULL, WINHTTP_NO_REFERER,
                                      WINHTTP_DEFAULT_ACCEPT_TYPES,
                                      parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0);
+    if (request) {
+        EnterCriticalSection(&lock);
+        if (cancelled) {
+            WinHttpCloseHandle(request);
+            request = NULL;
+        }
+        current_request = request;
+        LeaveCriticalSection(&lock);
+        if (!request)
+            goto done;
+    }
     if (!request || !WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) ||
         !WinHttpReceiveResponse(request, NULL)) {
         fail(L"%ls: %ls", url, describe(GetLastError()));
@@ -477,6 +502,8 @@ static BOOL fetch(const wchar_t *url, HANDLE out, BCRYPT_HASH_HANDLE hash, progr
     unsigned long long done_bytes = 0;
     for (;;) {
         DWORD got = 0, written = 0;
+        if (cancelled)
+            goto done;
         if (!WinHttpReadData(request, buffer, sizeof buffer, &got)) {
             fail(L"%ls: %ls", url, describe(GetLastError()));
             goto done;
@@ -495,8 +522,13 @@ static BOOL fetch(const wchar_t *url, HANDLE out, BCRYPT_HASH_HANDLE hash, progr
     }
     ok = TRUE;
 done:
-    if (request)
+    /* Unless cancel() closed it already. */
+    EnterCriticalSection(&lock);
+    if (request && current_request == request) {
         WinHttpCloseHandle(request);
+        current_request = NULL;
+    }
+    LeaveCriticalSection(&lock);
     if (connection)
         WinHttpCloseHandle(connection);
     if (session)
@@ -597,6 +629,7 @@ static BOOL install_python(void)
         FindClose(h);
     }
     swprintf(tmp, MAX_PATH, L"%ls\\.setup-%lu", root, GetCurrentProcessId());
+    wcscpy(setup_dir, tmp);
     if (!CreateDirectoryW(tmp, NULL)) {
         fail(L"%ls: %ls", tmp, describe(GetLastError()));
         return FALSE;
@@ -885,7 +918,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR args, int show
     }
     wcscpy(status_text, T(T_PREPARING));
     create_window(instance);
-    CloseHandle(CreateThread(NULL, 0, work, NULL, 0, NULL));
+    worker = CreateThread(NULL, 0, work, NULL, 0, NULL);
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0) > 0) {
         if (IsDialogMessageW(window, &msg))
