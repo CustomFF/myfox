@@ -125,7 +125,7 @@ myfox uninstall
 Подписывается только `MyFox-Setup.exe`. Его собирает GitHub Actions из этого репозитория, а каждый
 релиз перед подписью одобряется вручную.
 
-Авторы, рецензенты и утверждающие: [владельцы CustomFF](https://github.com/orgs/CustomFF/people?query=role%3Aowner).
+Авторы, рецензенты и утверждающие: [DayDve](https://github.com/DayDve).
 
 Приватность: MyFox не отправляет телеметрию. Он обращается только к GitHub, python.org и Mozilla,
 чтобы скачать то, что устанавливает, и проверить обновления.

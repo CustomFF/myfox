@@ -124,7 +124,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 Only `MyFox-Setup.exe` is signed. It is built from this repository by GitHub Actions, and every
 release is approved by hand before signing.
 
-Committers, reviewers and approvers: [CustomFF owners](https://github.com/orgs/CustomFF/people?query=role%3Aowner).
+Committers, reviewers and approvers: [DayDve](https://github.com/DayDve).
 
 Privacy: MyFox sends no telemetry. It connects only to GitHub, python.org and Mozilla, to download
 what it installs and to check for updates.
