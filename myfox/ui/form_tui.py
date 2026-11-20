@@ -227,6 +227,13 @@ _SEQUENCES = {
 
 class _FormDialog(BoxDialog):
     on_idle: Callable[[], None] | None = None  # called once a second while no key comes
+    on_focus: Callable[[object], None] | None = None  # the widget about to get the focus
+
+    def change_focus(self, widget):
+        # Before picotui's own: its redraw of the widget leaves the cursor there.
+        if self.on_focus is not None and widget is not self.focus_w:
+            self.on_focus(widget)
+        super().change_focus(widget)
 
     def get_input(self):
         if self.on_idle is not None and not self.kbuf:
@@ -535,6 +542,25 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
 
     if form.error:
         set_error(form.error)
+
+    hints = {dir_entry: "dir", browse_btn: "dir", channel: "channel", sync: "sync", tweaks: "tweaks",
+             theme: "theme", doh: "doh", firefox_command: "command"}
+    if profile:
+        hints[profile] = "profile"
+    if not form.error:  # the focus starts in the folder field
+        status.t, bar.t = (textwrap.wrap(i18n.t("hint_dir"), w - 4, max_lines=2, placeholder="…") + ["", ""])[:2]
+
+    def show_hint(widget) -> None:
+        # A hint replaces a form error too, only not a fatal one.
+        if form.error or install_btn.disabled:
+            return
+        name = hints.get(widget)
+        lines = textwrap.wrap(i18n.t(f"hint_{name}"), w - 4, max_lines=2, placeholder="…") if name else []
+        status.t, bar.t = (lines + ["", ""])[:2]
+        status.fg = bar.fg = C_BLACK
+        status.redraw()
+        bar.redraw()
+
     install_btn = ThemedButton(max(12, len(i18n.t("wizard_install")) + 4), i18n.t("wizard_install"))
     install_btn.finish_dialog = ACTION_OK
     cancel_btn = ThemedButton(max(12, len(i18n.t("ui_cancel")) + 4), i18n.t("ui_cancel"))
@@ -581,6 +607,7 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
         sync.redraw()
         sync_label.redraw()
 
+    d.on_focus = show_hint
     if profile:
         profile.on("changed", on_profile)
     tweaks.on("changed", on_tweaks)
@@ -609,6 +636,7 @@ def run(form: InstallForm, install: Installer) -> Answers | None:
     dir_entry.set(a.install_dir)
     status.fg = bar.fg = C_BLACK
 
+    d.on_focus = None
     install_btn.disabled = True
     install_btn.redraw()
     failure = run_live(d, status, bar, cancel_btn, lambda progress: install(a, progress))

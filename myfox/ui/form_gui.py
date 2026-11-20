@@ -374,6 +374,7 @@ class _Window:
         self._picked: str | None = None
         self._picked_profile: tuple[str | None] | None = None  # (folder or None if cancelled), once picked
         self._picking = False
+        self._was_picking = False
         self._progress: tuple[str, float] | None = None
         self._failure: str | None = None
         self._worker: threading.Thread | None = None
@@ -391,11 +392,14 @@ class _Window:
         self._build(bold_font)
 
     @contextlib.contextmanager
-    def _row(self, label: str):
+    def _row(self, name: str):
+        """The row form_<name> with its hint_<name> under the pointer."""
         # xoffset puts the control at LABEL_W, aligning every row's control.
         with dpg.group(horizontal=True, xoffset=px(LABEL_W)) as group:
-            dpg.add_text(label)
+            dpg.add_text(i18n.t(f"form_{name}"))
             yield group
+        with dpg.tooltip(group):
+            dpg.add_text(i18n.t(f"hint_{name}"), wrap=px(WIN_W // 2))
 
     def _row_checkbox(self, **kwargs) -> int:
         """A checkbox after a row's label: lowered to the label's line, which
@@ -431,32 +435,32 @@ class _Window:
                 pos=(0, content_y), width=w, height=footer_y - 1 - content_y, border=False, no_scrollbar=True,
                 always_use_window_padding=True,
             ) as content:
-                with self._row(i18n.t("form_dir")):
+                with self._row("dir"):
                     with dpg.group(horizontal=True):
                         self.dir_input = dpg.add_input_text(
                             default_value=a.install_dir, width=-px(BTN_W + 8),
                             callback=lambda s, value: setattr(a, "install_dir", value),
                         )
                         self.browse = dpg.add_button(label=i18n.t("form_browse"), width=-1, callback=self._on_browse)
-                with self._row(i18n.t("form_channel")):
+                with self._row("channel"):
                     self.channel = _combo(self.form.channels, a.channel, lambda v: setattr(a, "channel", v))
                 self.profile = None
                 if self.form.profiles:
-                    with self._row(i18n.t("form_profile")):
+                    with self._row("profile"):
                         self.profile = dpg.add_combo(
                             [c.label for c in self.form.profiles], width=-1,
                             default_value=self._profile_label(self.form.profile_value),
                             callback=lambda sender, label: self._on_profile(label),
                         )
-                with self._row(i18n.t("form_sync")) as self.sync_row:
+                with self._row("sync") as self.sync_row:
                     self.sync = _combo(self.form.syncs, a.sync, lambda v: setattr(a, "sync", v))
-                with self._row(i18n.t("form_tweaks")):
+                with self._row("tweaks"):
                     self.tweaks = self._row_checkbox(default_value=a.tweaks, callback=self._on_tweaks)
-                with self._row(i18n.t("form_theme")) as self.theme_row:
+                with self._row("theme") as self.theme_row:
                     self.theme = _combo(self.form.themes, a.theme, lambda v: setattr(a, "theme", v))
-                with self._row(i18n.t("form_doh")) as self.doh_row:
+                with self._row("doh") as self.doh_row:
                     self.doh = self._row_checkbox(default_value=a.doh, callback=lambda s, value: setattr(a, "doh", value))
-                with self._row(i18n.t("form_command")):
+                with self._row("command"):
                     self.firefox_command = self._row_checkbox(
                         default_value=a.firefox_command, callback=lambda s, value: setattr(a, "firefox_command", value),
                     )
@@ -541,8 +545,10 @@ class _Window:
         self._picking = True
 
         def run() -> None:
-            self._picked_profile = (portal.pick_directory(i18n.t("form_profile_pick_title"), str(Path.home())),)
-            self._picking = False
+            try:
+                self._picked_profile = (portal.pick_directory(i18n.t("form_profile_pick_title"), str(Path.home())),)
+            finally:
+                self._picking = False
 
         threading.Thread(target=run, daemon=True).start()
 
@@ -560,12 +566,16 @@ class _Window:
         initial = dpg.get_value(self.dir_input)
 
         def run() -> None:
-            self._picked = portal.pick_directory(i18n.t("form_browse_title"), initial)
-            self._picking = False
+            try:
+                self._picked = portal.pick_directory(i18n.t("form_browse_title"), initial)
+            finally:
+                self._picking = False
 
         threading.Thread(target=run, daemon=True).start()
 
     def _on_install(self) -> None:
+        if self._picking:
+            return
         self.answers.lang = self.langs.value
         error = self.form.validate()
         if error:
@@ -668,10 +678,13 @@ class _Window:
                     self._set_profile(self.form.add_import(folder))
                 except sources.ProfileLookupError as exc:
                     self._show_error(str(exc))
-        if self._worker is None and not self.form.error:
-            dpg.configure_item(self.browse, enabled=not self._picking)
-            if self.profile is not None:
-                dpg.configure_item(self.profile, enabled=not self._picking)
+        # The folder dialog is another process, not modal to this window:
+        # the form waits for it.
+        if self._worker is None and not self.form.error and self._picking != self._was_picking:
+            self._was_picking = self._picking
+            for item in self._form_items():
+                dpg.configure_item(item, enabled=not self._picking)
+            self.langs.set_enabled(not self._picking)
 
         if self._worker is not None:
             if self._progress is not None and not self._cancel.requested:

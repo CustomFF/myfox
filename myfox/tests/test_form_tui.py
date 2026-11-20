@@ -129,6 +129,19 @@ class FormTuiTests(unittest.TestCase):
                 answers = form_tui.run(self.form, self.install)
             self.assertEqual((answers.desktop_shortcut, answers.launch), (False, False))
 
+    def test_the_focused_field_hint_shows_under_the_form(self):
+        labels, real = [], form_tui._Label
+
+        def label(*args, **kwargs):
+            labels.append(real(*args, **kwargs))
+            return labels[-1]
+
+        with mock.patch.object(form_tui, "_Label", side_effect=label):
+            with _drive([KEY_TAB, KEY_TAB, KEY_ESC]):  # dir -> browse -> channel
+                form_tui.run(self.form, self.install)
+        status, bar = labels[-2:]
+        self.assertEqual(" ".join(filter(None, (status.t, bar.t))), i18n.t("hint_channel"))
+
     def test_invalid_dir_stays_on_the_form(self):
         keys = [b"x"] + TO_INSTALL + [KEY_ENTER, KEY_ESC]  # "x" replaces the path: relative
         with _drive(keys):

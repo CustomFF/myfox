@@ -66,25 +66,64 @@ def pick_directory(title: str, initial: str | None = None, timeout: float = 3600
 
 
 def _windows_pick(title: str, initial: str | None) -> str | None:
-    import base64
-    import subprocess
+    """The Explorer-style folder dialog (IFileOpenDialog), with an address
+    bar and a folder field to paste a path into; owned by the window in
+    front (ours, the user just clicked it), so it's modal to it."""
+    import ctypes
+    from ctypes import wintypes
 
-    def quoted(text: str) -> str:
-        return "'" + text.replace("'", "''") + "'"
+    class GUID(ctypes.Structure):
+        _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD), ("Data3", wintypes.WORD),
+                    ("Data4", ctypes.c_ubyte * 8)]
 
-    script = (
-        "Add-Type -AssemblyName System.Windows.Forms\n"
-        "[Console]::OutputEncoding = [Text.Encoding]::UTF8\n"
-        "$d = New-Object System.Windows.Forms.FolderBrowserDialog\n"
-        f"$d.Description = {quoted(title)}\n"
-        f"$d.SelectedPath = {quoted(initial or '')}\n"
-        "if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }\n"
-    )
-    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+        def __init__(self, text: str) -> None:
+            super().__init__()
+            ctypes.oledll.ole32.CLSIDFromString(text, ctypes.byref(self))
+
+    def call(obj: ctypes.c_void_p, index: int, *args) -> int:
+        vtable = ctypes.cast(obj, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p)))[0]
+        # byref() results pass as plain pointers.
+        types = [ctypes.c_void_p if type(a).__name__ == "CArgObject" else type(a) for a in args]
+        proto = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, *types)
+        return proto(vtable[index])(obj, *args)
+
+    fos_pickfolders, fos_forcefilesystem, fos_pathmustexist = 0x20, 0x40, 0x800
+    sigdn_filesyspath = ctypes.c_int(0x80058000 - (1 << 32))
+    ole32, shell32, user32 = ctypes.windll.ole32, ctypes.windll.shell32, ctypes.windll.user32
+    owner = wintypes.HWND(user32.GetForegroundWindow())
+    ole32.CoInitializeEx(None, 0x2)  # apartment-threaded, as the dialog wants
+    dialog, folder, item = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
     try:
-        out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-STA", "-EncodedCommand", encoded],
-                             capture_output=True, timeout=3600, creationflags=subprocess.CREATE_NO_WINDOW)
-    except (OSError, subprocess.SubprocessError):
+        if ole32.CoCreateInstance(ctypes.byref(GUID("{DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7}")), None, 1,
+                                  ctypes.byref(GUID("{D57C7288-D4AD-4768-BE02-9D969532D960}")),
+                                  ctypes.byref(dialog)) < 0:
+            return None
+        options = wintypes.DWORD()
+        call(dialog, 10, ctypes.byref(options))  # GetOptions
+        call(dialog, 9, wintypes.DWORD(options.value | fos_pickfolders | fos_forcefilesystem | fos_pathmustexist))
+        call(dialog, 17, wintypes.LPCWSTR(title))  # SetTitle
+        if initial and os.path.isdir(initial):
+            shell32.SHCreateItemFromParsingName.argtypes = [wintypes.LPCWSTR, ctypes.c_void_p, ctypes.c_void_p,
+                                                            ctypes.POINTER(ctypes.c_void_p)]
+            if shell32.SHCreateItemFromParsingName(initial, None,
+                                                   ctypes.byref(GUID("{43826D1E-E718-42EE-BC55-A1E261C37BFE}")),
+                                                   ctypes.byref(folder)) >= 0:
+                call(dialog, 12, folder)  # SetFolder
+        if call(dialog, 3, owner) < 0:  # Show; cancel is an error HRESULT too
+            return None
+        if call(dialog, 20, ctypes.byref(item)) < 0:  # GetResult
+            return None
+        path = ctypes.c_wchar_p()
+        if call(item, 5, sigdn_filesyspath, ctypes.byref(path)) < 0:  # IShellItem::GetDisplayName
+            return None
+        try:
+            return path.value or None
+        finally:
+            ole32.CoTaskMemFree(path)
+    except (OSError, TypeError, ValueError):
         return None
-    path = out.stdout.decode("utf-8", "replace").strip()
-    return path or None
+    finally:
+        for obj in (item, folder, dialog):
+            if obj:
+                call(obj, 2)  # Release
+        ole32.CoUninitialize()
