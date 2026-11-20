@@ -21,6 +21,21 @@
     $bootstrap = if ($env:MYFOX_BOOTSTRAP_URL) { $env:MYFOX_BOOTSTRAP_URL }
                  else { 'https://raw.githubusercontent.com/CustomFF/myfox/master/bootstrap.py' }
 
+    # Tried again over a flaky network (a DNS hiccup, a dropped connection,
+    # a server error); a client error such as 404 is final.
+    function Get-File($url, $out) {
+        foreach ($delay in 2, 5, 10, 0) {
+            try {
+                Invoke-WebRequest -UseBasicParsing -OutFile $out $url
+                return
+            } catch {
+                $status = [int]$_.Exception.Response.StatusCode
+                if ($delay -eq 0 -or ($status -ge 400 -and $status -lt 500 -and $status -ne 429)) { throw }
+                Start-Sleep $delay
+            }
+        }
+    }
+
     $arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
     $arch = @{ 'AMD64' = 'amd64'; 'ARM64' = 'arm64' }[$arch]
     if (-not $arch) {
@@ -37,8 +52,7 @@
         New-Item -ItemType Directory $tmp | Out-Null
         try {
             $zip = Join-Path $tmp 'python.zip'
-            Invoke-WebRequest -UseBasicParsing -OutFile $zip `
-                "https://www.python.org/ftp/python/$version/python-$version-embed-$arch.zip"
+            Get-File "https://www.python.org/ftp/python/$version/python-$version-embed-$arch.zip" $zip
             if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $sha256[$arch]) {
                 Write-Error "The Python download is damaged (checksum mismatch)."
                 return
@@ -63,7 +77,7 @@
     $script = Join-Path ([IO.Path]::GetTempPath()) ("myfox-bootstrap-" + [Guid]::NewGuid() + '.py')
     try {
         if ($bootstrap -match '^[a-z]+://') {
-            Invoke-WebRequest -UseBasicParsing -OutFile $script $bootstrap
+            Get-File $bootstrap $script
         } else {
             Copy-Item $bootstrap $script
         }
