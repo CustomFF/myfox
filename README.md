@@ -116,17 +116,4 @@ not a batch file, whose `cmd.exe` would read a quote and an `&` in a profile nam
 Replacing those files takes write access to your own home directory, which already allows anything
 done as you; that is not something MyFox can or claims to guard against.
 
-## Code signing policy
-
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
-[SignPath Foundation](https://signpath.org).
-
-Only `MyFox-Setup.exe` is signed. It is built from this repository by GitHub Actions, and every
-release is approved by hand before signing.
-
-Committers, reviewers and approvers: [DayDve](https://github.com/DayDve).
-
-Privacy: MyFox sends no telemetry. It connects only to GitHub, python.org and Mozilla, to download
-what it installs and to check for updates.
-
 License: [MPL-2.0](LICENSE).
