@@ -96,6 +96,7 @@ static wchar_t setup_dir[MAX_PATH]; /* where the Python is unpacked */
 
 static wchar_t error[4096];  /* set by the worker when it failed */
 static BOOL checksum_failed;
+static BOOL transient;  /* the last fetch() failed in a way worth another try */
 
 static char output[OUTPUT_KEPT];  /* the end of what the installer printed */
 static size_t output_len;
@@ -443,6 +444,7 @@ typedef void (*progress_fn)(double fraction);
  * writes when hash is given. FALSE with `error` set on failure. */
 static BOOL fetch(const wchar_t *url, HANDLE out, BCRYPT_HASH_HANDLE hash, progress_fn progress)
 {
+    transient = FALSE;
     wchar_t host[256], path[2048];
     URL_COMPONENTS parts = {.dwStructSize = sizeof parts};
     parts.lpszHostName = host;
@@ -480,6 +482,7 @@ static BOOL fetch(const wchar_t *url, HANDLE out, BCRYPT_HASH_HANDLE hash, progr
     if (!request || !WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) ||
         !WinHttpReceiveResponse(request, NULL)) {
         fail(L"%ls: %ls", url, describe(GetLastError()));
+        transient = TRUE;
         goto done;
     }
     DWORD status = 0, size = sizeof status;
@@ -487,6 +490,7 @@ static BOOL fetch(const wchar_t *url, HANDLE out, BCRYPT_HASH_HANDLE hash, progr
                         &status, &size, WINHTTP_NO_HEADER_INDEX);
     if (status != 200) {
         fail(L"%ls: HTTP %lu", url, status);
+        transient = status >= 500 || status == 429;
         goto done;
     }
     if (!out) {
@@ -506,6 +510,7 @@ static BOOL fetch(const wchar_t *url, HANDLE out, BCRYPT_HASH_HANDLE hash, progr
             goto done;
         if (!WinHttpReadData(request, buffer, sizeof buffer, &got)) {
             fail(L"%ls: %ls", url, describe(GetLastError()));
+            transient = TRUE;
             goto done;
         }
         if (!got)
@@ -536,8 +541,7 @@ done:
     return ok;
 }
 
-/* Downloads url into dest, checking its sha256 (lowercase hex). */
-static BOOL download_checked(const wchar_t *url, const wchar_t *dest, const char *sum, progress_fn progress)
+static BOOL download_once(const wchar_t *url, const wchar_t *dest, const char *sum, progress_fn progress)
 {
     BCRYPT_ALG_HANDLE alg = NULL;
     BCRYPT_HASH_HANDLE hash = NULL;
@@ -566,6 +570,34 @@ static BOOL download_checked(const wchar_t *url, const wchar_t *dest, const char
     }
     BCryptDestroyHash(hash);
     BCryptCloseAlgorithmProvider(alg, 0);
+    return ok;
+}
+
+/* After a failed try: TRUE once the pause before the next one is over,
+ * FALSE when there's none left (or the user cancelled). */
+static BOOL retry_wait(int *tries)
+{
+    static const DWORD delays[] = {2000, 5000, 10000};
+    if (!transient || *tries >= (int)ARRAYSIZE(delays))
+        return FALSE;
+    for (DWORD waited = 0; waited < delays[*tries]; waited += 100) {
+        if (cancelled)
+            return FALSE;
+        Sleep(100);
+    }
+    ++*tries;
+    return !cancelled;
+}
+
+/* Downloads url into dest, checking its sha256 (lowercase hex); tried
+ * again from the start after a dropped connection. */
+static BOOL download_checked(const wchar_t *url, const wchar_t *dest, const char *sum, progress_fn progress)
+{
+    BOOL ok;
+    int tries = 0;
+    do
+        ok = download_once(url, dest, sum, progress);
+    while (!ok && retry_wait(&tries));
     return ok;
 }
 
@@ -739,13 +771,17 @@ static BOOL fetch_bootstrap(void)
         fail(L"%ls: %ls", url, describe(GetLastError()));
         return FALSE;
     }
-    HANDLE out = CreateFileW(temp_script, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-    if (out == INVALID_HANDLE_VALUE) {
-        fail(L"%ls: %ls", temp_script, describe(GetLastError()));
-        return FALSE;
-    }
-    BOOL ok = fetch(url, out, NULL, NULL);
-    CloseHandle(out);
+    BOOL ok;
+    int tries = 0;
+    do {
+        HANDLE out = CreateFileW(temp_script, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+        if (out == INVALID_HANDLE_VALUE) {
+            fail(L"%ls: %ls", temp_script, describe(GetLastError()));
+            return FALSE;
+        }
+        ok = fetch(url, out, NULL, NULL);
+        CloseHandle(out);
+    } while (!ok && retry_wait(&tries));
     return ok;
 }
 

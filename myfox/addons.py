@@ -79,8 +79,7 @@ def fetch_themes(profile_dir: Path, local_dir: str | None = None, current: str |
         return current, []
     for addon_id, filename in _THEME_FILES.items():
         try:
-            with urllib.request.urlopen(net.request(version.asset_url(TWEAKS_REPO, tag, filename)),
-                                        timeout=net.TIMEOUT) as resp:
+            with net.urlopen(net.request(version.asset_url(TWEAKS_REPO, tag, filename))) as resp:
                 dests[addon_id].write_bytes(resp.read())
         except (urllib.error.URLError, OSError):
             missing.append(addon_id)
@@ -131,7 +130,7 @@ def pkg_install_hint() -> str | None:
 def addon_guid(slug: str) -> str | None:
     url = f"https://addons.mozilla.org/api/v5/addons/addon/{slug}/"
     try:
-        with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
+        with net.urlopen(net.request(url)) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, json.JSONDecodeError):
         return None
@@ -143,7 +142,7 @@ def addon_fetch(slug: str, out: Path) -> bool:
     doing here."""
     url = f"https://addons.mozilla.org/firefox/downloads/latest/{slug}/addon-latest.xpi"
     try:
-        with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
+        with net.urlopen(net.request(url)) as resp:
             data = resp.read()
     except (urllib.error.URLError, OSError):
         return False

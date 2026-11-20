@@ -16,7 +16,6 @@ import re
 import shutil
 import tarfile
 import tempfile
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -65,7 +64,7 @@ def install(release: Release) -> str:
     Raises OSError on failure, leaving the current package in place."""
     dest = paths.share_dir() / "myfox"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(net.request(release.archive_url), timeout=net.TIMEOUT) as resp:
+    with net.urlopen(net.request(release.archive_url)) as resp:
         data = resp.read()
     with tempfile.TemporaryDirectory(dir=dest.parent, prefix=".core-") as tmp:
         archive = Path(tmp) / ARCHIVE

@@ -13,8 +13,6 @@ import subprocess
 import tarfile
 import tempfile
 import time
-import urllib.error
-import urllib.request
 from configparser import ConfigParser
 from pathlib import Path
 
@@ -143,7 +141,7 @@ def dir_claim_state(path: Path) -> str:
 def fetch_lang_names() -> dict[str, tuple[str, str]]:
     """code -> (English name, native name), straight from Mozilla's own
     JSON – no scraping. Native falls back to English if ever missing."""
-    with urllib.request.urlopen(net.request(LANGUAGES_URL), timeout=net.TIMEOUT) as resp:
+    with net.urlopen(net.request(LANGUAGES_URL)) as resp:
         raw = json.loads(resp.read().decode("utf-8"))
     return {code: (info["English"], info.get("native") or info["English"]) for code, info in raw.items()}
 
@@ -151,7 +149,7 @@ def fetch_lang_names() -> dict[str, tuple[str, str]]:
 def latest_versions() -> dict[str, str]:
     """channel -> the version its tarball has now ("158.0.1", "159.0b5").
     Raises OSError when it can't be asked."""
-    with urllib.request.urlopen(net.request(VERSIONS_URL), timeout=net.TIMEOUT) as resp:
+    with net.urlopen(net.request(VERSIONS_URL)) as resp:
         try:
             raw = json.loads(resp.read().decode("utf-8"))
         except ValueError as exc:
@@ -178,7 +176,7 @@ def resolve_download(arch: str, lang: str, channel: str) -> tuple[str, str]:
     """Follows the download.mozilla.org redirect without downloading the
     tarball – gives the real file URL and the version parsed out of it."""
     req = net.request(_download_url(arch, lang, channel), method="HEAD")
-    with urllib.request.urlopen(req, timeout=net.TIMEOUT) as resp:
+    with net.urlopen(req) as resp:
         effective_url = resp.geturl()
     # .../firefox-158.0.tar.xz; Windows: .../releases/158.0/win64/ru/Firefox%20Setup%20158.0.exe
     m = re.search(r"firefox-([^/]+)\.tar", effective_url) or re.search(r"/releases/([^/]+)/", effective_url)

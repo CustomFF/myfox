@@ -1,12 +1,15 @@
-"""Shared urllib.request bits: the User-Agent, the network timeout and the
-download that keeps reporting while the network is silent."""
+"""Shared urllib.request bits: the User-Agent, the network timeout, retries
+over a flaky network and the download that keeps reporting while the
+network is silent."""
 
 from __future__ import annotations
 
+import http.client
 import os
 import queue
 import socket
 import threading
+import time
 import urllib.error
 import urllib.request
 from typing import BinaryIO, Callable
@@ -16,6 +19,8 @@ from . import i18n
 USER_AGENT = "myfox"
 # Seconds without an answer before a request gives up.
 TIMEOUT = 20
+# Pauses before each new try after a transient failure.
+RETRY_DELAYS = (2, 5, 10)
 
 
 def _fetch_missing_roots() -> None:
@@ -53,6 +58,31 @@ def request(url: str, *, method: str | None = None, headers: dict[str, str] | No
     return urllib.request.Request(url, headers=hdrs, method=method)
 
 
+def transient(exc: BaseException) -> bool:
+    """A failure worth another try: name resolution (getaddrinfo 11002 is
+    "try again"), a dropped or timed-out connection, a server error."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code >= 500 or exc.code == 429
+    if isinstance(exc, urllib.error.URLError):
+        exc = exc.reason
+    return isinstance(exc, (socket.gaierror, ConnectionError, TimeoutError, socket.timeout,
+                            http.client.IncompleteRead))
+
+
+def urlopen(req: urllib.request.Request | str):
+    """urllib.request.urlopen with MyFox's timeout, tried again after a
+    transient failure."""
+    if isinstance(req, str):
+        req = request(req)
+    for delay in RETRY_DELAYS + (None,):
+        try:
+            return urllib.request.urlopen(req, timeout=TIMEOUT)
+        except Exception as exc:
+            if delay is None or not transient(exc):
+                raise
+        time.sleep(delay)
+
+
 def download(url: str, out: BinaryIO, on_data: Callable[[int, int | None], None] | None = None,
              on_wait: Callable[[int], None] | None = None) -> None:
     """Writes `url` into `out`. The network is read in a thread, so while
@@ -70,16 +100,30 @@ def download(url: str, out: BinaryIO, on_data: Callable[[int, int | None], None]
                 pass
 
     def read() -> None:
-        try:
-            with urllib.request.urlopen(request(url), timeout=TIMEOUT) as resp:
-                put(("total", int(resp.headers.get("Content-Length") or 0) or None))
-                while not stop.is_set():
-                    data = resp.read(64 * 1024)
-                    put(("data", data))
-                    if not data:
-                        return
-        except BaseException as exc:  # handed to the caller's thread
-            put(("error", exc))
+        got, retries = 0, list(RETRY_DELAYS)
+        while not stop.is_set():
+            try:
+                # After a drop, on from where it stopped.
+                req = request(url, headers={"Range": f"bytes={got}-"} if got else None)
+                with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                    length = int(resp.headers.get("Content-Length") or 0) or None
+                    if got and getattr(resp, "status", 206) != 206:
+                        got = 0  # the server sends it all again
+                        put(("restart", None))
+                    put(("total", length + got if length and got else length))
+                    while not stop.is_set():
+                        data = resp.read(64 * 1024)
+                        put(("data", data))
+                        if not data:
+                            return
+                        got += len(data)
+                        retries = list(RETRY_DELAYS)  # it moves: a later drop gets all tries again
+            except BaseException as exc:  # handed to the caller's thread
+                if not (isinstance(exc, Exception) and transient(exc) and retries):
+                    put(("error", exc))
+                    return
+                put(("retry", None))
+                time.sleep(retries.pop(0))
 
     threading.Thread(target=read, daemon=True).start()
     total, done, waited = None, 0, 0
@@ -102,7 +146,13 @@ def download(url: str, out: BinaryIO, on_data: Callable[[int, int | None], None]
                 if isinstance(reason, (TimeoutError, socket.timeout)):
                     raise TimeoutError(i18n.t("err_network_silent", TIMEOUT)) from value
                 raise value
-            if kind == "total":
+            if kind == "retry":
+                continue
+            if kind == "restart":
+                out.seek(0)
+                out.truncate()
+                done = 0
+            elif kind == "total":
                 total = value
             elif not value:
                 return

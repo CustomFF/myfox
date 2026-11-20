@@ -16,7 +16,6 @@ import os
 import shutil
 import tarfile
 import tempfile
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -94,7 +93,7 @@ def pin_note(state) -> str | None:
 
 
 def _download(url: str) -> bytes:
-    with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
+    with net.urlopen(net.request(url)) as resp:
         return resp.read()
 
 

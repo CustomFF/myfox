@@ -25,7 +25,7 @@ TWEAKS_TAG_RE = re.compile(r"^\d+\.\d+$")
 
 def _fetch_refs(repo: str) -> bytes:
     url = f"https://github.com/{repo}.git/info/refs?service=git-upload-pack"
-    with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
+    with net.urlopen(net.request(url)) as resp:
         return resp.read()
 
 

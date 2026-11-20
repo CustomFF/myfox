@@ -20,7 +20,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -125,7 +124,7 @@ def _fetch(name: str, sha256: str) -> bytes:
     if local:
         data = (Path(local) / name).read_bytes()
     else:
-        with urllib.request.urlopen(net.request(f"{RELEASE_URL}/{name}"), timeout=net.TIMEOUT) as resp:
+        with net.urlopen(net.request(f"{RELEASE_URL}/{name}")) as resp:
             data = resp.read()
     if hashlib.sha256(data).hexdigest() != sha256:
         raise RuntimeError(f"{name}: checksum mismatch")

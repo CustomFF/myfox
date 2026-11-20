@@ -22,10 +22,12 @@ import json
 import locale
 import os
 import re
+import socket
 import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -34,6 +36,7 @@ REPO = "CustomFF/myfox"
 CORE_ASSET = "myfox-core.tar.gz"
 # Seconds without an answer before a request gives up (myfox.net.TIMEOUT).
 TIMEOUT = 20
+RETRY_DELAYS = (2, 5, 10)
 
 _MESSAGES = {
     "en": {
@@ -105,12 +108,29 @@ def _request(url: str) -> urllib.request.Request:
     return urllib.request.Request(url, headers={"User-Agent": "myfox-bootstrap"})
 
 
+def _fetch(url: str, head: bool = False) -> bytes:
+    """The body of url, tried again after a transient failure (a DNS
+    hiccup, a dropped connection, a server error), as myfox.net does."""
+    for delay in RETRY_DELAYS + (None,):
+        try:
+            with urllib.request.urlopen(_request(url), timeout=TIMEOUT) as resp:
+                return b"" if head else resp.read()
+        except Exception as exc:
+            reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+            if isinstance(exc, urllib.error.HTTPError):
+                transient = exc.code >= 500 or exc.code == 429
+            else:
+                transient = isinstance(reason, (socket.gaierror, ConnectionError, TimeoutError, socket.timeout))
+            if delay is None or not transient:
+                raise
+        time.sleep(delay)
+
+
 def _core_tags():
     """core-* tags, newest first, from the repo's git refs: GitHub's API
     allows only 60 requests an hour per address."""
     url = f"https://github.com/{REPO}.git/info/refs?service=git-upload-pack"
-    with urllib.request.urlopen(_request(url), timeout=TIMEOUT) as resp:
-        data = resp.read().decode("utf-8", "replace")
+    data = _fetch(url).decode("utf-8", "replace")
     tags = set(re.findall(r"[0-9a-f]{40} refs/tags/(core-[^\s^]+)", data))
     return sorted(tags, key=lambda tag: [int(n) for n in re.findall(r"\d+", tag)], reverse=True)
 
@@ -124,8 +144,8 @@ def _core_url():
         url = f"https://github.com/{REPO}/releases/download/{tag}/{CORE_ASSET}"
         try:
             # A tag is pushed a minute before its release has the archive.
-            with urllib.request.urlopen(_request(url), timeout=TIMEOUT):
-                return url, tag
+            _fetch(url, head=True)
+            return url, tag
         except urllib.error.HTTPError as exc:
             if exc.code != 404:
                 raise
@@ -137,8 +157,7 @@ def fetch_core(dest: Path) -> str:
     url, tag = _core_url()
     archive = dest / CORE_ASSET
     if "://" in url:
-        with urllib.request.urlopen(_request(url), timeout=TIMEOUT) as resp:
-            archive.write_bytes(resp.read())
+        archive.write_bytes(_fetch(url))
     else:
         archive.write_bytes(Path(url).read_bytes())
     with tarfile.open(archive) as tf:

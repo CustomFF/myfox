@@ -148,7 +148,7 @@ def latest_ddblm_release() -> DdblmRelease | None:
         return None
     url = f"{DDBLM_RAW}/{sha}/docs/blm_panel.css"
     try:
-        with urllib.request.urlopen(net.request(url), timeout=net.TIMEOUT) as resp:
+        with net.urlopen(net.request(url)) as resp:
             first = resp.readline().decode("utf-8", "replace")
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
@@ -171,7 +171,7 @@ def _ddblm_fetch(rel: str, out: Path, local_dir: str | None, ref: str = DDBLM_BR
             shutil.copy2(src, out)
             return True
     try:
-        with urllib.request.urlopen(net.request(f"{DDBLM_RAW}/{ref}/{rel}"), timeout=net.TIMEOUT) as resp:
+        with net.urlopen(net.request(f"{DDBLM_RAW}/{ref}/{rel}")) as resp:
             out.write_bytes(resp.read())
         return True
     except (urllib.error.URLError, OSError):
