@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.4 – 2026-11-20
+
+- Windows: installing with PowerShell (get.ps1) also tries the downloads again over a flaky network
+
 ## 1.7.3 – 2026-11-20
 
 - The install form explains its fields: hover over a row in the window, or see the line under the form for the field you're on in the terminal
