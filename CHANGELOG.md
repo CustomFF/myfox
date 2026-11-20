@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.3 – 2026-11-20
+
+- The install form explains its fields: hover over a row in the window, or see the line under the form for the field you're on in the terminal
+- Choosing a folder: in the terminal the chooser has a path field to type or paste a path into (Enter goes there); on Windows the folder window has an address bar and a folder field instead of a bare tree
+- While the folder window is open the install form waits: it can no longer be started without the folder
+- Downloads ride out a flaky network: a failed name lookup, a dropped connection or a server error is tried again a few times, and the Firefox download goes on from where it broke instead of failing. This covers the installer scripts and MyFox-Setup.exe too
+- Uninstalling shows its progress while Firefox and the profile are deleted, which takes a while on Windows
+
 ## 1.7.2 – 2026-11-19
 
 - Windows: cancelling MyFox-Setup.exe while it downloads stops the download and leaves nothing behind in %LOCALAPPDATA%\myfox
