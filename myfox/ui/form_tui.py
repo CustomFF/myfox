@@ -277,7 +277,16 @@ class _FormDialog(BoxDialog):
         return None, None
 
 
-ACTION_OPEN, ACTION_UP = 1100, 1101  # outside picotui's reserved 1000-1003
+ACTION_OPEN, ACTION_UP, ACTION_GO = 1100, 1101, 1102  # outside picotui's reserved 1000-1003
+
+
+class _PathEntry(_Entry):
+    """The chooser's path field: Enter goes to the path typed or pasted."""
+
+    def handle_key(self, key):
+        if key == KEY_ENTER:
+            return ACTION_GO
+        return super().handle_key(key)
 
 
 class _DirList(WListBox):
@@ -343,9 +352,16 @@ def _nearest_dir(raw: str) -> Path:
     return path
 
 
+def _typed_path(raw: str) -> Path | None:
+    path = Path(os.path.expanduser(raw.strip())) if raw.strip() else None
+    return path if path is not None and path.is_absolute() else None
+
+
 def pick_dir(start: str, title: str) -> str | None:
     """A directory chooser dialog, starting from the nearest existing
-    directory of `start`. Returns the chosen path, None on cancel."""
+    directory of `start`, with the path in a field above the list to type
+    or paste one into. Returns the chosen path (the field's, if it was
+    edited), None on cancel."""
     from picotui.screen import Screen
 
     cur, came_from = _nearest_dir(start), None
@@ -354,8 +370,8 @@ def pick_dir(start: str, title: str) -> str | None:
     while True:
         x, y = _centered(w, h)
         d = _FormDialog(x, y, w, h, title=title)
-        shown = str(cur) if len(str(cur)) <= w - 4 else "…" + str(cur)[-(w - 5):]
-        d.add(2, 1, _Label(shown, w - 4))
+        path_entry = _PathEntry(w - 4, str(cur))
+        d.add(2, 1, path_entry)
         names = _subdirs(cur)
         dirs = _DirList(w - 4, h - 5, names)
         d.add(2, 2, dirs)
@@ -369,9 +385,12 @@ def pick_dir(start: str, title: str) -> str | None:
         _set_focus(d, dirs)
 
         res = d.loop()
+        typed = _typed_path(path_entry.get())
         if res == ACTION_OK:
-            return str(cur)
-        if res == ACTION_OPEN and dirs.value != "..":
+            return str(typed if typed is not None else cur)
+        if res == ACTION_GO:
+            cur, came_from = _nearest_dir(str(typed)) if typed is not None else cur, None
+        elif res == ACTION_OPEN and dirs.value != "..":
             cur, came_from = cur / dirs.value, None
         elif res in (ACTION_OPEN, ACTION_UP) and cur.parent != cur:
             cur, came_from = cur.parent, cur.name

@@ -269,6 +269,17 @@ class PickDirTests(unittest.TestCase):
     def test_escape_cancels(self):
         self.assertIsNone(self._pick([KEY_ESC]))
 
+    def test_a_pasted_path_is_gone_to_with_enter(self):
+        beta = os.path.join(self.root, "beta")
+        # list -> path field (Shift+Tab), paste, Enter: the list shows beta; Tab -> Select
+        keys = [KEY_SHIFT_TAB, beta.encode(), KEY_ENTER, KEY_TAB, KEY_ENTER]
+        self.assertEqual(self._pick(keys), beta)
+
+    def test_select_takes_a_typed_path_as_it_is(self):
+        new = os.path.join(self.root, "alpha", "new")  # not there yet: the form creates it
+        keys = [KEY_SHIFT_TAB, new.encode(), KEY_TAB, KEY_TAB, KEY_ENTER]  # path -> list -> Select
+        self.assertEqual(self._pick(keys), new)
+
     def test_browse_button_fills_the_form(self):
         form = InstallForm(langs=LANGS, profiles=[])
         form.answers.install_dir = os.path.join(self.root, "alpha")

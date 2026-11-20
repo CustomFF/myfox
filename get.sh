@@ -10,7 +10,13 @@ if ! command -v python3 >/dev/null 2>&1; then
     echo "MyFox needs python3." >&2
     exit 1
 fi
-code=$(curl -fsSL "$url")
+# Tried again over a flaky network: curl's own --retry skips DNS failures
+# and --retry-all-errors is too new for older systems.
+for delay in 2 5 10 ""; do
+    code=$(curl -fsSL "$url") && break
+    [ -n "$delay" ] || exit 1
+    sleep "$delay"
+done
 
 # Piped into sh, stdin is this script: hand the terminal to the installer.
 if (exec </dev/tty) 2>/dev/null; then
