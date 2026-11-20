@@ -10,6 +10,7 @@ MyFox copy, if kept, is signed out.
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 
@@ -118,15 +119,17 @@ def run(state: State, progress: Progress, remove_profile: bool = False, restore_
         profiles.unpin_install(state.get("install_hash"))
     removing_profile = remove_profile and bool(created)
     if removing_profile:
-        progress(i18n.t("progress_uninstall_profile_files"), 0.25)
-        for profile_dir in created:
-            shutil.rmtree(profile_dir, ignore_errors=True)
+        message = i18n.t("progress_uninstall_profile_files")
+        step = 0.3 / len(created)
+        for i, profile_dir in enumerate(created):
+            _remove_tree(profile_dir, lambda f: progress(message, 0.1 + step * (i + f)))
     progress(i18n.t("progress_uninstall_firefox"), 0.4)
     if paths.WINDOWS:
         from . import winshell
 
         winshell.remove_firefox_traces(install_dir, state.get("install_hash"))
-    shutil.rmtree(install_dir, ignore_errors=True)
+    message = i18n.t("progress_uninstall_firefox")
+    _remove_tree(install_dir, lambda f: progress(message, 0.4 + 0.4 * f))
     progress(i18n.t("progress_uninstall_myfox"), 0.8)
     desktop.remove_entry()
     if state.get("desktop_shortcut"):
@@ -137,3 +140,25 @@ def run(state: State, progress: Progress, remove_profile: bool = False, restore_
     state.clear()
     state.delete_file()
     progress(i18n.t("uninstall_done_profile" if removing_profile else "uninstall_done"), 1.0)
+
+
+def _remove_tree(top: Path, on_fraction) -> None:
+    """shutil.rmtree, telling how far it got: deleting a Firefox takes long
+    on Windows (Defender looks at every file), the bar shouldn't stand."""
+    entries = []
+    for root, dirs, files in os.walk(top, topdown=False):
+        entries += [os.path.join(root, name) for name in files]
+        entries += [os.path.join(root, name) for name in dirs]
+    total = len(entries) or 1
+    for done, entry in enumerate(entries, 1):
+        try:
+            if os.path.isdir(entry) and not os.path.islink(entry):
+                os.rmdir(entry)
+            else:
+                os.unlink(entry)
+        except OSError:
+            pass  # read-only or busy: rmtree below has the last word
+        if done % 50 == 0:
+            on_fraction(done / total)
+    shutil.rmtree(top, ignore_errors=True)
+    on_fraction(1.0)

@@ -163,6 +163,21 @@ def task_plain_run(t) -> bool:
         return task_plain.run(t, confirmed=True)
 
 
+class RemoveTreeTests(unittest.TestCase):
+    def test_removes_everything_and_reports_how_far_it_got(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            top = Path(tmp) / "firefox"
+            for i in range(120):
+                (top / f"d{i % 3}").mkdir(parents=True, exist_ok=True)
+                (top / f"d{i % 3}" / f"f{i}").write_text("x")
+            fractions = []
+            uninstall._remove_tree(top, fractions.append)
+            self.assertFalse(top.exists())
+        self.assertEqual(fractions, sorted(fractions))
+        self.assertGreater(len(fractions), 2)
+        self.assertEqual(fractions[-1], 1.0)
+
+
 class UninstallRestoreSyncTests(IsolatedStateCase):
     """An import that moved the account: uninstall moves it back."""
 
