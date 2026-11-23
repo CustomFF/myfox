@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.5 – 2026-11-23
+
+- Importing a profile without its Firefox account keeps the choice of which settings not to sync
+
 ## 1.7.4 – 2026-11-20
 
 - Windows: installing with PowerShell (get.ps1) also tries the downloads again over a flaky network
