@@ -40,11 +40,13 @@ _CHUNK = 1024 * 1024
 
 
 def _is_sync_pref(line: str) -> bool:
-    """The account's and this device's identity; which engines to sync is
-    the user's choice and stays."""
+    """The account's and this device's identity; which engines and prefs to
+    sync is the user's choice and stays."""
     if not line.startswith('user_pref("services.sync.'):
         return False
-    return not line.startswith(('user_pref("services.sync.engine.', 'user_pref("services.sync.declinedEngines"'))
+    return not line.startswith((
+        'user_pref("services.sync.engine.', 'user_pref("services.sync.declinedEngines"',
+        'user_pref("services.sync.prefs.sync.'))
 
 
 def _files(src: Path, skip: set[str]) -> list[Path]:

@@ -355,7 +355,8 @@ Firefox, действие заблокировано (проверка раз в
   `cache2`, `shader-cache`, `safebrowsing`…), дампов падений, `chrome/` (твики приносят свой) и наших
   меток; только обычные файлы и ссылки. Перед копированием – проверка места; прогресс по байтам,
   остановка – исключением из него. Синхронизация: `none` – без `signedInUser.json`, `weave/` и
-  `services.sync.*` (кроме выбора движков `services.sync.engine.*`, `declinedEngines`); `copy` – как
+  `services.sync.*` (кроме выбора движков `services.sync.engine.*`, `declinedEngines` и настроек
+  `services.sync.prefs.sync.*`); `copy` – как
   есть; `move` – как есть, а исходный выходит из аккаунта (`move_sync_out`): `signedInUser.json` и
   `prefs.js` копируются рядом в `*.myfox-backup`, затем аккаунт и sync-настройки убираются.
   `restore_sync` возвращает аккаунт и sync-строки из бэкапа в текущий `prefs.js` (остальное, что

@@ -18,6 +18,7 @@ PREFS = (
     'user_pref("services.sync.username", "me@example.org");\n'
     'user_pref("services.sync.engine.passwords", false);\n'
     'user_pref("services.sync.declinedEngines", "passwords");\n'
+    'user_pref("services.sync.prefs.sync.browser.uiCustomization.state", false);\n'
 )
 
 
@@ -56,6 +57,7 @@ class ImporterTests(unittest.TestCase):
         self.assertNotIn("services.sync.client.GUID", prefs)
         self.assertNotIn("services.sync.username", prefs)
         self.assertIn('"services.sync.engine.passwords", false', prefs)
+        self.assertIn('"services.sync.prefs.sync.browser.uiCustomization.state", false', prefs)
         self.assertIn("browser.startup.page", prefs)
         self.assertEqual((self.src / "prefs.js").read_text(encoding="utf-8"), PREFS)  # the source is only read
 
