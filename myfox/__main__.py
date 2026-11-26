@@ -44,6 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     reinstall_parser = sub.add_parser("reinstall", parents=[common], help=i18n.t("cmd_reinstall"))
     reinstall_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
+    reinstall_parser.add_argument("--beta", action="store_true", help="switch from stable Firefox to Firefox Beta")
     uninstall_parser = sub.add_parser("uninstall", parents=[common], help=i18n.t("cmd_uninstall"))
     uninstall_parser.add_argument("--gui", action="store_true", help="graphical window instead of the terminal")
     uninstall_parser.add_argument("--remove-profile", action="store_true",
@@ -141,11 +142,11 @@ def cmd_uninstall(state: State, noninteractive: bool, gui: bool = False, remove_
     return 0 if task.show(uninstall.build(state, remove_profile, restore_sync), gui=gui, noninteractive=noninteractive) else 1
 
 
-def cmd_reinstall(state: State, noninteractive: bool = False, gui: bool = False) -> int:
+def cmd_reinstall(state: State, noninteractive: bool = False, gui: bool = False, beta: bool = False) -> int:
     if not state.get("install_dir"):
         _not_installed()
         return 1
-    return 0 if task.show(reinstall.build(state), gui=gui, noninteractive=noninteractive) else 1
+    return 0 if task.show(reinstall.build(state, beta), gui=gui, noninteractive=noninteractive) else 1
 
 
 def cmd_refresh(state: State, force: bool, gui: bool, noninteractive: bool) -> int:
@@ -165,7 +166,7 @@ def print_top_help(parser: argparse.ArgumentParser) -> None:
     print(f"  myfox browser [firefox args...]   {i18n.t('cmd_browser')}")
     print(f"  myfox browser --myfox-restart     {i18n.t('cmd_restart')}")
     print(f"  myfox refresh [--force] [--gui] [--check]\n                                    {i18n.t('cmd_refresh')}")
-    print(f"  myfox reinstall [--gui]           {i18n.t('cmd_reinstall')}")
+    print(f"  myfox reinstall [--beta] [--gui]  {i18n.t('cmd_reinstall')}")
     print(f"  myfox uninstall [--remove-profile] [--no-restore-sync] [--gui]\n"
           f"                                    {i18n.t('cmd_uninstall')}")
     print(f"  myfox command [on|off] [--gui]    {i18n.t('cmd_command')}")
@@ -247,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
             return refresh.run_json(state, force=args.force)
         return cmd_refresh(state, force=args.force, gui=args.gui, noninteractive=noninteractive)
     if args.command == "reinstall":
-        return cmd_reinstall(state, noninteractive, gui=args.gui)
+        return cmd_reinstall(state, noninteractive, gui=args.gui, beta=args.beta)
     if args.command == "command":
         if not state.get("install_dir"):
             if args.json:

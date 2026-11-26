@@ -1,5 +1,5 @@
 """`myfox reinstall`: the tweaks (the installed release) and Firefox (same
-language and channel) downloaded again, Firefox swapped in once complete,
+language and channel, or stable switched to beta) downloaded again, Firefox swapped in once complete,
 then the wrapper, shortcut, profile pin and tweaks put back. The profile itself (bookmarks, history, settings) stays.
 """
 
@@ -17,9 +17,12 @@ from .installer import Stages, firefox_progress
 from .state import State
 
 
-def build(state: State) -> task_mod.Task:
+def build(state: State, beta: bool = False) -> task_mod.Task:
     install_dir = Path(state.get("install_dir"))
     channel = {"stable": "wizard_channel_stable", "beta": "wizard_channel_beta"}.get(state.get("channel", "stable"))
+    # Only that way: back to stable would hand the profile to an older Firefox.
+    to_beta = task_mod.Option(i18n.t("reinstall_to_beta"), beta) if state.get("channel", "stable") == "stable" else None
+    command_line = "myfox reinstall -y" + (" --beta" if to_beta and beta else "")
     return task_mod.Task(
         title=i18n.t("reinstall_title"),
         subtitle=i18n.t("reinstall_subtitle_tweaks" if state.get("tweaks", True) else "reinstall_subtitle"),
@@ -29,15 +32,17 @@ def build(state: State) -> task_mod.Task:
             (i18n.t("form_dir"), paths.shown(install_dir)),
         ],
         lines=[i18n.t("reinstall_keeps_profile")],
+        options=[to_beta] if to_beta else [],
         action=i18n.t("reinstall_action"),
-        unconfirmed=[i18n.t("needs_yes_reinstall", "myfox reinstall -y")],
-        run=lambda progress: run(state, progress),
+        unconfirmed=[i18n.t("needs_yes_reinstall", command_line)]
+        + ([i18n.t("needs_yes_reinstall_beta", command_line + " --beta")] if to_beta and not beta else []),
+        run=lambda progress: run(state, progress, beta=bool(to_beta and to_beta.value)),
         cancellable=True,
         recheck=lambda: i18n.t("err_firefox_running") if firefox.running_pids(install_dir) else None,
     )
 
 
-def run(state: State, progress: Progress) -> None:
+def run(state: State, progress: Progress, beta: bool = False) -> None:
     install_dir = Path(state.get("install_dir"))
     profile_dir = state.get("profile_dir")
     with_tweaks = state.get("tweaks", True)
@@ -56,8 +61,8 @@ def run(state: State, progress: Progress) -> None:
     # Firefox alone.
     new = Path(tempfile.mkdtemp(dir=install_dir.parent, prefix=f".{install_dir.name}-new-"))
     try:
-        version = firefox.install_tarball(new, state.get("lang", "en-US"), state.get("channel", "stable"),
-                                          **firefox_progress(stages))
+        channel = "beta" if beta else state.get("channel", "stable")
+        version = firefox.install_tarball(new, state.get("lang", "en-US"), channel, **firefox_progress(stages))
         # Swapped in: from here on, stopping would leave it half set up.
         stages = Stages(settled(progress), weights)
         old = Path(tempfile.mkdtemp(dir=install_dir.parent, prefix=f".{install_dir.name}-old-")) / "firefox"
@@ -78,5 +83,6 @@ def run(state: State, progress: Progress) -> None:
         apply.reapply_tweaks(install_dir, sources.myfox_dirs(state), state)
 
     state.set("firefox_version", version)
+    state.set("channel", channel)
     state.save()
     settled(progress)(i18n.t("reinstall_done", version), 1.0)

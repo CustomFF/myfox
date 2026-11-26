@@ -338,6 +338,28 @@ class ReinstallTests(IsolatedStateCase):
             self.assertEqual(State().get("install_hash"), "HASH")
             self.assertEqual(State().get("firefox_version"), "158.0")
 
+    def test_switches_stable_to_beta_on_request(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            state, _install_dir = self._installed(d, channel="stable")
+            with mock.patch("myfox.firefox.install_tarball", side_effect=_fake_tarball) as install:
+                self.assertEqual(cli.cmd_reinstall(state, noninteractive=True, beta=True), 0)
+            self.assertEqual(install.call_args.args[2], "beta")
+            self.assertEqual(State().get("channel"), "beta")
+
+    def test_stable_stays_stable_without_the_switch(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            state, _install_dir = self._installed(d, channel="stable")
+            self.assertEqual(len(reinstall.build(state).options), 1)
+            with mock.patch("myfox.firefox.install_tarball", side_effect=_fake_tarball) as install:
+                self.assertEqual(cli.cmd_reinstall(state, noninteractive=True), 0)
+            self.assertEqual(install.call_args.args[2], "stable")
+            self.assertEqual(State().get("channel"), "stable")
+
+    def test_beta_offers_no_way_back_to_stable(self):
+        with tempfile.TemporaryDirectory() as d:
+            state, _install_dir = self._installed(d, channel="beta")
+            self.assertEqual(reinstall.build(state, beta=True).options, [])
+
     def test_failed_download_keeps_the_current_firefox(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
              contextlib.redirect_stderr(io.StringIO()):
