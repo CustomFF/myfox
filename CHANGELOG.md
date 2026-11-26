@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.6 – 2026-11-26
+
+- Reinstalling can switch a stable Firefox to Firefox Beta: a checkbox in the reinstall window, or `myfox reinstall --beta`. The profile, the default browser and the file associations stay
+- Bookmarklet styling updated from about:myfox is no longer offered again by `myfox refresh`
+
 ## 1.7.5 – 2026-11-23
 
 - Importing a profile without its Firefox account keeps the choice of which settings not to sync
