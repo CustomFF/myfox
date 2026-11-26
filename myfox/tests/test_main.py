@@ -360,6 +360,60 @@ class ReinstallTests(IsolatedStateCase):
             state, _install_dir = self._installed(d, channel="beta")
             self.assertEqual(reinstall.build(state, beta=True).options, [])
 
+    def test_a_running_firefox_blocks_unless_it_may_be_restarted(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch("myfox.firefox.running_pids", return_value=[42]):
+            state, _install_dir = self._installed(d, channel="beta", tweaks_version="161.2")
+            task = reinstall.build(state)
+            self.assertEqual(task.blocked, i18n.t("err_firefox_running_restart"))
+            task.options[0].value = True
+            task.rechecked()
+            self.assertIsNone(task.blocked)
+            self.assertIsNone(reinstall.build(state, restart=True).blocked)
+            # Tweaks too old to close Firefox: only closing it by hand.
+            state.set("tweaks_version", "160.1")
+            self.assertEqual(reinstall.build(state).options, [])
+            self.assertEqual(reinstall.build(state, restart=True).blocked, i18n.t("err_firefox_running"))
+
+    def test_restart_closes_firefox_after_the_download_and_starts_it_again(self):
+        events = []
+
+        def fake_tarball(dest, lang, channel, **_kwargs):
+            events.append("download")
+            return _fake_tarball(dest, lang, channel)
+
+        def fake_quit(install_dir, open_dirs, on_wait=None):
+            events.append("quit")
+            return True
+
+        def fake_reapply(*_args):
+            events.append("reapply")
+
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            profile_dir = Path(d) / "profile"
+            profile_dir.mkdir()
+            state, install_dir = self._installed(d, profile_dir=str(profile_dir), tweaks_version="161.2")
+            with mock.patch("myfox.firefox.install_tarball", side_effect=fake_tarball), \
+                 mock.patch("myfox.sources.listing", return_value=[]), \
+                 mock.patch("myfox.firefox.quit_and_wait", side_effect=fake_quit), \
+                 mock.patch("myfox.firefox.start", side_effect=lambda *a: events.append("start")), \
+                 mock.patch("myfox.profiles.pin_install", return_value="HASH"), \
+                 mock.patch("myfox.apply.reapply_tweaks", side_effect=fake_reapply):
+                self.assertEqual(cli.cmd_reinstall(state, noninteractive=True, restart=True), 0)
+            self.assertEqual(events, ["download", "quit", "reapply", "start"])
+            self.assertEqual((install_dir / "firefox").read_text(encoding="utf-8"), "new")
+
+    def test_restart_starts_firefox_again_after_a_failure(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
+             contextlib.redirect_stderr(io.StringIO()):
+            state, _install_dir = self._installed(d, tweaks_version="161.2")
+            with mock.patch("myfox.firefox.install_tarball", side_effect=_fake_tarball), \
+                 mock.patch("myfox.sources.listing", return_value=[]), \
+                 mock.patch("myfox.firefox.quit_and_wait", return_value=True), \
+                 mock.patch("myfox.desktop.write_entry", side_effect=OSError("disk full")), \
+                 mock.patch("myfox.firefox.start") as start:
+                self.assertEqual(cli.cmd_reinstall(state, noninteractive=True, restart=True), 1)
+            start.assert_called_once()
+
     def test_failed_download_keeps_the_current_firefox(self):
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
              contextlib.redirect_stderr(io.StringIO()):

@@ -49,7 +49,7 @@ myfox           ~/.local/bin/myfox → ~/.local/share/myfox/bin/myfox (sh: pytho
 ```
 
 Подкоманды `myfox` (`__main__.py`): `browser [аргументы Firefox]` (exec обёртки
-`<install>/firefox-myfox`), `refresh [--force]`, `reinstall [--beta]`, `uninstall [--remove-profile] [--no-restore-sync]`,
+`<install>/firefox-myfox`), `refresh [--force]`, `reinstall [--beta] [--restart]`, `uninstall [--remove-profile] [--no-restore-sync]`,
 `command [on|off]`, `profile …`, `tweaks [versions|use …]` (ниже), `completion bash|zsh|fish`, `help`,
 `--version`. Общие флаги: `-y` (без вопросов), `--gui` (окно). Подкоманды `install` нет:
 первая установка – только из `bootstrap.py`.
@@ -273,6 +273,11 @@ GitHub ответил, последняя. `versions` – теги твиков 
 обрыв или отмена (диалог `cancellable`) оставляют рабочий Firefox. После подмены отмена уже не
 действует (`install_form.settled`): переустановка доводится до конца. Затем метка, обёртка и ярлык; при профиле с твиками – пиннинг и
 `apply.reapply_tweaks()` с сохранёнными выборами. Профиль не трогается.
+
+Запущенный Firefox блокирует переустановку, если не отмечено «Закрыть Firefox на время переустановки и потом
+запустить снова» (`--restart`; нужны твики 160.2+ с `--myfox-quit`, иначе флажка нет). Тогда Firefox
+закрывается только после загрузки и распаковки новой копии (`firefox.closed`: все открытые профили MyFox,
+сессия сохраняется) и запускается снова в конце, также после ошибки; отмена после этой точки уже не действует.
 
 Переход со стабильного канала на бету – флажок «Перейти на Firefox Beta» в этом же диалоге (`--beta`): качается
 бета, после подмены в `state.json` записывается `channel: beta`. Название в меню берётся из самой

@@ -14,7 +14,9 @@ import tarfile
 import tempfile
 import time
 from configparser import ConfigParser
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Callable, Iterator
 
 from . import archive, i18n, net
 
@@ -321,6 +323,31 @@ def quit_and_wait(install_dir: Path, profile_dirs: list[Path] = (), on_wait=None
             on_wait()
         time.sleep(0.5)
     return True
+
+
+# The first tweaks release whose autoconfig handles --myfox-quit.
+QUIT_SINCE_TWEAKS = "160.2"
+
+
+@contextmanager
+def closed(install_dir: Path, on_wait=None, defaults: Callable[[], set[str]] = set) -> Iterator[None]:
+    """This install's Firefox closed for the work inside, and started again
+    afterwards, also after a failure, if it was running. Every MyFox
+    profile open now (each runs an instance of its own) comes back; the
+    default one (`defaults()`, read at the end: the work may change it)
+    in the usual way."""
+    from . import sources
+
+    open_dirs = [p.path for p in sources.listing(install_dir) if p.related and sources.in_use(p)]
+    was_running = quit_and_wait(install_dir, open_dirs, on_wait)
+    try:
+        yield
+    finally:
+        if was_running:
+            start(install_dir)
+            for profile_dir in open_dirs:
+                if str(profile_dir) not in defaults():
+                    start(install_dir, profile_dir)
 
 
 def start(install_dir: Path, profile_dir: Path | None = None) -> None:
