@@ -96,7 +96,10 @@ class RefreshPlan:
                 latest = release.tag if release else None
             except OSError as exc:
                 return cls(force=force, error=i18n.t("refresh_check_failed", getattr(exc, "reason", exc)))
-            t = TrackState(track, state.get(track.key), latest, release)
+            current = state.get(track.key)
+            if track.key == "ddblm_version":
+                current = apply.installed_ddblm(sources.myfox_dirs(state), current)
+            t = TrackState(track, current, latest, release)
             if t.has_update and getattr(release, "changelog_url", None):
                 try:
                     t.changes = changelog.changes_since(release.changelog_url, t.current)
@@ -178,9 +181,10 @@ def apply_updates(plan: RefreshPlan, progress: Progress) -> None:
             state.save()
         elif t.track.key == "ddblm_version":
             progress(i18n.t("progress_refresh_bookmarklets_download", tag), base)
-            current, installed = None if plan.force else state.get("ddblm_version"), state.get("ddblm_version")
+            current = installed = state.get("ddblm_version")
             for profile_dir in profile_dirs:
-                installed = apply.apply_bookmarklets(profile_dir, release=t.release, current=current)
+                installed = apply.apply_bookmarklets(profile_dir, release=t.release, current=current,
+                                                     force=plan.force)
             state.set("ddblm_version", installed)
             state.save()
         elif t.track.key == "tweaks_version":

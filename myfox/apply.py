@@ -158,6 +158,26 @@ def latest_ddblm_release() -> DdblmRelease | None:
     return DdblmRelease(f"ddblm-{m[1]}", sha) if m else None
 
 
+def profile_ddblm(profile_dir: Path) -> str | None:
+    """The ddblm version the profile's CSS carries: about:myfox can update
+    it on its own, so this, not only the recorded one, says what's there."""
+    try:
+        with (profile_dir / "chrome" / "blm_panel.css").open(encoding="utf-8", errors="replace") as f:
+            m = _DDBLM_VERSION_RE.match(f.readline())
+    except OSError:
+        return None
+    return f"ddblm-{m[1]}" if m else None
+
+
+def installed_ddblm(profile_dirs: list[Path], recorded: str | None) -> str | None:
+    """The oldest version among the profiles (an update is due while one is
+    behind); `recorded` if a profile's CSS has no stamp."""
+    found = [profile_ddblm(p) for p in profile_dirs]
+    if not found or None in found:
+        return recorded
+    return min(found)
+
+
 def ddblm_display(tag: str | None) -> str:
     """"ddblm-20261015123456" -> "2026-10-15 12:34", like the themes."""
     m = re.fullmatch(r"ddblm-(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d*", tag or "")
@@ -182,13 +202,13 @@ _ICON_URL_RE = re.compile(r'url\("panel-icons/([^"]+)\.svg"\)')
 
 
 def apply_bookmarklets(profile_dir: Path, local_dir: str | None = None, current: str | None = None,
-                       release: DdblmRelease | None = None) -> str | None:
+                       release: DdblmRelease | None = None, force: bool = False) -> str | None:
     """ddblm's CSS and icons into the profile's chrome/. Returns the ddblm
     version now there (to record; `current` when nothing new got in).
 
-    From `release` (default: the latest), skipped when that is `current`
-    and the CSS is there; all files from that one commit. If GitHub can't
-    be asked, from master, unrecorded. Unreachable ddblm is a warning for
+    From `release` (default: the latest), skipped unless `force` when that
+    is `current` or already in the CSS; all files from that one commit. If
+    GitHub can't be asked, from master, unrecorded. Unreachable ddblm is a warning for
     the caller, never a hard failure. MYFOX_DDBLM_LOCAL (a checkout, dev
     use) records nothing."""
     c_dir = profile_dir / "chrome"
@@ -203,8 +223,8 @@ def apply_bookmarklets(profile_dir: Path, local_dir: str | None = None, current:
         except OSError:
             release = None
         if release:
-            if release.tag == current and css.is_file():
-                return current
+            if not force and release.tag in (current, profile_ddblm(profile_dir)) and css.is_file():
+                return release.tag
             ref, tag = release.sha, release.tag
 
     if not _ddblm_fetch("docs/blm_panel.css", css, local_dir, ref):
