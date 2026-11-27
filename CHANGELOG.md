@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.7 – 2026-11-27
+
+- Reinstalling no longer needs Firefox closed by hand: tick «Close Firefox for the reinstall and start it again afterwards», or run `myfox reinstall --restart`. Firefox stays open while the new copy downloads and comes back with its windows and tabs
+
 ## 1.7.6 – 2026-11-26
 
 - Reinstalling can switch a stable Firefox to Firefox Beta: a checkbox in the reinstall window, or `myfox reinstall --beta`. The profile, the default browser and the file associations stay
